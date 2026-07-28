@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MANUS MAX — XAU/USD (Gold) Institutional AI Signal Platform</title>
+  <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body class="theme-obsidian">
+
+  <!-- TOP TICKER BAR -->
+  <header class="ticker-bar">
+    <div class="ticker-container">
+      <div class="ticker-item highlight-gold">
+        <span class="ticker-label"><i data-lucide="coins"></i> XAU/USD</span>
+        <span class="ticker-val" id="live-gold-price">$4,085.00</span>
+        <span class="ticker-change text-emerald" id="live-gold-change">+0.74% (+30.00)</span>
+      </div>
+      <div class="ticker-divider"></div>
+      <div class="ticker-item">
+        <span class="ticker-label">DXY (US Dollar)</span>
+        <span class="ticker-val" id="ticker-dxy">104.20</span>
+        <span class="ticker-change text-ruby" id="ticker-dxy-change">-0.42%</span>
+      </div>
+      <div class="ticker-divider"></div>
+      <div class="ticker-item">
+        <span class="ticker-label">US 10Y Yield</span>
+        <span class="ticker-val" id="ticker-us10y">4.18%</span>
+        <span class="ticker-change text-ruby">-3 bps</span>
+      </div>
+      <div class="ticker-divider"></div>
+      <div class="ticker-item">
+        <span class="ticker-label">Real Yield (10Y-CPI)</span>
+        <span class="ticker-val text-emerald" id="ticker-realyield">-0.35%</span>
+        <span class="ticker-badge badge-bullish">BULLISH FOR GOLD</span>
+      </div>
+      <div class="ticker-divider"></div>
+      <div class="ticker-item">
+        <span class="ticker-label">Geopolitical Risk (GPR)</span>
+        <span class="ticker-val text-gold" id="ticker-gpr">142.5</span>
+        <span class="ticker-badge badge-gold">HIGH RISK</span>
+      </div>
+      <div class="ticker-spacer"></div>
+      <div class="status-indicator">
+        <span class="pulse-dot"></span>
+        <span class="status-text" id="api-status-text">CONNECTING TO LIVE FEED...</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN NAVIGATION & LOGO BAR -->
+  <nav class="navbar">
+    <div class="nav-brand">
+      <div class="logo-icon">
+        <i data-lucide="cpu"></i>
+      </div>
+      <div class="logo-text">
+        <span class="brand-title">MANUS MAX <span class="badge-tag">AI 4.0</span></span>
+        <span class="brand-subtitle">Institutional XAU/USD Signal Engine</span>
+      </div>
+    </div>
+
+    <div class="nav-tabs">
+      <button class="nav-tab active" data-tab="terminal">
+        <i data-lucide="activity"></i> Signal Terminal
+      </button>
+      <button class="nav-tab" data-tab="engine">
+        <i data-lucide="brain-circuit"></i> AI Model & LSTM
+      </button>
+      <button class="nav-tab" data-tab="strategy">
+        <i data-lucide="layers"></i> 3-Pillar Strategy
+      </button>
+      <button class="nav-tab" data-tab="calculator">
+        <i data-lucide="calculator"></i> Risk & SL/TP
+      </button>
+      <button class="nav-tab" data-tab="blueprint">
+        <i data-lucide="file-code-2"></i> Blueprint & API
+      </button>
+    </div>
+
+    <div class="nav-actions">
+      <button class="btn btn-outline" id="btn-refresh-signal">
+        <i data-lucide="rotate-cw"></i> Run Inference
+      </button>
+      <button class="btn btn-gold" id="btn-quick-signal">
+        <i data-lucide="zap"></i> Active Signal
+      </button>
+    </div>
+  </nav>
+
+  <!-- MAIN CONTENT CONTAINER -->
+  <main class="main-container">
+
+    <!-- TAB 1: SIGNAL TERMINAL (CORE DASHBOARD) -->
+    <section class="tab-content active" id="tab-terminal">
+
+      <!-- HERO SIGNAL HERO CARD -->
+      <div class="signal-hero-grid">
+        <div class="glass-card main-signal-card">
+          <div class="card-header">
+            <div class="signal-type-badge signal-buy">
+              <i data-lucide="trending-up"></i>
+              <span>INSTITUTIONAL LONG SIGNAL</span>
+            </div>
+            <div class="signal-timeframe">
+              <span class="tf-badge active">H1</span>
+              <span class="tf-badge active">H4</span>
+              <span class="tf-confluence"><i data-lucide="shield-check"></i> Multi-Timeframe Confluence</span>
+            </div>
+          </div>
+
+          <div class="signal-body">
+            <div class="signal-main-stats">
+              <div class="stat-group">
+                <span class="stat-label">Instrument</span>
+                <span class="stat-value text-gold font-mono">XAU/USD</span>
+                <span class="stat-sub">Gold / US Dollar</span>
+              </div>
+              <div class="stat-group">
+                <span class="stat-label">Entry Trigger</span>
+                <span class="stat-value font-mono" id="sig-entry">$4,055.00</span>
+                <span class="stat-sub">Current Spot: <span id="sig-current-live">$4,085.00</span></span>
+              </div>
+              <div class="stat-group">
+                <span class="stat-label">Target SL (1.5x ATR)</span>
+                <span class="stat-value text-ruby font-mono" id="sig-sl">$4,043.50</span>
+                <span class="stat-sub">-115 Pips (11.50 pts)</span>
+              </div>
+              <div class="stat-group">
+                <span class="stat-label">Take Profit 1 (1:1 RR)</span>
+                <span class="stat-value text-emerald font-mono" id="sig-tp1">$4,066.50</span>
+                <span class="stat-sub">+115 Pips (Close 50% & BE)</span>
+              </div>
+              <div class="stat-group">
+                <span class="stat-label">Take Profit 2 (1:2 RR)</span>
+                <span class="stat-value text-gold font-mono" id="sig-tp2">$4,078.00</span>
+                <span class="stat-sub">+230 Pips (Runner)</span>
+              </div>
+            </div>
+
+            <!-- AI CONFIDENCE SCORE GAUGE -->
+            <div class="confidence-box">
+              <div class="gauge-ring-container">
+                <svg class="gauge-svg" viewBox="0 0 120 120">
+                  <circle class="gauge-bg" cx="60" cy="60" r="50" />
+                  <circle class="gauge-progress" cx="60" cy="60" r="50" id="gauge-circle" style="stroke-dashoffset: 30;" />
+                </svg>
+                <div class="gauge-text">
+                  <span class="gauge-val" id="gauge-score-num">91.4%</span>
+                  <span class="gauge-lbl">AI CONFIDENCE</span>
+                </div>
+              </div>
+              <div class="confidence-details">
+                <span class="confidence-tag tag-high"><i data-lucide="sparkles"></i> HIGH CONFIDENCE (&gt;85%)</span>
+                <p class="confidence-desc">Full 3-pillar confluence detected: Real Yields &lt; 0% + Bollinger Squeeze breakout above 50/200 EMA + Fresh Demand zone liquidity grab.</p>
+                <div class="pillar-bars">
+                  <div class="pillar-item">
+                    <span>Macro Alignment</span>
+                    <div class="progress-bar"><div class="bar-fill fill-emerald" style="width: 96%;"></div></div>
+                    <span class="pillar-pct">96%</span>
+                  </div>
+                  <div class="pillar-item">
+                    <span>Technical Volatility</span>
+                    <div class="progress-bar"><div class="bar-fill fill-gold" style="width: 88%;"></div></div>
+                    <span class="pillar-pct">88%</span>
+                  </div>
+                  <div class="pillar-item">
+                    <span>Smart Money Action</span>
+                    <div class="progress-bar"><div class="bar-fill fill-purple" style="width: 92%;"></div></div>
+                    <span class="pillar-pct">92%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card-footer">
+            <div class="target-horizon">
+              <i data-lucide="clock"></i>
+              <span>Predicted 300-pip move horizon: <strong>Within 4 Hours</strong></span>
+            </div>
+            <div class="footer-actions">
+              <button class="btn btn-sm btn-outline" id="btn-copy-signal"><i data-lucide="copy"></i> Copy Signal Parameters</button>
+              <button class="btn btn-sm btn-gold" id="btn-open-calc"><i data-lucide="calculator"></i> Calculate Position Size</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- LIVE TRADINGVIEW CHART (REAL-TIME) -->
+      <div class="glass-card tradingview-chart-card" id="tradingview-chart-section">
+        <div class="card-header">
+          <div class="chart-title">
+            <i data-lucide="candlestick-chart" class="text-gold"></i>
+            <span>XAU/USD Live TradingView Chart</span>
+            <span class="chart-sub">Real-time market data powered by TradingView</span>
+          </div>
+          <div class="tv-live-badge">
+            <span class="pulse-dot"></span>
+            <span>LIVE</span>
+          </div>
+        </div>
+        <div class="tradingview-widget-wrapper" id="tradingview-widget-container">
+          <!-- TradingView Widget BEGIN -->
+          <div id="tradingview_chart_embed" style="width:100%; height:520px;"></div>
+          <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+          <script type="text/javascript">
+            new TradingView.widget({
+              "autosize": true,
+              "symbol": "OANDA:XAUUSD",
+              "interval": "60",
+              "timezone": "Etc/UTC",
+              "theme": "dark",
+              "style": "1",
+              "locale": "en",
+              "toolbar_bg": "#090d16",
+              "enable_publishing": false,
+              "allow_symbol_change": true,
+              "studies": ["MASimple@tv-basicstudies", "BollingerBands@tv-basicstudies"],
+              "container_id": "tradingview_chart_embed",
+              "hide_side_toolbar": false,
+              "withdateranges": true,
+              "details": true,
+              "hotlist": false,
+              "calendar": false,
+              "show_popup_button": true,
+              "popup_width": "1200",
+              "popup_height": "650",
+              "backgroundColor": "rgba(9, 13, 22, 1)",
+              "gridColor": "rgba(255, 255, 255, 0.04)"
+            });
+          </script>
+          <!-- TradingView Widget END -->
+        </div>
+      </div>
+
+      <!-- AI TECHNICAL ENGINE CHART & DATA STREAMS -->
+      <div class="chart-and-feeds-grid">
+
+        <!-- CANVAS AI SIGNAL CHART CARD -->
+        <div class="glass-card chart-card">
+          <div class="card-header">
+            <div class="chart-title">
+              <i data-lucide="cpu" class="text-gold"></i>
+              <span>AI Signal Overlay Engine</span>
+              <span class="chart-sub">MANUS MAX Entry/SL/TP Zones • 50/200 EMA • Bollinger Bands</span>
+            </div>
+            <div class="chart-controls">
+              <div class="btn-group" id="chart-tf-buttons">
+                <button class="btn-tf" data-tf="M5">M5</button>
+                <button class="btn-tf" data-tf="M15">M15</button>
+                <button class="btn-tf active" data-tf="H1">H1</button>
+                <button class="btn-tf" data-tf="H4">H4</button>
+                <button class="btn-tf" data-tf="D1">D1</button>
+              </div>
+              <button class="btn-icon" id="btn-toggle-overlay" title="Toggle Indicators"><i data-lucide="eye"></i></button>
+            </div>
+          </div>
+
+          <div class="canvas-wrapper">
+            <canvas id="goldChart" width="850" height="420"></canvas>
+            <div class="chart-overlay-legend">
+              <span class="legend-item"><span class="legend-dot dot-ema50"></span> 50 EMA</span>
+              <span class="legend-item"><span class="legend-dot dot-ema200"></span> 200 EMA</span>
+              <span class="legend-item"><span class="legend-dot dot-bb"></span> Bollinger Bands</span>
+              <span class="legend-item"><span class="legend-dot dot-demand"></span> Demand Zone</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4-PILLAR DATA FEEDS -->
+        <div class="glass-card feeds-card">
+          <div class="card-header">
+            <div class="chart-title">
+              <i data-lucide="radio" class="text-emerald"></i>
+              <span>Multi-Layer Data Ingestion Stream</span>
+            </div>
+            <span class="badge-tag">MANUS Feed v4.2</span>
+          </div>
+
+          <div class="feeds-list">
+
+            <!-- Feed 1: Macro -->
+            <div class="feed-item">
+              <div class="feed-icon icon-macro"><i data-lucide="globe-2"></i></div>
+              <div class="feed-content">
+                <div class="feed-head">
+                  <span class="feed-name">Macroeconomic Feed (FRED & Rates)</span>
+                  <span class="feed-status text-emerald">Bullish Confluence</span>
+                </div>
+                <p class="feed-detail">US 10Y Real Yields <strong class="text-emerald font-mono">-0.35%</strong> (Nominal 4.18% - CPI 4.53%). Dollar Index (DXY) broken below 104.50 support. Rate Cut Probability: 84%.</p>
+              </div>
+            </div>
+
+            <!-- Feed 2: Technical -->
+            <div class="feed-item">
+              <div class="feed-icon icon-tech"><i data-lucide="line-chart"></i></div>
+              <div class="feed-content">
+                <div class="feed-head">
+                  <span class="feed-name">Technical Indicators (50/200 EMA + BB)</span>
+                  <span class="feed-status text-gold">Volatility Breakout</span>
+                </div>
+                <p class="feed-detail">Price &gt; 50 EMA &gt; 200 EMA. Bollinger Bands Squeeze contraction (Bandwidth: 1.2%) followed by high-volume upside breakout.</p>
+              </div>
+            </div>
+
+            <!-- Feed 3: Institutional -->
+            <div class="feed-item">
+              <div class="feed-icon icon-inst"><i data-lucide="building-2"></i></div>
+              <div class="feed-content">
+                <div class="feed-head">
+                  <span class="feed-name">Institutional Smart Money Action</span>
+                  <span class="feed-status text-purple">Liquidity Grab Confirmed</span>
+                </div>
+                <p class="feed-detail">Liquidity grab of swing low at $2,403.80. Price immediately rejected zone with a high-volume Bullish Engulfing candle in Fresh Demand ($2,404.00).</p>
+              </div>
+            </div>
+
+            <!-- Feed 4: Alternative & Sentiment -->
+            <div class="feed-item">
+              <div class="feed-icon icon-alt"><i data-lucide="newspaper"></i></div>
+              <div class="feed-content">
+                <div class="feed-head">
+                  <span class="feed-name">Alternative & NLP Sentiment Feed</span>
+                  <span class="feed-status text-emerald">GPR High (+82 Bullish)</span>
+                </div>
+                <p class="feed-detail">Geopolitical Risk Index at 142.5. COT Report shows non-commercial net long positions up +14,200 contracts. ETF inflows (GLD/IAU) +$420M this week.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+      <!-- SIGNAL EXECUTION HISTORY LOG TABLE -->
+      <div class="glass-card history-card">
+        <div class="card-header">
+          <div class="chart-title">
+            <i data-lucide="history" class="text-gold"></i>
+            <span>MANUS MAX Institutional Signal History</span>
+          </div>
+          <div class="history-summary">
+            <span>Win Rate: <strong class="text-emerald font-mono">84.6%</strong></span>
+            <span>Avg Risk/Reward: <strong class="text-gold font-mono">1 : 2.3</strong></span>
+            <span>Total Gain: <strong class="text-emerald font-mono">+4,820 Pips</strong></span>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Signal ID</th>
+                <th>Open Timestamp<br><span class="th-sub">YYYY-MM-DD HH:MM:SS TZ</span></th>
+                <th>Close / Expiry<br><span class="th-sub">YYYY-MM-DD HH:MM:SS TZ</span></th>
+                <th>Dir</th>
+                <th>Entry</th>
+                <th>Stop Loss</th>
+                <th>Take Profit</th>
+                <th class="rr-col">R:R Ratio</th>
+                <th>Result (Pips)</th>
+                <th>AI Conf.</th>
+                <th>Pillars</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="history-table-body">
+              <!-- JS Populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- TAB 2: AI MODEL & LSTM ENGINE -->
+    <section class="tab-content" id="tab-engine">
+      
+      <div class="engine-grid">
+
+        <!-- LSTM MODEL ARCHITECTURE CARD -->
+        <div class="glass-card engine-card">
+          <div class="card-header">
+            <div class="chart-title">
+              <i data-lucide="cpu" class="text-purple"></i>
+              <span>The "MANUS MAX" Predictive Engine Architecture</span>
+            </div>
+            <span class="badge-tag">LSTM Network</span>
+          </div>
+
+          <div class="engine-body">
+            <p class="section-intro">
+              The core engine leverages a 2-layer <strong>Long Short-Term Memory (LSTM)</strong> deep neural network trained on over 10+ years of institutional XAU/USD tick and macroeconomic data. Designed specifically to model non-linear sequential dependencies and volatility regime shifts.
+            </p>
+
+            <!-- ARCHITECTURE DIAGRAM FLOW -->
+            <div class="architecture-diagram">
+              <div class="arch-box input-box">
+                <span class="arch-title"><i data-lucide="database"></i> Data Feature Input</span>
+                <span class="arch-desc">Lagged OHLCV (21p), Real Yields, DXY, ATR, Gold/Silver ratio</span>
+              </div>
+              <div class="arch-arrow"><i data-lucide="arrow-right"></i></div>
+              <div class="arch-box lstm-box">
+                <span class="arch-title"><i data-lucide="layers"></i> Dual-Layer LSTM</span>
+                <span class="arch-desc">128 Hidden Units + Dropout (0.2) + L2 Regularization</span>
+              </div>
+              <div class="arch-arrow"><i data-lucide="arrow-right"></i></div>
+              <div class="arch-box dense-box">
+                <span class="arch-title"><i data-lucide="git-commit"></i> Dense Confluence Classifier</span>
+                <span class="arch-desc">Macro + Technical + Institutional Fusion Layer</span>
+              </div>
+              <div class="arch-arrow"><i data-lucide="arrow-right"></i></div>
+              <div class="arch-box output-box">
+                <span class="arch-title"><i data-lucide="zap"></i> Signal & Confidence</span>
+                <span class="arch-desc">Binary (Buy/No Trade) + 0-100% Score</span>
+              </div>
+            </div>
+
+            <!-- FEATURE IMPORTANCE BREAKDOWN -->
+            <div class="feature-importance-section">
+              <h4 class="sub-title"><i data-lucide="bar-chart-3"></i> Feature Importance & Selection Weights</h4>
+              
+              <div class="feature-grid">
+                <div class="feature-item">
+                  <div class="feature-head">
+                    <span>Real Yield Differential (Nominal 10Y - Inflation)</span>
+                    <span class="font-mono text-gold">28.4%</span>
+                  </div>
+                  <div class="progress-bar"><div class="bar-fill fill-gold" style="width: 28.4%;"></div></div>
+                </div>
+
+                <div class="feature-item">
+                  <div class="feature-head">
+                    <span>Lagged OHLCV & MA Ratios (5/21, 21/50 EMA)</span>
+                    <span class="font-mono text-emerald">22.1%</span>
+                  </div>
+                  <div class="progress-bar"><div class="bar-fill fill-emerald" style="width: 22.1%;"></div></div>
+                </div>
+
+                <div class="feature-item">
+                  <div class="feature-head">
+                    <span>Bollinger Band Volatility Squeeze Metric</span>
+                    <span class="font-mono text-purple">18.5%</span>
+                  </div>
+                  <div class="progress-bar"><div class="bar-fill fill-purple" style="width: 18.5%;"></div></div>
+                </div>
+
+                <div class="feature-item">
+                  <div class="feature-head">
+                    <span>Institutional Liquidity Grab & Supply/Demand Proximity</span>
+                    <span class="font-mono text-gold">16.2%</span>
+                  </div>
+                  <div class="progress-bar"><div class="bar-fill fill-gold" style="width: 16.2%;"></div></div>
+                </div>
+
+                <div class="feature-item">
+                  <div class="feature-head">
+                    <span>Geopolitical Risk (GPR) & News NLP Sentiment Score</span>
+                    <span class="font-mono text-emerald">14.8%</span>
+                  </div>
+                  <div class="progress-bar"><div class="bar-fill fill-emerald" style="width: 14.8%;"></div></div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- INTERACTIVE INFERENCE SIMULATOR -->
+        <div class="glass-card simulator-card">
+          <div class="card-header">
+            <div class="chart-title">
+              <i data-lucide="sliders" class="text-gold"></i>
+              <span>Interactive Model Inference Playground</span>
+            </div>
+            <span class="badge-tag">Simulate Engine</span>
+          </div>
+
+          <div class="sim-body">
+            <p class="sim-desc">Adjust real-time market inputs to see how the MANUS MAX engine calculates confidence score and signal output.</p>
+
+            <div class="control-group">
+              <div class="control-label">
+                <span>Real Yield State:</span>
+                <span class="font-mono text-gold" id="sim-val-realyield">-0.35% (Negative)</span>
+              </div>
+              <input type="range" min="-1.5" max="1.5" step="0.05" value="-0.35" id="sim-input-realyield" />
+            </div>
+
+            <div class="control-group">
+              <div class="control-label">
+                <span>DXY Trend Direction:</span>
+                <span class="font-mono text-ruby" id="sim-val-dxy">Weakening (-0.42%)</span>
+              </div>
+              <select class="sim-select" id="sim-input-dxy">
+                <option value="weak">Weakening (-0.42%) [Bullish Gold]</option>
+                <option value="flat">Neutral / Ranging</option>
+                <option value="strong">Strengthening (+0.50%) [Bearish Gold]</option>
+              </select>
+            </div>
+
+            <div class="control-group">
+              <div class="control-label">
+                <span>Technical EMA Alignment (50 vs 200):</span>
+                <span class="font-mono text-emerald" id="sim-val-ema">Price &gt; 50 &gt; 200</span>
+              </div>
+              <select class="sim-select" id="sim-input-ema">
+                <option value="bullish">Price &gt; 50 EMA &gt; 200 EMA (Uptrend)</option>
+                <option value="neutral">Price between 50 & 200 EMA (Consolidation)</option>
+                <option value="bearish">Price &lt; 50 EMA &lt; 200 EMA (Downtrend)</option>
+              </select>
+            </div>
+
+            <div class="control-group">
+              <div class="control-label">
+                <span>Bollinger Band Status:</span>
+                <span class="font-mono text-purple" id="sim-val-bb">Squeeze + Breakout</span>
+              </div>
+              <select class="sim-select" id="sim-input-bb">
+                <option value="breakout_up">Bollinger Squeeze + Breakout Upper Band</option>
+                <option value="squeeze">Bollinger Squeeze (Contraction Phase)</option>
+                <option value="breakout_down">Bollinger Squeeze + Breakout Lower Band</option>
+                <option value="normal">Normal Volatility</option>
+              </select>
+            </div>
+
+            <div class="control-group">
+              <div class="control-label">
+                <span>Geopolitical Risk (GPR) Level:</span>
+                <span class="font-mono text-gold" id="sim-val-gpr">142 (High Risk)</span>
+              </div>
+              <input type="range" min="50" max="250" step="5" value="142" id="sim-input-gpr" />
+            </div>
+
+            <!-- SIMULATION OUTPUT RESULTS BOX -->
+            <div class="sim-output-box" id="sim-result-container">
+              <div class="sim-out-head">
+                <span>Calculated Confidence Score:</span>
+                <span class="font-mono text-emerald" id="sim-result-score">91.4%</span>
+              </div>
+              <div class="sim-out-signal" id="sim-result-badge">
+                <i data-lucide="check-circle-2"></i> HIGH CONFIDENCE LONG SIGNAL
+              </div>
+              <p class="sim-out-text" id="sim-result-text">
+                Targeted 300-pip move predicted within 4 hours. Strong alignment across Real Yields, DXY, and EMA breakout.
+              </p>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- TAB 3: 3-PILLAR STRATEGY MATRIX -->
+    <section class="tab-content" id="tab-strategy">
+
+      <div class="section-heading">
+        <h2>3-Pillar Institutional Strategy & Confluence Logic</h2>
+        <p>The MANUS MAX platform synthesizes three non-correlated edge vectors to achieve institutional-grade performance.</p>
+      </div>
+
+      <div class="strategy-cards-grid">
+
+        <!-- PILLAR 1 -->
+        <div class="glass-card pillar-card">
+          <div class="pillar-header">
+            <div class="pillar-num font-mono">01</div>
+            <div class="pillar-title-box">
+              <h3>Macro-Fundamental Strategy</h3>
+              <span class="badge-tag">Macro Core</span>
+            </div>
+          </div>
+          <div class="pillar-body">
+            <div class="formula-box">
+              <span class="formula-title">Core Driver Formula:</span>
+              <code class="formula-code">Real Yield = Nominal 10Y US Yield - Inflation (CPI)</code>
+            </div>
+
+            <div class="logic-rules">
+              <div class="rule-box rule-long">
+                <h4><i data-lucide="trending-up"></i> Long Signal Rules:</h4>
+                <ul>
+                  <li>Real Yields &lt; 0% OR trending sharply downwards</li>
+                  <li>US Dollar Index (DXY) weakening / falling below key support</li>
+                  <li>Rising Geopolitical Risk Index (GPR)</li>
+                </ul>
+              </div>
+
+              <div class="rule-box rule-short">
+                <h4><i data-lucide="trending-down"></i> Short Signal Rules:</h4>
+                <ul>
+                  <li>Real Yields &gt; 1.0% AND trending upwards</li>
+                  <li>US Dollar Index (DXY) strengthening</li>
+                  <li>Cooling geopolitical tensions</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PILLAR 2 -->
+        <div class="glass-card pillar-card">
+          <div class="pillar-header">
+            <div class="pillar-num font-mono">02</div>
+            <div class="pillar-title-box">
+              <h3>Advanced Technical Strategy</h3>
+              <span class="badge-tag">Bollinger + EMA</span>
+            </div>
+          </div>
+          <div class="pillar-body">
+            <div class="formula-box">
+              <span class="formula-title">Technical Setup Parameters:</span>
+              <code class="formula-code">50 EMA & 200 EMA (Trend) + Bollinger Bands (20, 2) (Volatility)</code>
+            </div>
+
+            <div class="logic-rules">
+              <div class="rule-box rule-long">
+                <h4><i data-lucide="trending-up"></i> Long Signal Rules:</h4>
+                <ul>
+                  <li>Price &gt; 50 EMA &gt; 200 EMA (Confirmed Uptrend)</li>
+                  <li>Bollinger Bands Squeeze (Contraction phase below 1.5% Bandwidth)</li>
+                  <li>Price breaks above Upper Bollinger Band with above-average Volume</li>
+                </ul>
+              </div>
+
+              <div class="rule-box rule-short">
+                <h4><i data-lucide="trending-down"></i> Short Signal Rules:</h4>
+                <ul>
+                  <li>Price &lt; 50 EMA &lt; 200 EMA (Confirmed Downtrend)</li>
+                  <li>Bollinger Bands Squeeze (Contraction phase)</li>
+                  <li>Price breaks below Lower Bollinger Band with Volume expansion</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PILLAR 3 -->
+        <div class="glass-card pillar-card">
+          <div class="pillar-header">
+            <div class="pillar-num font-mono">03</div>
+            <div class="pillar-title-box">
+              <h3>Institutional Price Action Strategy</h3>
+              <span class="badge-tag">Smart Money Concepts</span>
+            </div>
+          </div>
+          <div class="pillar-body">
+            <div class="formula-box">
+              <span class="formula-title">Institutional Mechanics:</span>
+              <code class="formula-code">Liquidity Grabs + Fresh Supply & Demand Zones</code>
+            </div>
+
+            <div class="logic-rules">
+              <div class="rule-box rule-long">
+                <h4><i data-lucide="trending-up"></i> Long Entry Rules:</h4>
+                <ul>
+                  <li>Price enters a "Fresh" Demand Zone (Drop-Base-Rally pattern)</li>
+                  <li>Liquidity Grab of recent swing low (stop hunt sweep)</li>
+                  <li>Bullish Engulfing or Pin Bar rejection candle confirmation</li>
+                </ul>
+              </div>
+
+              <div class="rule-box rule-short">
+                <h4><i data-lucide="trending-down"></i> Short Entry Rules:</h4>
+                <ul>
+                  <li>Price enters a "Fresh" Supply Zone (Rally-Base-Drop pattern)</li>
+                  <li>Liquidity Grab of recent swing high</li>
+                  <li>Bearish Rejection candle confirmation</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- TAB 4: RISK CALCULATOR & SL/TP LOGIC -->
+    <section class="tab-content" id="tab-calculator">
+
+      <div class="calc-grid">
+
+        <!-- CALCULATOR INPUTS -->
+        <div class="glass-card calc-card">
+          <div class="card-header">
+            <div class="chart-title">
+              <i data-lucide="calculator" class="text-gold"></i>
+              <span>Institutional Position & Risk Engine</span>
+            </div>
+            <span class="badge-tag">ATR Risk Engine</span>
+          </div>
+
+          <div class="calc-body">
+            
+            <div class="calc-field-group">
+              <label>Account Balance ($):</label>
+              <input type="number" id="calc-balance" value="10000" step="500" class="calc-input" />
+            </div>
+
+            <div class="calc-field-group">
+              <label>Risk Per Trade (%):</label>
+              <div class="input-with-sub">
+                <input type="number" id="calc-risk-pct" value="1.0" step="0.1" max="5.0" class="calc-input" />
+                <span class="sub-text">Risk Amount: <strong class="text-ruby font-mono" id="calc-risk-amount">$100.00</strong></span>
+              </div>
+            </div>
+
+            <div class="calc-field-group">
+              <label>Entry Price ($):</label>
+              <input type="number" id="calc-entry" value="4055.00" step="0.10" class="calc-input font-mono" />
+            </div>
+
+            <div class="calc-field-group">
+              <label>Stop Loss Price ($):</label>
+              <input type="number" id="calc-sl" value="4043.50" step="0.10" class="calc-input font-mono" />
+            </div>
+
+            <div class="calc-field-group">
+              <label>Current ATR (14-Period):</label>
+              <input type="number" id="calc-atr" value="7.80" step="0.10" class="calc-input font-mono" />
+            </div>
+
+            <div class="calc-action-row">
+              <button class="btn btn-gold w-full" id="btn-recalc"><i data-lucide="refresh-cw"></i> Calculate Position & Levels</button>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- CALCULATOR OUTPUT & SL/TP MATRIX -->
+        <div class="glass-card calc-output-card">
+          <div class="card-header">
+            <div class="chart-title">
+              <i data-lucide="pie-chart" class="text-emerald"></i>
+              <span>Calculated Execution & Partial Profit Levels</span>
+            </div>
+          </div>
+
+          <div class="calc-out-body">
+            
+            <div class="calc-out-grid">
+              <div class="calc-out-box">
+                <span class="lbl">Recommended Position Size</span>
+                <span class="val text-gold font-mono" id="out-lots">0.85 Lots</span>
+                <span class="sub">85.4 Ounces of Gold</span>
+              </div>
+
+              <div class="calc-out-box">
+                <span class="lbl">Stop Loss Distance</span>
+                <span class="val text-ruby font-mono" id="out-pips">117.0 Pips</span>
+                <span class="sub">$11.70 Price Distance</span>
+              </div>
+
+              <div class="calc-out-box">
+                <span class="lbl">Take Profit 1 (1:1 RR)</span>
+                <span class="val text-emerald font-mono" id="out-tp1">$2,426.90</span>
+                <span class="sub">+117 Pips (Close 50%)</span>
+              </div>
+
+              <div class="calc-out-box">
+                <span class="lbl">Take Profit 2 (1:2 RR)</span>
+                <span class="val text-gold font-mono" id="out-tp2">$2,438.60</span>
+                <span class="sub">+234 Pips (Runner)</span>
+              </div>
+            </div>
+
+            <!-- PRO TIP & SL/TP BLUEPRINT TABLE -->
+            <div class="pro-tip-box">
+              <div class="tip-head">
+                <i data-lucide="zap" class="text-gold"></i>
+                <strong>PRO TIP: Partial Take Profit & Breakeven Management</strong>
+              </div>
+              <p>Close <strong>50% of the position at 1:1 Risk/Reward (TP1)</strong> and immediately move Stop Loss to Breakeven ($4,055.00). Let the remaining 50% run to TP2 or dynamic Chandelier Exit.</p>
+            </div>
+
+            <div class="sltp-logic-table-wrapper">
+              <h4 class="sub-title">MANUS MAX Risk Methodologies Matrix</h4>
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Method</th>
+                    <th>Stop Loss (SL) Logic</th>
+                    <th>Take Profit (TP) Logic</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><strong class="text-gold">ATR-Based (Default)</strong></td>
+                    <td>Entry - (1.5 * ATR)</td>
+                    <td>Entry + (3.0 * ATR) (1:2 RR)</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Structural</strong></td>
+                    <td>15 pips below recent Swing Low</td>
+                    <td>Next major Supply/Demand Zone</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Trailing</strong></td>
+                    <td>Chandelier Exit: Highest High - (2 * ATR)</td>
+                    <td>Dynamic; let profits run until trend reversal</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- TAB 5: BLUEPRINT ROADMAP & API -->
+    <section class="tab-content" id="tab-blueprint">
+
+      <div class="blueprint-grid">
+
+        <!-- IMPLEMENTATION ROADMAP -->
+        <div class="glass-card roadmap-card">
+          <div class="card-header">
+            <div class="chart-title">
+              <i data-lucide="map-pin" class="text-gold"></i>
+              <span>Platform Implementation Roadmap</span>
+            </div>
+          </div>
+
+          <div class="roadmap-timeline">
+            
+            <!-- Phase 1 -->
+            <div class="timeline-step step-complete">
+              <div class="step-num font-mono">01</div>
+              <div class="step-content">
+                <h4>Phase 1: Data Integration</h4>
+                <p>Connect to FRED (Macro real yields & interest rates), MetaTrader/Oanda API (tick OHLCV), and CFTC (COT reports).</p>
+                <span class="step-status status-done"><i data-lucide="check"></i> COMPLETED</span>
+              </div>
+            </div>
+
+            <!-- Phase 2 -->
+            <div class="timeline-step step-complete">
+              <div class="step-num font-mono">02</div>
+              <div class="step-content">
+                <h4>Phase 2: Feature Engineering</h4>
+                <p>Build real-time calculation engines for Real Yield differentials, Bollinger Band Squeezes, and Smart Money Liquidity Grab detection.</p>
+                <span class="step-status status-done"><i data-lucide="check"></i> COMPLETED</span>
+              </div>
+            </div>
+
+            <!-- Phase 3 -->
+            <div class="timeline-step step-active">
+              <div class="step-num font-mono">03</div>
+              <div class="step-content">
+                <h4>Phase 3: AI Model Training</h4>
+                <p>Train dual-layer LSTM network on 10+ years of high-frequency Gold data with L2 regularization to prevent overfitting.</p>
+                <span class="step-status status-in-progress"><i data-lucide="loader"></i> ACTIVE MODEL v4.0</span>
+              </div>
+            </div>
+
+            <!-- Phase 4 -->
+            <div class="timeline-step">
+              <div class="step-num font-mono">04</div>
+              <div class="step-content">
+                <h4>Phase 4: Signal Delivery Engine</h4>
+                <p>Delivers institutional-grade signals with a strictly enforced <strong class="text-gold">minimum 1:2 Risk-to-Reward ratio</strong> per execution. Each signal output includes Entry, SL, TP1, TP2, AI Confidence Score, and ISO-8601 localized open/close timestamps for full audit compliance.</p>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">
+                  <span class="step-status status-pending"><i data-lucide="clock"></i> API LIVE</span>
+                  <span class="step-status" style="background:rgba(245,194,66,0.12);color:var(--gold-primary);border:1px solid rgba(245,194,66,0.35);"><i data-lucide="shield-check"></i> 1:2 RR ENFORCED</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Strategy 04 -->
+            <div class="timeline-step strategy-row">
+              <div class="step-num strategy-num font-mono">S4</div>
+              <div class="step-content">
+                <div class="strategy-header">
+                  <h4>Strategy 04: Smart Money Order Block Breakout</h4>
+                  <span class="strategy-source"><i data-lucide="youtube"></i> Source: YouTube Algorithmic Finance Concepts</span>
+                </div>
+                <p>Evaluates structural market shifts on 15m/1h timeframes. Identifies massive institutional order blocks and tracks immediate liquidity sweeps to confirm breakout validity before signal execution.</p>
+                <div class="strategy-footer">
+                  <span class="step-status status-strategy-momentum"><i data-lucide="zap"></i> High Win Rate Momentum</span>
+                  <span class="strategy-tf-tag">15m / 1H</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Strategy 05 -->
+            <div class="timeline-step strategy-row">
+              <div class="step-num strategy-num font-mono">S5</div>
+              <div class="step-content">
+                <div class="strategy-header">
+                  <h4>Strategy 05: Intermarket Gold-to-Crude Divergence Setup</h4>
+                  <span class="strategy-source"><i data-lucide="globe"></i> Source: Macro Web Research</span>
+                </div>
+                <p>Gauges inflation-spread anomalies by mathematically contrasting Gold Spot pricing against Brent Crude velocity to confirm central bank accumulation cycles and identify high-probability macro directional bias.</p>
+                <div class="strategy-footer">
+                  <span class="step-status status-strategy-macro"><i data-lucide="trending-up"></i> Macro Trend Confluence</span>
+                  <span class="strategy-tf-tag">D1 / W1</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- LIVE API JSON VIEWER -->
+        <div class="glass-card api-card">
+          <div class="card-header">
+            <div class="chart-title">
+              <i data-lucide="code-2" class="text-emerald"></i>
+              <span>REST API JSON Signal Response Endpoint</span>
+            </div>
+            <button class="btn btn-sm btn-outline" id="btn-copy-json"><i data-lucide="copy"></i> Copy JSON</button>
+          </div>
+
+          <div class="api-body">
+            <div class="endpoint-badge font-mono">
+              <span class="method-get">GET</span>
+              <span class="url-text">https://api.manusmax.ai/v4/signal/XAUUSD</span>
+            </div>
+
+            <pre class="json-code-block" id="json-preview"><code>{
+  "status": "SUCCESS",
+  "engine": "MANUS MAX v4.0",
+  "pair": "XAU/USD",
+  "timestamp": "2026-07-27T16:34:00Z",
+  "live_spot_price": 4085.00,
+  "signal": {
+    "type": "LONG",
+    "strength": "STRONG_BUY",
+    "timeframe_confluence": ["H1", "H4"],
+    "ai_confidence_score": 91.4,
+    "confidence_tier": "HIGH_CONFIDENCE",
+    "entry_price": 4055.00,
+    "stop_loss": 4043.50,
+    "take_profit_1": 4066.50,
+    "take_profit_2": 4078.00,
+    "risk_reward_ratio": 2.0,
+    "delta_pct": 0.74,
+    "predicted_pip_move": 230,
+    "prediction_horizon_hours": 4
+  },
+  "confluence_pillars": {
+    "macro_fundamental": {
+      "real_yield_pct": -0.35,
+      "dxy_index": 104.20,
+      "geopolitical_risk_index": 142.5,
+      "aligned": true
+    },
+    "technical_indicators": {
+      "ema_50": 4048.60,
+      "ema_200": 4021.80,
+      "bollinger_squeeze": true,
+      "upper_band_breakout": true
+    },
+    "institutional_price_action": {
+      "liquidity_grab_detected": true,
+      "fresh_demand_zone": [4041.00, 4045.00],
+      "rejection_candle": "BULLISH_ENGULFING"
+    }
+  }
+}</code></pre>
+
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="footer-container">
+      <div class="footer-left">
+        <span class="footer-logo">MANUS MAX</span>
+        <span class="footer-copy">© 2026 XAU/USD Institutional AI Trading Engine. All Rights Reserved.</span>
+      </div>
+      <div class="footer-disclaimer">
+        <i data-lucide="alert-triangle"></i>
+        <span><strong>Disclaimer:</strong> Forex and Gold trading involves significant risk. This blueprint & platform is for educational and quantitative research purposes. High accuracy is an algorithmic optimization target; real-world performance depends on execution and market conditions.</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="./app.js"></script>
+</body>
+</html>

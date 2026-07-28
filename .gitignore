@@ -1,0 +1,26 @@
+# OS artifacts
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor directories
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Node / npm (if added later)
+node_modules/
+npm-debug.log*
+
+# Build output
+dist/
+build/
+
+# Python cache (used by local dev server)
+__pycache__/
+*.pyc
+
+# Environment files
+.env
+.env.local
