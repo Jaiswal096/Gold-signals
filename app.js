@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
     history: [
       {
         id: 'XAUUSD-2026-9843',
-        openTs:  '2026-07-28 10:25 UTC',
+        openTs: '2026-07-28 10:25 UTC',
         closeTs: '— (ACTIVE)',
         dir: 'BUY',
         strategy: 'ICT_SilverBullet',
@@ -59,7 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
       },
       {
         id: 'XAUUSD-2026-9842',
-        openTs:  '2026-07-27 08:15 UTC',
+        openTs: '2026-07-27 08:15 UTC',
         closeTs: '2026-07-27 13:42 UTC',
         dir: 'BUY',
         strategy: 'ICT_AMD',
@@ -72,7 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
       },
       {
         id: 'XAUUSD-2026-9841',
-        openTs:  '2026-07-26 14:00 UTC',
+        openTs: '2026-07-26 14:00 UTC',
         closeTs: '2026-07-26 17:38 UTC',
         dir: 'SELL',
         strategy: 'AliVidollar_SD',
@@ -85,7 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
       },
       {
         id: 'XAUUSD-2026-9840',
-        openTs:  '2026-07-25 10:02 UTC',
+        openTs: '2026-07-25 10:02 UTC',
         closeTs: '2026-07-25 11:20 UTC',
         dir: 'BUY',
         strategy: 'ICT_SilverBullet',
@@ -98,7 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
       },
       {
         id: 'XAUUSD-2026-9839',
-        openTs:  '2026-07-24 09:30 UTC',
+        openTs: '2026-07-24 09:30 UTC',
         closeTs: '2026-07-24 10:55 UTC',
         dir: 'BUY',
         strategy: 'RajaBanks_CT',
@@ -111,7 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
       },
       {
         id: 'XAUUSD-2026-9838',
-        openTs:  '2026-07-23 08:10 UTC',
+        openTs: '2026-07-23 08:10 UTC',
         closeTs: '2026-07-23 09:02 UTC',
         dir: 'SELL',
         strategy: 'ICT_AMD',
@@ -124,7 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
       },
       {
         id: 'XAUUSD-2026-9837',
-        openTs:  '2026-07-22 14:05 UTC',
+        openTs: '2026-07-22 14:05 UTC',
         closeTs: '2026-07-22 16:48 UTC',
         dir: 'BUY',
         strategy: 'AliVidollar_SD',
@@ -158,15 +158,15 @@ document.addEventListener('DOMContentLoaded', () => {
   /* ========================================================================
      DOM ELEMENTS
      ======================================================================== */
-  const navTabs        = document.querySelectorAll('.nav-tab');
-  const tabContents    = document.querySelectorAll('.tab-content');
-  const livePriceEl    = document.getElementById('live-gold-price');
-  const liveChangeEl   = document.getElementById('live-gold-change');
-  const liveCurrentEl  = document.getElementById('sig-current-live');
-  const historyBody    = document.getElementById('history-table-body');
-  const canvas         = document.getElementById('goldChart');
-  const ctx            = canvas ? canvas.getContext('2d') : null;
-  const apiStatusText  = document.getElementById('api-status-text');
+  const navTabs = document.querySelectorAll('.nav-tab');
+  const tabContents = document.querySelectorAll('.tab-content');
+  const livePriceEl = document.getElementById('live-gold-price');
+  const liveChangeEl = document.getElementById('live-gold-change');
+  const liveCurrentEl = document.getElementById('sig-current-live');
+  const historyBody = document.getElementById('history-table-body');
+  const canvas = document.getElementById('goldChart');
+  const ctx = canvas ? canvas.getContext('2d') : null;
+  const apiStatusText = document.getElementById('api-status-text');
 
   /* ========================================================================
      BOOT SEQUENCE
@@ -351,11 +351,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!apiStatusText) return;
     const time = state.lastFetchTime ? state.lastFetchTime.toLocaleTimeString() : '';
     const colors = { connecting: '#f5c242', live: '#10b981', fallback: '#f5c242', error: '#ef4444' };
-    const texts  = {
+    const texts = {
       connecting: 'CONNECTING TO WS STREAM...',
-      live:       `LIVE • ${source} • ${time}`,
-      fallback:   `FALLBACK • ${source}`,
-      error:      'FEED ERROR — Using default price'
+      live: `LIVE • ${source} • ${time}`,
+      fallback: `FALLBACK • ${source}`,
+      error: 'FEED ERROR — Using default price'
     };
     apiStatusText.textContent = texts[status] || texts.error;
     apiStatusText.style.color = colors[status] || colors.error;
@@ -494,9 +494,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Institutional (40%): SMC quality — OB/FVG/Liq
     const instBase = {
       ICT_SilverBullet: 88 + Math.random() * 8,
-      ICT_AMD:          86 + Math.random() * 10,
-      AliVidollar_SD:   85 + Math.random() * 12,
-      RajaBanks_CT:     82 + Math.random() * 12
+      ICT_AMD: 86 + Math.random() * 10,
+      AliVidollar_SD: 85 + Math.random() * 12,
+      RajaBanks_CT: 82 + Math.random() * 12
     }[strategy] || 85;
 
     // Macro (30%): Real yields, DXY
@@ -505,9 +505,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Technical (30%): EMA, BB, ATR
     const techScore = 88 + Math.random() * 10;
 
-    const inst  = Math.min(99, Math.round(instBase));
+    const inst = Math.min(99, Math.round(instBase));
     const macro = Math.min(99, Math.round(macroScore));
-    const tech  = Math.min(99, Math.round(techScore));
+    const tech = Math.min(99, Math.round(techScore));
     const total = Math.round(inst * 0.40 + macro * 0.30 + tech * 0.30);
 
     return { total: Math.min(98, total), inst, macro, tech };
@@ -642,7 +642,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const h = Math.floor(totalSeconds / 3600);
     const m = Math.floor((totalSeconds % 3600) / 60);
     const s = totalSeconds % 60;
-    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   }
 
   function updateKillzoneDisplay() {
@@ -651,13 +651,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Session windows (UTC seconds)
     const sessions = {
-      asia:   { start: 0,     end: 28800  }, // 00:00–08:00
-      london: { start: 28800, end: 39600  }, // 08:00–11:00
-      ny:     { start: 46800, end: 57600  }  // 13:00–16:00
+      asia: { start: 0, end: 28800 }, // 00:00–08:00
+      london: { start: 28800, end: 39600 }, // 08:00–11:00
+      ny: { start: 46800, end: 57600 }  // 13:00–16:00
     };
 
     const londEl = document.getElementById('kz-london');
-    const nyEl   = document.getElementById('kz-ny');
+    const nyEl = document.getElementById('kz-ny');
     const asiaEl = document.getElementById('kz-asia');
 
     // London
@@ -668,18 +668,18 @@ document.addEventListener('DOMContentLoaded', () => {
       const rem = sessions.london.end - now;
       if (londonCount) londonCount.textContent = formatCountdown(rem);
       if (londonLabel) londonLabel.textContent = 'ACTIVE — CLOSES IN';
-      if (londonChip)  { londonChip.textContent = 'ACTIVE'; londonChip.className = 'kz-status-chip kz-chip-active'; }
+      if (londonChip) { londonChip.textContent = 'ACTIVE'; londonChip.className = 'kz-status-chip kz-chip-active'; }
       if (londEl) londEl.classList.add('kz-active');
     } else if (now < sessions.london.start) {
       const rem = sessions.london.start - now;
       if (londonCount) londonCount.textContent = formatCountdown(rem);
       if (londonLabel) londonLabel.textContent = 'OPENS IN';
-      if (londonChip)  { londonChip.textContent = 'NEXT'; londonChip.className = 'kz-status-chip kz-chip-next'; }
+      if (londonChip) { londonChip.textContent = 'NEXT'; londonChip.className = 'kz-status-chip kz-chip-next'; }
       if (londEl) londEl.classList.remove('kz-active');
     } else {
       if (londonCount) londonCount.textContent = 'CLOSED';
       if (londonLabel) londonLabel.textContent = 'MANIPULATION PHASE DONE';
-      if (londonChip)  { londonChip.textContent = 'DONE'; londonChip.className = 'kz-status-chip kz-chip-done'; }
+      if (londonChip) { londonChip.textContent = 'DONE'; londonChip.className = 'kz-status-chip kz-chip-done'; }
       if (londEl) londEl.classList.remove('kz-active');
     }
 
@@ -691,18 +691,18 @@ document.addEventListener('DOMContentLoaded', () => {
       const rem = sessions.ny.end - now;
       if (nyCount) nyCount.textContent = formatCountdown(rem);
       if (nyLabel) nyLabel.textContent = 'ACTIVE — CLOSES IN';
-      if (nyChip)  { nyChip.textContent = 'ACTIVE'; nyChip.className = 'kz-status-chip kz-chip-active'; }
+      if (nyChip) { nyChip.textContent = 'ACTIVE'; nyChip.className = 'kz-status-chip kz-chip-active'; }
       if (nyEl) nyEl.classList.add('kz-active');
     } else if (now < sessions.ny.start) {
       const rem = sessions.ny.start - now;
       if (nyCount) nyCount.textContent = formatCountdown(rem);
       if (nyLabel) nyLabel.textContent = 'OPENS IN';
-      if (nyChip)  { nyChip.textContent = 'NEXT'; nyChip.className = 'kz-status-chip kz-chip-next'; }
+      if (nyChip) { nyChip.textContent = 'NEXT'; nyChip.className = 'kz-status-chip kz-chip-next'; }
       if (nyEl) nyEl.classList.remove('kz-active');
     } else {
       if (nyCount) nyCount.textContent = 'CLOSED';
       if (nyLabel) nyLabel.textContent = 'DISTRIBUTION PHASE DONE';
-      if (nyChip)  { nyChip.textContent = 'DONE'; nyChip.className = 'kz-status-chip kz-chip-done'; }
+      if (nyChip) { nyChip.textContent = 'DONE'; nyChip.className = 'kz-status-chip kz-chip-done'; }
       if (nyEl) nyEl.classList.remove('kz-active');
     }
 
@@ -745,7 +745,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const { h } = getUTCTime();
     const el = document.getElementById('amd-current-phase');
     if (!el) return;
-    if (h >= 0 && h < 8)   el.textContent = 'Phase: 📊 ACCUMULATION (Asia)';
+    if (h >= 0 && h < 8) el.textContent = 'Phase: 📊 ACCUMULATION (Asia)';
     else if (h >= 8 && h < 11) el.textContent = 'Phase: ⚡ MANIPULATION (London)';
     else if (h >= 13 && h < 16) el.textContent = 'Phase: 🎯 DISTRIBUTION (NY)';
     else el.textContent = 'Phase: ⏸ Between Sessions';
@@ -803,7 +803,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function updateSilverBulletTicker(h, m) {
     const sb = getSBStatus(h, m);
     const sbStatusEl = document.getElementById('ticker-sb-status');
-    const sbCountEl  = document.getElementById('ticker-sb-countdown');
+    const sbCountEl = document.getElementById('ticker-sb-countdown');
     if (!sbStatusEl) return;
 
     if (sb.active) {
@@ -823,6 +823,15 @@ document.addEventListener('DOMContentLoaded', () => {
   function initNewsEngine() {
     renderNewsCalendar();
     updateNewsWidget(state.newsEvents[0]);
+    setInterval(() => {
+      state.newsEvents.forEach(event => {
+        if (event.hoursUntil > 0) {
+          event.hoursUntil = Math.max(0, event.hoursUntil - (1/60));
+        }
+      });
+      renderNewsCalendar();
+      updateNewsWidget(state.newsEvents[0]);
+    }, 60000); // tick every minute
   }
 
   function renderNewsCalendar() {
@@ -837,7 +846,7 @@ document.addEventListener('DOMContentLoaded', () => {
       row.innerHTML = `
         <div>
           <div class="news-time">${event.time}</div>
-          <div class="news-time" style="color:${event.hoursUntil <= 4 ? 'var(--ruby)' : 'var(--text-dim)'};">In ${event.hoursUntil < 1 ? Math.round(event.hoursUntil*60)+'m' : event.hoursUntil.toFixed(1)+'h'}</div>
+          <div class="news-time" style="color:${event.hoursUntil <= 4 ? 'var(--ruby)' : 'var(--text-dim)'};">In ${event.hoursUntil < 1 ? Math.round(event.hoursUntil * 60) + 'm' : event.hoursUntil.toFixed(1) + 'h'}</div>
         </div>
         <div>
           <div style="display:flex;align-items:center;gap:6px;">
@@ -858,21 +867,21 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateNewsWidget(event) {
-    const nameEl    = document.getElementById('news-next-event-name');
-    const timeEl    = document.getElementById('news-next-event-time');
-    const volEl     = document.getElementById('news-vol');
-    const biasEl    = document.getElementById('news-bias');
-    const inflEl    = document.getElementById('news-influence');
-    const meterEl   = document.getElementById('news-meter-fill');
-    const confEl    = document.getElementById('news-conf-chip');
+    const nameEl = document.getElementById('news-next-event-name');
+    const timeEl = document.getElementById('news-next-event-time');
+    const volEl = document.getElementById('news-vol');
+    const biasEl = document.getElementById('news-bias');
+    const inflEl = document.getElementById('news-influence');
+    const meterEl = document.getElementById('news-meter-fill');
+    const confEl = document.getElementById('news-conf-chip');
 
     if (nameEl) nameEl.textContent = event.name;
     if (timeEl) timeEl.textContent = `In ${event.hoursUntil.toFixed(1)}h • ${event.time.split(' ')[1]} UTC`;
-    if (volEl)  volEl.textContent  = `${event.volPips} pips`;
+    if (volEl) volEl.textContent = `${event.volPips} pips`;
     if (biasEl) biasEl.textContent = event.bias;
     if (inflEl) inflEl.textContent = `${event.impactPct}%`;
     if (meterEl) meterEl.style.width = `${event.impactPct}%`;
-    if (confEl)  { confEl.textContent = `${event.conf} IMPACT`; confEl.className = `news-confidence-chip ${event.confClass}`; }
+    if (confEl) { confEl.textContent = `${event.conf} IMPACT`; confEl.className = `news-confidence-chip ${event.confClass}`; }
   }
 
   /* ========================================================================
@@ -881,26 +890,26 @@ document.addEventListener('DOMContentLoaded', () => {
   function updateConfidenceDynamically() {
     const gauge = document.getElementById('gauge-circle');
     const scoreEl = document.getElementById('gauge-score-num');
-    const instEl  = document.getElementById('conf-val-inst');
+    const instEl = document.getElementById('conf-val-inst');
     const macroEl = document.getElementById('conf-val-macro');
-    const techEl  = document.getElementById('conf-val-tech');
-    const barInst  = document.getElementById('conf-bar-inst');
+    const techEl = document.getElementById('conf-val-tech');
+    const barInst = document.getElementById('conf-bar-inst');
     const barMacro = document.getElementById('conf-bar-macro');
-    const barTech  = document.getElementById('conf-bar-tech');
+    const barTech = document.getElementById('conf-bar-tech');
 
     const { confInst: inst, confMacro: macro, confTech: tech, confidence } = state.signal;
     const total = confidence || Math.round(inst * 0.40 + macro * 0.30 + tech * 0.30);
 
     if (scoreEl) scoreEl.textContent = `${total}%`;
-    if (instEl)  instEl.textContent  = `${inst}%`;
+    if (instEl) instEl.textContent = `${inst}%`;
     if (macroEl) macroEl.textContent = `${macro}%`;
-    if (techEl)  techEl.textContent  = `${tech}%`;
+    if (techEl) techEl.textContent = `${tech}%`;
 
     // Bar widths are proportional within a total of 100%
     const totalWeight = 0.40 + 0.30 + 0.30;
-    if (barInst)  barInst.style.width  = `${(inst  * 0.40 / (total || 1)) * 100 * 0.92}%`;
+    if (barInst) barInst.style.width = `${(inst * 0.40 / (total || 1)) * 100 * 0.92}%`;
     if (barMacro) barMacro.style.width = `${(macro * 0.30 / (total || 1)) * 100 * 0.92}%`;
-    if (barTech)  barTech.style.width  = `${(tech  * 0.30 / (total || 1)) * 100 * 0.92}%`;
+    if (barTech) barTech.style.width = `${(tech * 0.30 / (total || 1)) * 100 * 0.92}%`;
 
     // Gauge ring: strokeDashoffset = 314 * (1 - score/100)
     if (gauge) gauge.style.strokeDashoffset = (314 * (1 - total / 100)).toFixed(1);
@@ -915,8 +924,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     state.history.forEach(item => {
       const tr = document.createElement('tr');
-      const isWin  = item.status.includes('WIN') || item.status === 'ACTIVE';
-      const isBuy  = item.dir === 'BUY';
+      const isWin = item.status.includes('WIN') || item.status === 'ACTIVE';
+      const isBuy = item.dir === 'BUY';
       const isActive = item.status === 'ACTIVE';
       const rrClass = { 'rr-min': 'rr-badge rr-badge-min', 'rr-good': 'rr-badge rr-badge-good', 'rr-high': 'rr-badge rr-badge-high' }[item.rrClass] || 'rr-badge rr-badge-high';
 
@@ -946,13 +955,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!canvas || !ctx) return;
     const dpr = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
-    canvas.width  = rect.width  * dpr;
+    canvas.width = rect.width * dpr;
     canvas.height = rect.height * dpr;
     ctx.scale(dpr, dpr);
     renderGoldChart();
     window.addEventListener('resize', () => {
       const r2 = canvas.getBoundingClientRect();
-      canvas.width  = r2.width  * dpr;
+      canvas.width = r2.width * dpr;
       canvas.height = r2.height * dpr;
       ctx.scale(dpr, dpr);
       renderGoldChart();
@@ -971,7 +980,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
     ctx.lineWidth = 1;
     for (let i = 0; i <= 10; i++) { const x = (w / 10) * i; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
-    for (let j = 0; j <= 6;  j++) { const y = (h / 6)  * j; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+    for (let j = 0; j <= 6; j++) { const y = (h / 6) * j; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
 
     const currentPrice = state.goldPrice || 4085;
     const priceData = generatePriceData(currentPrice);
@@ -995,10 +1004,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ── SMC OVERLAYS ─────────────────────────────────────────────────────
     const obBottom = currentPrice - 14;
-    const obTop    = obBottom + 5;
+    const obTop = obBottom + 5;
     const fvgBottom = currentPrice - 7;
-    const fvgTop    = fvgBottom + 3.5;
-    const liqLevel  = currentPrice - 20;
+    const fvgTop = fvgBottom + 3.5;
+    const liqLevel = currentPrice - 20;
     const chochLevel = priceData[Math.floor(numPoints * 0.35)];
 
     // Order Block (Gold fill)
@@ -1106,9 +1115,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Entry / SL / TP lines (color-coded)
     drawHorizontalTarget(ctx, w, pToY(state.signal.entry), `ENTRY: ${formatPrice(state.signal.entry)}`, '#f5c242');
-    drawHorizontalTarget(ctx, w, pToY(state.signal.sl),    `SL: ${formatPrice(state.signal.sl)}`,    '#ef4444');
-    drawHorizontalTarget(ctx, w, pToY(state.signal.tp1),   `TP1 (1:2): ${formatPrice(state.signal.tp1)}`, '#10b981');
-    drawHorizontalTarget(ctx, w, pToY(state.signal.tp2),   `TP2 (1:${state.signal.rr}): ${formatPrice(state.signal.tp2)}`, '#ffd700');
+    drawHorizontalTarget(ctx, w, pToY(state.signal.sl), `SL: ${formatPrice(state.signal.sl)}`, '#ef4444');
+    drawHorizontalTarget(ctx, w, pToY(state.signal.tp1), `TP1 (1:2): ${formatPrice(state.signal.tp1)}`, '#10b981');
+    drawHorizontalTarget(ctx, w, pToY(state.signal.tp2), `TP2 (1:${state.signal.rr}): ${formatPrice(state.signal.tp2)}`, '#ffd700');
 
     // Live price dot
     const lastX = w - 2;
@@ -1130,9 +1139,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const data = [];
     let p = currentPrice - 24;
     for (let i = 0; i < numPoints; i++) {
-      if (i < 15)            p += Math.sin(i * 0.4) * 1.5 + 0.5;
-      else if (i < 28)       p -= (i === 22) ? 7.0 : -0.3;
-      else                   p += (24 / (numPoints - 28)) + Math.sin(i) * 0.7;
+      if (i < 15) p += Math.sin(i * 0.4) * 1.5 + 0.5;
+      else if (i < 28) p -= (i === 22) ? 7.0 : -0.3;
+      else p += (24 / (numPoints - 28)) + Math.sin(i) * 0.7;
       if (i === numPoints - 1) p = currentPrice;
       data.push(p);
     }
@@ -1157,21 +1166,21 @@ document.addEventListener('DOMContentLoaded', () => {
   function initSimulator() {
     const inputs = {
       realYield: document.getElementById('sim-input-realyield'),
-      dxy:       document.getElementById('sim-input-dxy'),
-      ema:       document.getElementById('sim-input-ema'),
-      bb:        document.getElementById('sim-input-bb'),
-      smc:       document.getElementById('sim-input-smc'),
-      gpr:       document.getElementById('sim-input-gpr')
+      dxy: document.getElementById('sim-input-dxy'),
+      ema: document.getElementById('sim-input-ema'),
+      bb: document.getElementById('sim-input-bb'),
+      smc: document.getElementById('sim-input-smc'),
+      gpr: document.getElementById('sim-input-gpr')
     };
     if (!inputs.realYield) return;
 
     const vals = {
       realYield: document.getElementById('sim-val-realyield'),
-      dxy:       document.getElementById('sim-val-dxy'),
-      ema:       document.getElementById('sim-val-ema'),
-      bb:        document.getElementById('sim-val-bb'),
-      smc:       document.getElementById('sim-val-smc'),
-      gpr:       document.getElementById('sim-val-gpr')
+      dxy: document.getElementById('sim-val-dxy'),
+      ema: document.getElementById('sim-val-ema'),
+      bb: document.getElementById('sim-val-bb'),
+      smc: document.getElementById('sim-val-smc'),
+      gpr: document.getElementById('sim-val-gpr')
     };
 
     function calc() {
@@ -1186,7 +1195,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (vals.realYield) vals.realYield.textContent = `${ryVal.toFixed(2)}% (${ryVal < 0 ? 'Negative / Bullish' : 'Positive / Bearish'})`;
       let macroScore = 50;
       if (ryVal < 0) macroScore += Math.abs(ryVal) * 22;
-      else           macroScore -= ryVal * 20;
+      else macroScore -= ryVal * 20;
       const dxyVal = inputs.dxy.value;
       if (vals.dxy) vals.dxy.textContent = { weak: 'Weakening (Bullish Au)', flat: 'Neutral', strong: 'Strengthening (Bearish Au)' }[dxyVal];
       if (dxyVal === 'weak') macroScore += 18; else if (dxyVal === 'strong') macroScore -= 18;
@@ -1205,14 +1214,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const instC = Math.min(98, Math.max(20, instScore));
       const macroC = Math.min(98, Math.max(20, macroScore));
-      const techC  = Math.min(98, Math.max(20, techScore));
-      const total  = Math.min(98, Math.max(15, Math.round(instC * 0.40 + macroC * 0.30 + techC * 0.30)));
+      const techC = Math.min(98, Math.max(20, techScore));
+      const total = Math.min(98, Math.max(15, Math.round(instC * 0.40 + macroC * 0.30 + techC * 0.30)));
 
       const scoreEl = document.getElementById('sim-result-score');
       const badgeEl = document.getElementById('sim-result-badge');
-      const textEl  = document.getElementById('sim-result-text');
+      const textEl = document.getElementById('sim-result-text');
 
       if (scoreEl) scoreEl.textContent = `${total}%`;
+      
+      // Update real time chart based on simulator
+      if (state.signal && document.getElementById('tab-engine')?.classList.contains('active')) {
+         state.signal.confidence = total;
+         state.signal.confInst = instC;
+         state.signal.confMacro = macroC;
+         state.signal.confTech = techC;
+         updateConfidenceDynamically();
+      }
       if (badgeEl && textEl) {
         if (total >= 85) {
           badgeEl.className = 'sim-out-signal signal-buy';
@@ -1244,44 +1262,49 @@ document.addEventListener('DOMContentLoaded', () => {
      ======================================================================== */
   function initCalculator() {
     const fields = {
-      balance:   document.getElementById('calc-balance'),
-      riskPct:   document.getElementById('calc-risk-pct'),
-      entry:     document.getElementById('calc-entry'),
-      sl:        document.getElementById('calc-sl'),
-      rrTarget:  document.getElementById('calc-rr-target')
+      balance: document.getElementById('calc-balance'),
+      riskPct: document.getElementById('calc-risk-pct'),
+      entry: document.getElementById('calc-entry'),
+      sl: document.getElementById('calc-sl'),
+      rrTarget: document.getElementById('calc-rr-target')
     };
     const outs = {
       riskAmount: document.getElementById('calc-risk-amount'),
-      lots:       document.getElementById('out-lots'),
-      pips:       document.getElementById('out-pips'),
-      tp1:        document.getElementById('out-tp1'),
-      tp2:        document.getElementById('out-tp2')
+      lots: document.getElementById('out-lots'),
+      pips: document.getElementById('out-pips'),
+      tp1: document.getElementById('out-tp1'),
+      tp2: document.getElementById('out-tp2')
     };
     if (!fields.balance) return;
 
     function calc() {
-      const balance   = parseFloat(fields.balance.value)  || 10000;
-      const riskPct   = parseFloat(fields.riskPct.value)  || 1.0;
-      const entry     = parseFloat(fields.entry.value)    || 4055.00;
-      const sl        = parseFloat(fields.sl.value)       || 4043.50;
-      const rrTarget  = parseInt(fields.rrTarget ? fields.rrTarget.value : '4') || 4;
+      const balance = parseFloat(fields.balance.value) || 10000;
+      const riskPct = parseFloat(fields.riskPct.value) || 1.0;
+      const entry = parseFloat(fields.entry.value) || 4055.00;
+      const sl = parseFloat(fields.sl.value) || 4043.50;
+      const rrTarget = parseInt(fields.rrTarget ? fields.rrTarget.value : '4') || 4;
 
-      const riskAmount  = balance * (riskPct / 100);
-      const priceDist   = Math.abs(entry - sl);
-      const pipsDist    = priceDist * 10;
-      const lotSize     = riskAmount / (priceDist * 100);
-      const isBuy       = entry > sl;
-      const tp1Price    = isBuy ? entry + priceDist * 2      : entry - priceDist * 2;
-      const tp2Price    = isBuy ? entry + priceDist * rrTarget : entry - priceDist * rrTarget;
+      const riskAmount = balance * (riskPct / 100);
+      const priceDist = Math.abs(entry - sl);
+      const pipsDist = priceDist * 10;
+      const lotSize = riskAmount / (priceDist * 100);
+      const isBuy = entry > sl;
+      const tp1Price = isBuy ? entry + priceDist * 2 : entry - priceDist * 2;
+      const tp2Price = isBuy ? entry + priceDist * rrTarget : entry - priceDist * rrTarget;
 
       if (outs.riskAmount) outs.riskAmount.textContent = `$${riskAmount.toFixed(2)}`;
-      if (outs.lots)       outs.lots.textContent       = `${lotSize.toFixed(2)} Lots`;
-      if (outs.pips)       outs.pips.textContent       = `${pipsDist.toFixed(1)} Pips`;
-      if (outs.tp1)        outs.tp1.textContent        = formatPrice(tp1Price);
-      if (outs.tp2)        outs.tp2.textContent        = formatPrice(tp2Price);
+      if (outs.lots) outs.lots.textContent = `${lotSize.toFixed(2)} Lots`;
+      if (outs.pips) outs.pips.textContent = `${pipsDist.toFixed(1)} Pips`;
+      if (outs.tp1) outs.tp1.textContent = formatPrice(tp1Price);
+      if (outs.tp2) outs.tp2.textContent = formatPrice(tp2Price);
     }
 
-    Object.values(fields).forEach(el => { if (el) el.addEventListener('input', calc); });
+    Object.values(fields).forEach(el => { 
+      if (el) {
+        el.addEventListener('input', calc);
+        el.addEventListener('change', calc);
+      }
+    });
     document.getElementById('btn-recalc')?.addEventListener('click', calc);
     calc();
   }
@@ -1290,22 +1313,90 @@ document.addEventListener('DOMContentLoaded', () => {
      13. ACTION BUTTONS & CLIPBOARD
      ======================================================================== */
   function initActionButtons() {
-    document.getElementById('btn-refresh-signal')?.addEventListener('click', function() {
+    document.getElementById('btn-refresh-signal')?.addEventListener('click', function () {
       this.innerHTML = '<i data-lucide="loader" class="spin"></i> Fetching...';
       if (window.lucide) window.lucide.createIcons();
       fetchLiveGoldPrice().then(() => {
         setTimeout(() => {
           this.innerHTML = '<i data-lucide="rotate-cw"></i> Run Inference';
           if (window.lucide) window.lucide.createIcons();
+          
+          // Push current signal to history
+          if (state.signal) {
+            const dateStr = new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
+            state.history.unshift({
+              id: 'XAUUSD-2026-' + Math.floor(Math.random() * 10000),
+              openTs: dateStr,
+              closeTs: '— (ACTIVE)',
+              dir: state.signal.type === 'LONG' ? 'BUY' : 'SELL',
+              strategy: state.signal.strategy,
+              entry: state.signal.entry, sl: state.signal.sl, tp2: state.signal.tp2,
+              rr: '1 : ' + state.signal.rr, rrClass: 'rr-high',
+              pips: 'LIVE', confidence: state.signal.confidence + '%',
+              news: null, status: 'ACTIVE',
+              reason: state.signal.reason
+            });
+            if(state.history.length > 20) state.history.pop();
+            initSignalHistory();
+          }
+
           // Regenerate signal feed
           state.signalFeed = generateLiveSignals();
           state.predictiveSetups = generatePredictiveSetups();
+          
+          // Update hero signal with top feed signal
+          if (state.signalFeed.length > 0) {
+            const top = state.signalFeed[0];
+            state.signal = {
+              type: top.dir, strategy: top.strategy,
+              entry: top.entry, sl: top.sl, tp1: top.tp1, tp2: top.tp2,
+              rr: top.rr, atr: 8.20,
+              reason: top.reason,
+              confidence: top.conf,
+              confInst: top.confInst, confMacro: top.confMacro, confTech: top.confTech
+            };
+            updateHeroSignalUI();
+          }
+          
           renderSignalFeed();
           renderPredictiveSetups();
           showNotification(`MANUS MAX v5.0 — Inference complete. ${state.signalFeed.length} signals generated. Confidence: ${state.signal.confidence}%`);
         }, 800);
       });
     });
+
+    function updateHeroSignalUI() {
+      const s = state.signal;
+      const strategyEl = document.getElementById('hero-strategy');
+      if (strategyEl) strategyEl.textContent = s.strategy;
+      const entryEl = document.getElementById('sig-entry');
+      if (entryEl) entryEl.textContent = formatPrice(s.entry);
+      const slEl = document.getElementById('sig-sl');
+      if (slEl) slEl.textContent = formatPrice(s.sl);
+      const tp1El = document.getElementById('sig-tp1');
+      if (tp1El) tp1El.textContent = formatPrice(s.tp1);
+      const tp2El = document.getElementById('sig-tp2');
+      if (tp2El) tp2El.textContent = formatPrice(s.tp2);
+      const rrEl = document.getElementById('sig-rr');
+      if (rrEl) rrEl.textContent = '1 : ' + s.rr;
+      const reasonEl = document.getElementById('hero-reason');
+      if (reasonEl) reasonEl.textContent = s.reason;
+      
+      const badge = document.getElementById('hero-signal-badge');
+      if (badge) {
+        if (s.type === 'LONG') {
+          badge.className = 'signal-type-badge signal-buy';
+          badge.innerHTML = '<i data-lucide="trending-up"></i> <span id="hero-signal-label">INSTITUTIONAL LONG SIGNAL</span>';
+        } else {
+          badge.className = 'signal-type-badge signal-sell';
+          badge.innerHTML = '<i data-lucide="trending-down"></i> <span id="hero-signal-label">INSTITUTIONAL SHORT SIGNAL</span>';
+        }
+      }
+      
+      updateConfidenceDynamically();
+      if (state.currentTab === 'terminal') renderGoldChart();
+      if (window.lucide) window.lucide.createIcons();
+    }
 
     document.getElementById('btn-quick-signal')?.addEventListener('click', () => {
       document.querySelector('.nav-tab[data-tab="terminal"]')?.click();
@@ -1359,5 +1450,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Initial confidence update
   updateConfidenceDynamically();
+
+  /* ========================================================================
+     14. PHASE 6: SUPABASE INTEGRATION (STUB)
+     ======================================================================== */
+  // NOTE: Add Supabase URL and Key here to enable real-time backend
+  window.initSupabase = function(supabaseUrl, supabaseKey) {
+    if (!window.supabase) {
+      console.warn("Supabase JS client not loaded. Add <script src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js'></script> to index.html");
+      return;
+    }
+    const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+    console.log("[MANUS MAX] Supabase Initialized.");
+    
+    // Example: Subscribe to realtime signals
+    supabase.channel('public:signals').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'signals' }, payload => {
+      console.log('New live signal from Supabase!', payload.new);
+      // Process payload.new into state.signalFeed and renderSignalFeed()
+    }).subscribe();
+  };
 
 }); // end DOMContentLoaded
