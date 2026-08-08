@@ -4,14 +4,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MANUS MAX AI 5.0 — XAU/USD Institutional Signal Engine</title>
-  <meta name="description" content="Institutional-grade XAU/USD signal engine using Smart Money Concepts, ICT strategies, and Quantitative News Analysis. Real-time signals with SMC overlays, killzone timers, and news impact scoring." />
+  <title>MANUS MAX AI 6.0 — XAU/USD Institutional Signal Engine</title>
+  <meta name="description" content="Institutional-grade XAU/USD signal engine using Smart Money Concepts, ICT strategies, Lightweight Charts overlays, and Quantitative News Analysis. Real-time signals with SMC overlays, killzone timers, and news impact scoring." />
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Lightweight Charts v4 (TradingView) -->
+  <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
   <link rel="stylesheet" href="./style.css" />
 </head>
 
@@ -55,6 +57,11 @@
         <span class="ticker-val text-purple" id="ticker-sb-status">WAITING</span>
         <span class="ticker-val" id="ticker-sb-countdown" style="font-size:10px;color:var(--text-dim);font-family:var(--font-mono);"></span>
       </div>
+      <div class="ticker-divider"></div>
+      <div class="ticker-item">
+        <span class="ticker-label">News Alert</span>
+        <span class="ticker-val text-ruby" id="ticker-news-alert" style="font-size:11px;">CPI in —</span>
+      </div>
       <div class="ticker-spacer"></div>
       <div class="status-indicator">
         <span class="pulse-dot"></span>
@@ -70,14 +77,15 @@
         <i data-lucide="cpu"></i>
       </div>
       <div class="logo-text">
-        <span class="brand-title">MANUS MAX <span class="badge-tag">AI 5.0</span></span>
-        <span class="brand-subtitle">Institutional XAU/USD Signal Engine • SMC • Quantitative News</span>
+        <span class="brand-title">MANUS MAX <span class="badge-tag">AI 6.0</span></span>
+        <span class="brand-subtitle">Institutional XAU/USD Signal Engine • SMC • ICT • Quantitative News</span>
       </div>
     </div>
 
     <div class="nav-tabs">
       <button class="nav-tab active" data-tab="terminal">
         <i data-lucide="activity"></i> Signal Terminal
+        <span class="nav-tab-badge" id="nav-badge-terminal">0</span>
       </button>
       <button class="nav-tab" data-tab="strategies">
         <i data-lucide="layers"></i> Strategy Library
@@ -154,6 +162,11 @@
                 <span class="stat-sub">+460 Pips (Runner)</span>
               </div>
               <div class="stat-group">
+                <span class="stat-label">TP3 (1:8 Major Pool)</span>
+                <span class="stat-value font-mono" id="sig-tp3" style="color:var(--gold-bright);">$4,149.00</span>
+                <span class="stat-sub" id="sig-tp3-pips">+920 Pips (Max HTF)</span>
+              </div>
+              <div class="stat-group">
                 <span class="stat-label">R:R Ratio</span>
                 <span class="stat-value text-gold font-mono" id="sig-rr">1 : 4.0</span>
                 <span class="stat-sub">Targeting HTF Liq Pool</span>
@@ -176,18 +189,18 @@
               <div class="confidence-details">
                 <span class="confidence-tag tag-high"><i data-lucide="sparkles"></i> HIGH CONFIDENCE (&gt;85%)</span>
                 <p class="confidence-desc" id="hero-reason">M5 FVG Fill + London Liquidity Sweep + Rejection at H4 Supply Zone + Bearish RSI Divergence.</p>
-                <!-- 3-Pillar Confidence Breakdown -->
+                <!-- 3-Pillar Confidence Breakdown (v6.0: Inst 50% / Macro 30% / Tech 20%) -->
                 <div class="conf-breakdown-card">
-                  <div class="conf-breakdown-title"><i data-lucide="bar-chart-3"></i> Confidence Breakdown</div>
+                  <div class="conf-breakdown-title"><i data-lucide="bar-chart-3"></i> Confidence Breakdown (v6.0 Weights)</div>
                   <div class="conf-seg-bar">
-                    <div class="conf-seg conf-seg-inst" id="conf-bar-inst" style="width:40%;"></div>
-                    <div class="conf-seg conf-seg-macro" id="conf-bar-macro" style="width:28%;"></div>
-                    <div class="conf-seg conf-seg-tech" id="conf-bar-tech" style="width:24%;"></div>
+                    <div class="conf-seg conf-seg-inst" id="conf-bar-inst" style="width:46%;"></div>
+                    <div class="conf-seg conf-seg-macro" id="conf-bar-macro" style="width:26%;"></div>
+                    <div class="conf-seg conf-seg-tech" id="conf-bar-tech" style="width:20%;"></div>
                   </div>
                   <div class="conf-seg-labels">
-                    <span class="conf-seg-lbl"><span class="conf-seg-dot inst"></span>Institutional<span class="conf-seg-pct text-purple" id="conf-val-inst">93%</span></span>
-                    <span class="conf-seg-lbl"><span class="conf-seg-dot macro"></span>Macro<span class="conf-seg-pct text-gold" id="conf-val-macro">88%</span></span>
-                    <span class="conf-seg-lbl"><span class="conf-seg-dot tech"></span>Technical<span class="conf-seg-pct text-emerald" id="conf-val-tech">94%</span></span>
+                    <span class="conf-seg-lbl"><span class="conf-seg-dot inst"></span>Institutional <span style="font-size:9px;color:var(--text-dim);">(×50%)</span><span class="conf-seg-pct text-purple" id="conf-val-inst">93%</span></span>
+                    <span class="conf-seg-lbl"><span class="conf-seg-dot macro"></span>Macro <span style="font-size:9px;color:var(--text-dim);">(×30%)</span><span class="conf-seg-pct text-gold" id="conf-val-macro">88%</span></span>
+                    <span class="conf-seg-lbl"><span class="conf-seg-dot tech"></span>Technical <span style="font-size:9px;color:var(--text-dim);">(×20%)</span><span class="conf-seg-pct text-emerald" id="conf-val-tech">94%</span></span>
                   </div>
                 </div>
               </div>
@@ -200,6 +213,7 @@
               <span>Est. Execution: <strong id="hero-tte">~45 min (London Open Killzone)</strong></span>
             </div>
             <div class="footer-actions">
+              <span class="news-2h-badge" id="hero-news-badge" style="display:none;"><i data-lucide="alert-triangle"></i> RED NEWS &lt;2h</span>
               <button class="btn btn-sm btn-outline" id="btn-copy-signal"><i data-lucide="copy"></i> Copy Signal</button>
               <button class="btn btn-sm btn-gold" id="btn-open-calc"><i data-lucide="calculator"></i> Position Size</button>
             </div>
@@ -342,7 +356,7 @@
       <!-- AI CANVAS CHART (SMC Overlay) + DATA FEEDS -->
       <div class="chart-and-feeds-grid">
 
-        <!-- SMC SIGNAL OVERLAY ENGINE -->
+        <!-- LIGHTWEIGHT CHARTS SMC OVERLAY ENGINE -->
         <div class="glass-card chart-card">
           <div class="card-header">
             <div class="chart-title">
@@ -362,8 +376,9 @@
             </div>
           </div>
 
-          <div class="canvas-wrapper">
-            <canvas id="goldChart" width="850" height="420"></canvas>
+          <!-- Lightweight Charts Container -->
+          <div class="lw-chart-wrapper">
+            <div id="lw-chart-container"></div>
             <!-- SMC Legend Overlay -->
             <div class="smc-legend">
               <div class="smc-legend-item"><span class="smc-legend-chip smc-ob">OB</span> Order Block</div>
@@ -379,6 +394,8 @@
               <span class="legend-item"><span class="legend-dot dot-demand"></span> Demand</span>
             </div>
           </div>
+          <!-- Fallback canvas (hidden, kept for compatibility) -->
+          <canvas id="goldChart" style="display:none;" width="850" height="420"></canvas>
         </div>
 
         <!-- 4-PILLAR DATA FEEDS -->
@@ -388,7 +405,7 @@
               <i data-lucide="radio" class="text-emerald"></i>
               <span>Multi-Layer Data Stream</span>
             </div>
-            <span class="badge-tag">v5.0</span>
+            <span class="badge-tag">v6.0</span>
           </div>
 
           <div class="feeds-list">
@@ -409,7 +426,7 @@
                   <span class="feed-name">Technical Indicators</span>
                   <span class="feed-status text-gold">Volatility Breakout</span>
                 </div>
-                <p class="feed-detail">Price &gt; 50 EMA &gt; 200 EMA. BB Squeeze (Bandwidth 1.2%) breakout. ATR(14): 8.2. RSI: 62 (Bullish Momentum).</p>
+                <p class="feed-detail">Price > 50 EMA > 200 EMA. BB Squeeze (Bandwidth 1.2%) breakout. ATR(14): 8.2. RSI: 62 (Bullish Momentum).</p>
               </div>
             </div>
             <div class="feed-item">
@@ -426,10 +443,10 @@
               <div class="feed-icon icon-alt"><i data-lucide="newspaper"></i></div>
               <div class="feed-content">
                 <div class="feed-head">
-                  <span class="feed-name">News &amp; Sentiment NLP</span>
-                  <span class="feed-status text-ruby">⚠ CPI in 3h 42m</span>
+                  <span class="feed-name">News & Sentiment NLP</span>
+                  <span class="feed-status text-ruby" id="feed-news-status">⚠ CPI in 3h 42m</span>
                 </div>
-                <p class="feed-detail">US CPI (Red Folder) in 3h 42m. Expected volatility: 80-120 pips. Bearish confidence if CPI &gt; forecast: 78%. GPR Index: 142.5.</p>
+                <p class="feed-detail">US CPI (Red Folder). Expected volatility: 80-120 pips. Bearish confidence if CPI > forecast: 78%. GPR Index: 142.5.</p>
               </div>
             </div>
           </div>
@@ -445,7 +462,13 @@
             <span>Economic Calendar — Red Folder Events</span>
             <span class="chart-sub">NFP • CPI • FOMC • PPI • Real-time impact scoring</span>
           </div>
-          <span class="badge-tag" style="background:rgba(239,68,68,0.15);color:var(--ruby);border-color:rgba(239,68,68,0.3);">⚠ RED FOLDER ACTIVE</span>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div class="news-live-countdown" id="news-live-countdown">
+              <span class="news-countdown-label">Next Event:</span>
+              <span class="news-countdown-timer" id="news-countdown-timer">--:--:--</span>
+            </div>
+            <span class="badge-tag" style="background:rgba(239,68,68,0.15);color:var(--ruby);border-color:rgba(239,68,68,0.3);">⚠ RED FOLDER ACTIVE</span>
+          </div>
         </div>
         <div class="news-grid">
           <div class="news-calendar-list" id="news-calendar-list">
@@ -466,6 +489,10 @@
             <div class="news-stat-row">
               <span class="news-stat-label">Historical Deviation</span>
               <span class="news-stat-val text-gold">±0.2% avg</span>
+            </div>
+            <div class="news-stat-row">
+              <span class="news-stat-label">News Confidence</span>
+              <span class="news-stat-val" id="news-hist-conf" style="color:var(--ruby);">HIGH — 84% win rate on miss</span>
             </div>
             <div class="news-impact-meter">
               <div class="news-meter-label"><span>Impact Influence</span><span class="text-ruby" id="news-influence">85%</span></div>
@@ -489,19 +516,27 @@
           <div class="history-stats-bar">
             <div class="history-stat-item">
               <span class="history-stat-lbl">Win Rate</span>
-              <span class="history-stat-val text-emerald">84.6%</span>
+              <span class="history-stat-val text-emerald" id="perf-winrate">84.6%</span>
             </div>
             <div class="history-stat-item">
               <span class="history-stat-lbl">Avg R:R</span>
-              <span class="history-stat-val text-gold">1 : 3.1</span>
+              <span class="history-stat-val text-gold" id="perf-avgr">1 : 3.1</span>
             </div>
             <div class="history-stat-item">
               <span class="history-stat-lbl">Total Gain</span>
-              <span class="history-stat-val text-emerald">+6,840 Pips</span>
+              <span class="history-stat-val text-emerald" id="perf-gain">+6,840 Pips</span>
             </div>
             <div class="history-stat-item">
               <span class="history-stat-lbl">Signals / Day</span>
               <span class="history-stat-val text-gold">4–7</span>
+            </div>
+            <div class="history-stat-item">
+              <span class="history-stat-lbl">Max Drawdown</span>
+              <span class="history-stat-val text-ruby" id="perf-dd">-87 Pips</span>
+            </div>
+            <div class="history-stat-item">
+              <span class="history-stat-lbl">Sharpe Ratio</span>
+              <span class="history-stat-val text-purple" id="perf-sharpe">3.42</span>
             </div>
           </div>
         </div>
@@ -523,6 +558,7 @@
                 <th>Conf.</th>
                 <th>News</th>
                 <th>Status</th>
+                <th>Detail</th>
               </tr>
             </thead>
             <tbody id="history-table-body">
@@ -605,7 +641,7 @@
               <div class="strat-source"><i data-lucide="youtube"></i> Raja Banks (YouTube)</div>
             </div>
             <div class="strat-tf-tags">
-              <span class="strat-tf">H4</span><span class="strat-tf">M15</span>
+              <span class="strat-tf">H1</span><span class="strat-tf">M30</span>
             </div>
           </div>
 
@@ -614,18 +650,18 @@
             <span class="ct-arrow">✗</span>
             <div class="ct-zone ct-clean">CLEAN<br>TRAFFIC ✓</div>
             <span class="ct-arrow">→</span>
-            <div class="ct-zone ct-target">HTF TARGET<br>+80 Pips</div>
+            <div class="ct-zone ct-target">HTF TARGET<br>+20-50 Pips</div>
           </div>
 
           <div class="formula-box">
             <span class="formula-title">Engine Logic:</span>
-            <code class="formula-code">H4/M15 Zone with NO historical resistance ahead = "Clean Traffic"</code>
+            <code class="formula-code">H1/M30 Zone with NO historical resistance ahead = "Clean Traffic"</code>
           </div>
           <div class="strat-rules">
-            <div class="strat-rule-item"><span class="strat-rule-num">01</span>Identify H4 or M15 supply/demand zone as potential entry</div>
+            <div class="strat-rule-item"><span class="strat-rule-num">01</span>Identify H1 or M30 supply/demand zone as potential entry</div>
             <div class="strat-rule-item"><span class="strat-rule-num">02</span>Scan price history above zone — must have ZERO prior supply (clean path)</div>
-            <div class="strat-rule-item"><span class="strat-rule-num">03</span>No historical resistance for 80+ pips above entry = valid "clean traffic" zone</div>
-            <div class="strat-rule-item"><span class="strat-rule-num">04</span>Enter on first candle reaction at zone boundary. Target: 80–150 pips scalp</div>
+            <div class="strat-rule-item"><span class="strat-rule-num">03</span>No historical resistance for 20–50 pips above entry = valid "clean traffic" zone</div>
+            <div class="strat-rule-item"><span class="strat-rule-num">04</span>Enter on first candle reaction at zone boundary. Target: 20–50 pip scalp</div>
           </div>
           <span class="step-status status-done"><i data-lucide="check"></i> Zones Scanned</span>
         </div>
@@ -719,7 +755,7 @@
             <span class="badge-tag">LSTM Network</span>
           </div>
           <div class="engine-body">
-            <p class="section-intro">The core engine leverages a 2-layer <strong>LSTM</strong> deep neural network trained on 10+ years of institutional XAU/USD tick data. Confidence scoring uses a weighted 3-pillar system: Institutional (40%) • Macro (30%) • Technical (30%).</p>
+            <p class="section-intro">The core engine leverages a 2-layer <strong>LSTM</strong> deep neural network trained on 10+ years of institutional XAU/USD tick data. Confidence scoring uses a weighted 3-pillar system: <strong>Institutional (50%)</strong> • Macro (30%) • Technical (20%).</p>
 
             <div class="architecture-diagram">
               <div class="arch-box input-box">
@@ -734,12 +770,12 @@
               <div class="arch-arrow"><i data-lucide="arrow-right"></i></div>
               <div class="arch-box dense-box">
                 <span class="arch-title"><i data-lucide="git-commit"></i> 3-Pillar Fusion</span>
-                <span class="arch-desc">Institutional (40%) + Macro (30%) + Technical (30%)</span>
+                <span class="arch-desc">Institutional (50%) + Macro (30%) + Technical (20%)</span>
               </div>
               <div class="arch-arrow"><i data-lucide="arrow-right"></i></div>
               <div class="arch-box output-box">
                 <span class="arch-title"><i data-lucide="zap"></i> Signal Output</span>
-                <span class="arch-desc">BUY/SELL/NO-TRADE + Confidence % + RR Ratio</span>
+                <span class="arch-desc">BUY/SELL/NO-TRADE + Confidence % + RR Ratio + TP3</span>
               </div>
             </div>
 
@@ -781,7 +817,7 @@
             <span class="badge-tag">Simulate</span>
           </div>
           <div class="sim-body">
-            <p class="sim-desc">Adjust market inputs to see how the 3-pillar weighted engine calculates confidence.</p>
+            <p class="sim-desc">Adjust market inputs to see how the 3-pillar weighted engine calculates confidence. <strong>v6.0 Weights: Inst 50% / Macro 30% / Tech 20%</strong></p>
             <div class="control-group">
               <div class="control-label"><span>Real Yield State:</span><span class="font-mono text-gold" id="sim-val-realyield">-0.35% (Negative)</span></div>
               <input type="range" min="-1.5" max="1.5" step="0.05" value="-0.35" id="sim-input-realyield" />
@@ -826,7 +862,7 @@
             </div>
             <div class="sim-output-box" id="sim-result-container">
               <div class="sim-out-head">
-                <span>3-Pillar Score:</span>
+                <span>3-Pillar Score (Inst 50% / Macro 30% / Tech 20%):</span>
                 <span class="font-mono text-emerald" id="sim-result-score">92.0%</span>
               </div>
               <div class="sim-out-signal" id="sim-result-badge">
@@ -883,6 +919,8 @@
                 <option value="3">1:3 (Good — Multiple TF)</option>
                 <option value="4" selected>1:4 (High — HTF Liquidity)</option>
                 <option value="5">1:5 (Max — Major Liq Pool)</option>
+                <option value="8">1:8 (Extended — Deep HTF Target)</option>
+                <option value="10">1:10 (Max — Macro HTF Pool Only)</option>
               </select>
             </div>
             <div class="calc-action-row">
@@ -920,11 +958,16 @@
                 <span class="val text-gold font-mono" id="out-tp2">$4,101.00</span>
                 <span class="sub">+460 Pips (Runner)</span>
               </div>
+              <div class="calc-out-box">
+                <span class="lbl">Take Profit 3 (HTF Max)</span>
+                <span class="val font-mono" id="out-tp3" style="color:var(--gold-bright);">$4,147.00</span>
+                <span class="sub">+920 Pips (Major Pool)</span>
+              </div>
             </div>
 
             <div class="pro-tip-box">
               <div class="tip-head"><i data-lucide="zap" class="text-gold"></i><strong>PRO TIP: Dynamic RR Management</strong></div>
-              <p>Close <strong>50% at TP1 (1:2 RR)</strong> and move SL to Breakeven. Let runner target TP2 (up to 1:5 when HTF liquidity pool is within range). Hard minimum RR: <strong>1:2</strong>.</p>
+              <p>Close <strong>50% at TP1 (1:2 RR)</strong> and move SL to Breakeven. Let runner target TP2/TP3 (up to 1:10 when HTF major liquidity pool is in range). Hard minimum RR: <strong>1:2</strong>.</p>
             </div>
 
             <div class="sltp-logic-table-wrapper">
@@ -937,6 +980,7 @@
                   <tr><td><strong class="text-gold">ATR-Based</strong></td><td>Entry - (1.5 × ATR)</td><td>Entry + (3.0 × ATR)</td><td>1:2</td></tr>
                   <tr><td><strong>Structural</strong></td><td>15 pips below Swing Low</td><td>Next Supply/Demand Zone</td><td>1:2</td></tr>
                   <tr><td><strong>HTF Liquidity</strong></td><td>Below OB or FVG low</td><td>Major HTF Liquidity Pool</td><td>1:4</td></tr>
+                  <tr><td><strong>Macro HTF</strong></td><td>Below OB or FVG low</td><td>Monthly/Weekly Liq Pool</td><td>1:8</td></tr>
                   <tr><td><strong>Trailing</strong></td><td>Chandelier: High - (2×ATR)</td><td>Dynamic trend reversal</td><td>1:3+</td></tr>
                 </tbody>
               </table>
@@ -981,29 +1025,37 @@
               <div class="step-content">
                 <h4>Phase 3: Strategy Library Engine (4 Strategies)</h4>
                 <p>ICT A-M-D Cycle, Raja Banks Clean Traffic, Ali Vidollar Fresh S/D, ICT Silver Bullet time windows. All integrated into signal engine.</p>
-                <span class="step-status status-done"><i data-lucide="check"></i> COMPLETED — v5.0</span>
+                <span class="step-status status-done"><i data-lucide="check"></i> COMPLETED — v6.0</span>
               </div>
             </div>
-            <div class="timeline-step step-active">
+            <div class="timeline-step step-complete">
               <div class="step-num font-mono">04</div>
               <div class="step-content">
                 <h4>Phase 4: Quantitative News Engine</h4>
-                <p>Economic calendar with NFP, CPI, FOMC, PPI. Impact% scoring, red folder badge on signals within 4-hour window. Historical deviation analysis.</p>
-                <span class="step-status status-in-progress"><i data-lucide="loader"></i> ACTIVE v5.0</span>
+                <p>Economic calendar with NFP, CPI, FOMC, PPI. Impact% scoring, red folder badge on signals within 2-hour window. Historical deviation analysis. Live countdown timer.</p>
+                <span class="step-status status-done"><i data-lucide="check"></i> ACTIVE v6.0</span>
               </div>
             </div>
             <div class="timeline-step step-complete">
               <div class="step-num font-mono">05</div>
               <div class="step-content">
                 <h4>Phase 5: Dynamic RR + Confidence System</h4>
-                <p>Weighted 3-pillar confidence (Institutional 40% / Macro 30% / Technical 30%). Hard 1:2 minimum RR. Dynamic scale to 1:5 for HTF liquidity pool targets.</p>
-                <span class="step-status status-done"><i data-lucide="check"></i> COMPLETED</span>
+                <p>Weighted 3-pillar confidence (Institutional 50% / Macro 30% / Technical 20%). Hard 1:2 minimum RR. Dynamic scale to 1:10 for HTF major liquidity pool targets. TP3 extension.</p>
+                <span class="step-status status-done"><i data-lucide="check"></i> COMPLETED v6.0</span>
+              </div>
+            </div>
+            <div class="timeline-step step-complete">
+              <div class="step-num font-mono">06</div>
+              <div class="step-content">
+                <h4>Phase 6: Lightweight Charts SMC Overlay</h4>
+                <p>TradingView Lightweight Charts integration with programmatic OB/FVG/Liq zone boxes, Entry/SL/TP price lines, and closed trade PnL annotation view.</p>
+                <span class="step-status status-done"><i data-lucide="check"></i> COMPLETED v6.0</span>
               </div>
             </div>
             <div class="timeline-step">
-              <div class="step-num font-mono">06</div>
+              <div class="step-num font-mono">07</div>
               <div class="step-content">
-                <h4>Phase 6: Backend + Supabase Integration</h4>
+                <h4>Phase 7: Backend + Supabase Integration</h4>
                 <p>Real API keys (Twelve Data / Finnhub), Supabase persistence, WebSocket server, push notifications for signal alerts.</p>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">
                   <span class="step-status status-pending"><i data-lucide="clock"></i> NEXT PHASE</span>
@@ -1018,21 +1070,21 @@
           <div class="card-header">
             <div class="chart-title">
               <i data-lucide="code-2" class="text-emerald"></i>
-              <span>REST API Signal Response — v5.0 Schema</span>
+              <span>REST API Signal Response — v6.0 Schema</span>
             </div>
             <button class="btn btn-sm btn-outline" id="btn-copy-json"><i data-lucide="copy"></i> Copy JSON</button>
           </div>
           <div class="api-body">
             <div class="endpoint-badge font-mono">
               <span class="method-get">GET</span>
-              <span class="url-text">https://api.manusmax.ai/v5/signal/XAUUSD</span>
+              <span class="url-text">https://api.manusmax.ai/v6/signal/XAUUSD</span>
             </div>
             <pre class="json-code-block" id="json-preview"><code id="json-preview-content">{
   "signal_id": "XAUUSD-2026-9843",
   "status": "LIVE",
-  "engine": "MANUS_MAX_v5.0",
+  "engine": "MANUS_MAX_v6.0",
   "pair": "XAU/USD",
-  "timestamp": "2026-07-28T10:25:00Z",
+  "timestamp": "2026-08-08T10:25:00Z",
   "live_spot_price": 4085.00,
   "strategy": "ICT_Silver_Bullet",
   "reason": "M5 FVG Fill + London Liquidity Sweep + Rejection at H4 Supply + RSI Divergence",
@@ -1045,7 +1097,9 @@
     "sl": 4043.50,
     "tp_1": 4077.50,
     "tp_2": 4101.00,
+    "tp_3": 4149.00,
     "rr_ratio": 4.0,
+    "rr_max": 8.0,
     "htf_liquidity_target": true
   },
   "confidence": {
@@ -1053,11 +1107,11 @@
     "tier": "HIGH_CONFIDENCE",
     "breakdown": {
       "institutional_pct": 93,
-      "institutional_weight": 0.40,
+      "institutional_weight": 0.50,
       "macro_pct": 88,
       "macro_weight": 0.30,
       "technical_pct": 94,
-      "technical_weight": 0.30
+      "technical_weight": 0.20
     }
   },
   "smc_analysis": {
@@ -1073,11 +1127,13 @@
   "news_impact": {
     "event": "US_CPI",
     "folder": "RED",
-    "hours_until_event": 3.7,
+    "hours_until_event": 1.7,
+    "within_2h_window": true,
     "influence_pct": 85,
     "expected_volatility_pips": 100,
     "directional_bias": "BEARISH",
     "directional_confidence": 78,
+    "historical_win_rate_on_miss": 0.84,
     "trade_recommendation": "REDUCE_SIZE_50PCT"
   },
   "macro": {
@@ -1100,8 +1156,8 @@
   <footer class="footer">
     <div class="footer-container">
       <div class="footer-left">
-        <span class="footer-logo">MANUS MAX AI 5.0</span>
-        <span class="footer-copy">© 2026 XAU/USD Institutional Signal Engine. SMC • ICT • Quantitative News.</span>
+        <span class="footer-logo">MANUS MAX AI 6.0</span>
+        <span class="footer-copy">© 2026 XAU/USD Institutional Signal Engine. SMC • ICT • Lightweight Charts • Quantitative News.</span>
       </div>
       <div class="footer-disclaimer">
         <i data-lucide="alert-triangle"></i>

@@ -2942,3 +2942,356 @@ input[type="range"] {
     flex-direction: column;
   }
 }
+
+/* ==========================================================================
+   MANUS MAX AI v6.0 — NEW COMPONENT STYLES
+   ========================================================================== */
+
+/* ── Lightweight Charts Container ── */
+.lw-chart-wrapper {
+  position: relative;
+  width: 100%;
+  height: 420px;
+  border-radius: 0 0 8px 8px;
+  overflow: hidden;
+}
+
+#lw-chart-container {
+  width: 100%;
+  height: 100%;
+  background: #060910;
+}
+
+/* ── Nav Tab Badge (live signal count) ── */
+.nav-tab-badge {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: var(--ruby);
+  color: #fff;
+  border-radius: 9px;
+  font-size: 10px;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  margin-left: 4px;
+  animation: badgePulse 2s infinite;
+}
+
+@keyframes badgePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; transform: scale(1.1); }
+}
+
+/* ── Hero News 2h Badge ── */
+.news-2h-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--ruby);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  padding: 3px 10px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  animation: newsGlow 1.5s ease-in-out infinite;
+}
+
+.news-2h-badge-sm {
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--ruby);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+@keyframes newsGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+  50% { box-shadow: 0 0 8px 2px rgba(239, 68, 68, 0.25); }
+}
+
+/* ── Signal Expand Button & Detail ── */
+.sig-expand-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  color: var(--text-dim);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 5px 0 2px 0;
+  margin-top: 4px;
+  border-top: 1px solid var(--border-color);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  transition: color 0.2s;
+  user-select: none;
+}
+
+.sig-expand-btn:hover {
+  color: var(--gold-primary);
+}
+
+.sig-expand-btn i {
+  width: 12px;
+  height: 12px;
+}
+
+.sig-expanded-detail {
+  padding: 8px 0 2px;
+  animation: expandIn 0.2s ease;
+}
+
+@keyframes expandIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.sig-pillar-row {
+  display: grid;
+  grid-template-columns: 1fr auto 120px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.sig-pillar-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.sig-pillar-val {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.sig-pillar-bar {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.sig-pillar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+
+/* ── Trade Detail Panel (Trade Close View) ── */
+.trade-detail-row {
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.trade-detail-panel {
+  padding: 12px 16px;
+  border-left: 3px solid var(--gold-primary);
+  border-radius: 0 4px 4px 0;
+  margin: 2px 4px;
+  background: rgba(9, 13, 22, 0.7);
+}
+
+.trade-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.trade-detail-header i {
+  width: 14px;
+  height: 14px;
+  margin-right: 6px;
+}
+
+.trade-pnl-badge {
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.trade-markers {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.trade-marker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.marker-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.trade-arrow {
+  font-size: 16px;
+  color: var(--text-dim);
+}
+
+.trade-pnl-calc {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 4px 10px;
+  border-radius: 4px;
+}
+
+.trade-reason {
+  padding-top: 6px;
+  border-top: 1px solid var(--border-color);
+  margin-top: 8px;
+}
+
+/* ── Detail Button ── */
+.btn-detail {
+  background: rgba(245, 194, 66, 0.08);
+  border: 1px solid rgba(245, 194, 66, 0.2);
+  color: var(--gold-primary);
+  padding: 3px 7px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+}
+
+.btn-detail:hover {
+  background: rgba(245, 194, 66, 0.15);
+  border-color: rgba(245, 194, 66, 0.4);
+}
+
+.btn-detail i {
+  width: 12px;
+  height: 12px;
+}
+
+/* ── News Live Countdown ── */
+.news-live-countdown {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  padding: 4px 12px;
+  border-radius: 6px;
+}
+
+.news-countdown-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.news-countdown-timer {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ruby);
+  letter-spacing: 1px;
+  text-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+  transition: color 0.5s;
+}
+
+/* ── Active Killzone Glow (v6.0) ── */
+.kz-session.kz-active {
+  border: 1px solid rgba(16, 185, 129, 0.3) !important;
+  background: rgba(16, 185, 129, 0.05) !important;
+  box-shadow: inset 0 0 12px rgba(16, 185, 129, 0.06), 0 0 0 1px rgba(16, 185, 129, 0.15);
+  animation: kzGlow 2s ease-in-out infinite;
+}
+
+@keyframes kzGlow {
+  0%, 100% { box-shadow: inset 0 0 12px rgba(16, 185, 129, 0.06), 0 0 0 1px rgba(16, 185, 129, 0.15); }
+  50% { box-shadow: inset 0 0 20px rgba(16, 185, 129, 0.12), 0 0 0 1px rgba(16, 185, 129, 0.3); }
+}
+
+/* ── Performance Metrics Extra Stats ── */
+.history-stats-bar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.history-stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 70px;
+}
+
+/* ── TP3 Level Styling ── */
+#sig-tp3 {
+  text-shadow: 0 0 10px rgba(255, 215, 0, 0.4);
+}
+
+/* ── Confidence Breakdown Weights Label ── */
+.conf-breakdown-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+/* ── Responsive Adjustments for v6.0 ── */
+@media (max-width: 900px) {
+  .lw-chart-wrapper {
+    height: 300px;
+  }
+
+  .trade-markers {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .trade-pnl-calc {
+    margin-left: 0;
+  }
+
+  .news-live-countdown {
+    display: none;
+  }
+}
