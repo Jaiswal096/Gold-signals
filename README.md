@@ -1,6 +1,10 @@
 # XAU/USD Institutional Signal Engine
 
-> **⚠️ EDUCATIONAL & RESEARCH PLATFORM ONLY**
+> **Live Deployment:** [https://xau-usd-signals.netlify.app/](https://xau-usd-signals.netlify.app/)  
+> **Backend:** Supabase (`https://nrdwfhllmahtakfvtruo.supabase.co`)  
+> **Repository:** [https://github.com/Jaiswal096/Gold-signals](https://github.com/Jaiswal096/Gold-signals)  
+>
+> **⚠️ EDUCATIONAL & RESEARCH PLATFORM ONLY**  
 > This software is provided for educational and research purposes. It does **not** constitute financial advice, investment recommendations, or trading signals. Never risk capital based on output from this platform. Past performance indicators shown are illustrative only.
 
 ---

@@ -2,6 +2,7 @@
   "name": "manus-max-gold-ai",
   "private": true,
   "version": "1.0.0",
+  "homepage": "https://xau-usd-signals.netlify.app/",
   "type": "module",
   "scripts": {
     "dev": "vite",
