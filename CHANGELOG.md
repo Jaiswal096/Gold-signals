@@ -1,0 +1,81 @@
+# CHANGELOG — XAU/USD Institutional Signal Engine Repair
+
+All changes are listed under the single repair milestone. This project did not have a prior versioned changelog.
+
+---
+
+## [1.0.0-repair] — 2026-11-14
+
+### Removed
+
+- **Binance WebSocket PAXG/USDT stream** — `wss://stream.binance.com:9443/ws/paxgusdt@ticker` was the primary price source. PAXG/USDT is a tokenised crypto proxy for gold, not XAU/USD spot gold. Removed entirely; replaced with GoldAPI.io serverless function.
+- **All `Math.random()` calls in signal generation path** — Confidence scores, signal direction, entry/SL/TP levels, and predictive setup detection were all seeded from `Math.random()`. Removed and replaced with deterministic heuristic rules derived from OHLCV price action.
+- **Random-walk OHLCV construction (`pushOHLCTick`)** — LW chart candles were fabricated by accumulating random walk offsets on a starting price. Removed; chart now displays data from the GoldAPI.io polling adapter.
+- **Fabricated historical win rate claims** — The history table displayed an "84.6% Win Rate" figure derived from hardcoded fake trade records (dates set in August 2026 with 100% WIN results). Removed the unqualified claim; DEMO disclaimer added in its place.
+- **Hardcoded future-dated trade history** — All August 2026 hardcoded history rows replaced with DEMO-labelled illustrative data.
+- **Silent `catch {}` blocks** — Approximately 12 empty catch blocks throughout `app.js` suppressed all runtime errors. Removed; replaced with contextual `console.error` logging.
+
+---
+
+### Added
+
+- **Netlify serverless function: `gold-price`** (`netlify/functions/gold-price.js`) — Fetches current XAU/USD spot price from `https://www.goldapi.io/api/XAU/USD` server-side. The `GOLDAPI_KEY` environment variable is consumed here and never exposed to the browser. Returns `{ price, currency, timestamp, source }`.
+
+- **Netlify serverless function: `health`** (`netlify/functions/health.js`) — Liveness endpoint at `/.netlify/functions/health`. Returns `{ status: "ok", timestamp }` with HTTP 200. Used for uptime monitoring and deployment verification.
+
+- **Netlify serverless function: `gold-history`** (`netlify/functions/gold-history.js`) — OHLCV history endpoint at `/.netlify/functions/gold-history?tf=H1&limit=200`. Proxies to GoldAPI.io historical data (requires paid plan for intraday). Returns graceful `DATA_PROVIDER_LIMITED` response on free tier.
+
+- **`DATA PROVIDER NOT CONFIGURED` state** — When no price data can be retrieved (all fallbacks exhausted or `GOLDAPI_KEY` not set), the LW chart canvas and signal terminal both display a prominent `DATA PROVIDER NOT CONFIGURED` message with specific, actionable instructions:
+  > Set `GOLDAPI_KEY` in Netlify → Site Settings → Environment Variables, then redeploy.
+
+- **Data source label on all price displays** — Every price figure in the UI now shows the originating source (`GoldAPI.io`, `metals.live`, `frankfurter/ECB`) and a freshness timestamp ("Updated X seconds ago").
+
+- **Connection state indicator** — A three-state badge (`CONNECTED` / `POLLING` / `DISCONNECTED`) appears on the Signal Terminal price header, reflecting the current state of the GoldAPI.io polling adapter.
+
+- **Prominent educational disclaimer on Signal Terminal** — A fixed disclaimer banner added to the Signal Terminal tab:
+  > "EDUCATIONAL PLATFORM — Not financial advice. All signals are algorithmic/heuristic outputs."
+
+- **`CONDITIONAL` / `WATCH` / `NOT TRIGGERED` labels on predictive setups** — Predictive setup cards now display one of three states rather than a binary BUY/SELL:
+  - `NOT TRIGGERED` — conditions not met
+  - `WATCH` — partial confluence; monitor for entry
+  - `CONDITIONAL` — full confluence pending one more confirmation
+
+- **Proper button handlers for all 15+ interactive controls** — All buttons and UI controls now have wired event listeners. Previously, 9 of 15 buttons had no attached handler. All handlers documented in `TEST_REPORT.md`.
+
+- **Supabase SQL migration schema** (`supabase/migrations/001_initial_schema.sql`) — Initial schema covering:
+  - `signals` table (id, created_at, symbol, bias, entry, sl, tp1, tp2, confidence, session, state, source)
+  - `signal_sessions` table (session tracking)
+  - `audit_log` table (append-only event log)
+  - Row-Level Security policies (anon read-only on `signals`)
+
+- **`netlify.toml`** — Added at project root with:
+  - SPA catch-all redirect (`/* → /index.html 200`)
+  - `[functions]` directory set to `netlify/functions`
+  - Node.js 18 runtime specified
+
+- **`.env.example`** — Template file documenting all required environment variables with descriptions and example values. Included in version control; `.env` is gitignored.
+
+---
+
+### Fixed
+
+- **TradingView widget labelled as "Reference Chart"** — The TradingView Advanced Widget iframe was previously unlabelled, implying it was the data source. Now prominently labelled "Reference Chart (TradingView — OANDA:XAUUSD)" with a note that it is not the signal data source.
+
+- **LW chart `DATA PROVIDER NOT CONFIGURED` state** — Previously, the LW chart would show an empty canvas or stale candles when the price feed failed. Now displays a styled overlay with actionable error text.
+
+- **Error logging with context** — All `catch {}` and `catch (e) { /* ignore */ }` blocks replaced with `console.error('[ComponentName] description:', e)` for debuggable error traces.
+
+- **Confidence scores labelled "Algorithmic/Heuristic"** — Score labels previously read "Accuracy: 87%" implying backtested performance. Now labelled "Algorithmic Confidence" with a tooltip clarifying the score is a weighted heuristic output, not a historical win rate.
+
+- **History table DEMO disclaimer** — All rows in the signal history table that contain illustrative/static data are now tagged with a `[DEMO]` badge. The aggregate "Win Rate" figure in the table header is similarly badged `[DEMO — Illustrative Only]`.
+
+- **TradingView widget CSP / inline script** — The TradingView widget script tag was inlined in `index.html` in a way that could be blocked by Content Security Policy. Moved to a proper `<script src>` load pattern compatible with Vite's CSP headers.
+
+---
+
+### Architecture Notes
+
+The repair follows an in-place fix strategy — the single-page app structure, five-tab layout, Vite build, and existing CSS design language are preserved. Only the data layer, signal logic, and missing UI handlers were changed. No external framework was introduced.
+
+For full architectural rationale, see [ARCHITECTURE.md](./ARCHITECTURE.md).  
+For production deployment steps, see [DEPLOYMENT.md](./DEPLOYMENT.md).

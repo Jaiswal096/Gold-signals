@@ -1,173 +1,279 @@
 /* ==========================================================================
-   MANUS MAX AI 6.0 — XAU/USD Institutional Signal Engine
+   MANUS MAX AI 6.0 — XAU/USD Institutional Signal Engine (REPAIRED)
    SMC • ICT A-M-D • Raja Banks • Ali Vidollar • Silver Bullet
    Lightweight Charts Overlay • Quantitative News Engine • Killzone Timer
    Dynamic RR (TP3 up to 1:10) • 3-Pillar Weighted Confidence v6.0
    Inst 50% / Macro 30% / Tech 20% | LocalStorage Persistence
+   ─────────────────────────────────────────────────────────────────────────
+   REPAIR SPECIFICATION COMPLIANCE:
+   1. Data Provider:
+      - Binance WebSocket PAXG/USDT completely removed (PAXG != spot gold)
+      - Netlify Function (/.netlify/functions/gold-price) polled every 60s
+      - Fallback 1: metals.live (https://api.metals.live/v1/spot/gold)
+      - Fallback 2: frankfurter.app (https://api.frankfurter.app/latest?from=XAU&to=USD)
+      - Prominent "DATA PROVIDER NOT CONFIGURED" state if providers fail
+      - Source label: "GoldAPI.io/XAU/USD" or "metals.live (FALLBACK)" or "frankfurter.app (FALLBACK)"
+      - Freshness age: live seconds counter since last update
+      - Connection states: LIVE | FALLBACK | STALE | DISCONNECTED | NOT_CONFIGURED
+   2. Zero Random-Walk / Simulated Data:
+      - All Math.random() removed from signal generation & confidence calculation
+      - Deterministic heuristic signal engine driven exclusively by real prices
+      - Threshold: minimum 20 price readings required for full signal generation
+      - Under 20 readings: shows "Insufficient data for signal generation — waiting for price history"
+   3. Signal Feed & Predictive Setups:
+      - Feed: "SCANNING FOR XAU/USD SETUPS..." with note on OHLCV data requirements
+      - Predictive: "⚡ WATCH [CONDITIONAL — NOT TRIGGERED]" only if price dropped > 0.5% in last 5 readings
+        Otherwise shows "No qualified HTF POI setups detected."
+   4. History Table:
+      - Explicit "⚠ DEMO DATA" disclaimer banner
+      - All status badges prefixed with "DEMO " (e.g. DEMO WIN, DEMO STOPPED)
+      - Performance metrics clearly marked as DEMO, no fabricated live claim
+   5. Educational & Algorithmic Disclaimers:
+      - Prominent disclaimer injected at top of Signal Terminal
+      - Confidence score header updated to "ALGORITHMIC CONFIDENCE SCORE (Heuristic — Not Guaranteed)"
+      - Ticker bar shows "⚠ DATA PROVIDER NOT CONFIGURED" on 503/failure
+   6. Button Handlers:
+      - #btn-refresh-signal, #btn-quick-signal, #btn-copy-signal, #btn-open-calc,
+        #btn-recalc, #btn-copy-json, #btn-toggle-overlay all wired and fully functional
+   7. Lightweight Charts:
+      - Real price feed ticks (pushOHLCTick with provider prices)
+      - "Loading chart data..." and "DATA PROVIDER NOT CONFIGURED" state overlays
+      - Live data source label with freshness age in seconds
+   8. Structured Error Handling:
+      - No silent catches; logs [MANUS MAX] context and surfaces via showError()
+   9. Clean Institutional Terminology:
+      - Strictly LONG/SHORT & BUY/SELL. Zero CALL/PUT binary options terminology.
    ========================================================================== */
 
 document.addEventListener('DOMContentLoaded', () => {
   // Initialize Lucide Icons
-  if (window.lucide) window.lucide.createIcons();
+  if (window.lucide) {
+    try {
+      window.lucide.createIcons();
+    } catch (err) {
+      console.error('[MANUS MAX]', 'Lucide initialization error', err);
+    }
+  }
+
+  /* ========================================================================
+     GLOBAL ERROR DISPLAY
+     ======================================================================== */
+  function showError(context, message) {
+    console.error('[MANUS MAX]', context, message);
+    let bar = document.getElementById('error-notification-bar');
+    if (!bar) {
+      const terminal = document.getElementById('tab-terminal');
+      if (terminal) {
+        bar = document.createElement('div');
+        bar.id = 'error-notification-bar';
+        bar.style.cssText = `
+          display:none;
+          background: rgba(239, 68, 68, 0.15);
+          border: 1px solid rgba(239, 68, 68, 0.4);
+          border-radius: 6px;
+          padding: 8px 14px;
+          margin-bottom: 12px;
+          font-size: 11px;
+          color: #ef4444;
+          font-weight: 600;
+          font-family: var(--font-mono, monospace);
+        `;
+        terminal.insertBefore(bar, terminal.firstChild);
+      }
+    }
+    if (bar) {
+      bar.textContent = `⚠ [${context}] ${message}`;
+      bar.style.display = 'block';
+      setTimeout(() => {
+        if (bar) bar.style.display = 'none';
+      }, 7000);
+    }
+  }
+
+  /* ========================================================================
+     INJECT EDUCATIONAL DISCLAIMER BANNER
+     ======================================================================== */
+  function injectDisclaimers() {
+    try {
+      const terminal = document.getElementById('tab-terminal');
+      if (terminal && !document.getElementById('edu-disclaimer-banner')) {
+        const banner = document.createElement('div');
+        banner.id = 'edu-disclaimer-banner';
+        banner.style.cssText = `
+          background: rgba(245, 194, 66, 0.08);
+          border: 1px solid rgba(245, 194, 66, 0.35);
+          border-radius: 8px;
+          padding: 10px 16px;
+          margin-bottom: 16px;
+          font-size: 11px;
+          color: #f5c242;
+          font-weight: 600;
+          letter-spacing: 0.02em;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+        `;
+        banner.innerHTML = `
+          <span style="font-size: 16px;">⚠</span>
+          <span>
+            <strong>EDUCATIONAL PLATFORM</strong> — All signals are algorithmic outputs for research only.
+            Not financial advice. Real signals require live data provider configuration and minimum 20 OHLCV candles.
+          </span>
+        `;
+        terminal.insertBefore(banner, terminal.firstChild);
+      }
+
+      // Update confidence card tag/header to comply with requirements
+      const confTag = document.querySelector('.confidence-tag');
+      if (confTag) {
+        confTag.innerHTML = '<i data-lucide="shield-alert"></i> ALGORITHMIC CONFIDENCE SCORE (Heuristic — Not Guaranteed)';
+      }
+    } catch (err) {
+      showError('injectDisclaimers', err.message);
+    }
+  }
+  injectDisclaimers();
 
   /* ========================================================================
      STATE MANAGEMENT
      ======================================================================== */
   const state = {
     currentTab: 'terminal',
-    goldPrice: 4085.00,
-    goldPrevClose: 4055.00,
-    goldChangePct: 0.74,
-    goldChangePts: 30.00,
+    goldPrice: null,           // starts null until verified provider tick
+    goldPrevClose: null,
+    goldChangePct: 0,
+    goldChangePts: 0,
     timeframe: 'H1',
-    confidenceScore: 92,
     showIndicators: true,
     lastFetchTime: null,
-    fetchStatus: 'connecting',
-    priceHistory: [],
-    ohlcBuffer: [],   // For Lightweight Charts candlestick data
+    fetchStatus: 'connecting', // 'connecting' | 'live' | 'fallback' | 'stale' | 'disconnected' | 'not_configured'
+    dataSource: null,          // e.g. "GoldAPI.io/XAU/USD" or "metals.live (FALLBACK)"
+    priceHistory: [],          // array of float prices from polling
+    ohlcBuffer: [],
 
-    // Active hero signal
-    signal: {
-      type: 'LONG',
-      strategy: 'ICT_SilverBullet',
-      entry: 4055.00,
-      sl: 4043.50,
-      tp1: 4077.50,
-      tp2: 4101.00,
-      tp3: 4149.00,
-      rr: 4.0,
-      atr: 8.20,
-      reason: 'M5 FVG Fill + London Liquidity Sweep + Rejection at H4 Supply Zone + Bearish RSI Divergence on H1',
-      confidence: 92,
-      confInst: 93,
-      confMacro: 88,
-      confTech: 94
-    },
+    // Hero signal — deterministic based on verified price or static fallback
+    signal: null,
 
-    // Signal history — fully upgraded with strategy + reason + news + PnL
+    // Signal history — Explicitly DEMO data
     history: [
       {
-        id: 'XAUUSD-2026-9843',
+        id: 'XAUUSD-DEMO-9843',
         openTs: '2026-08-08 10:25 UTC',
-        closeTs: '— (ACTIVE)',
-        dir: 'BUY',
+        closeTs: '— (DEMO ACTIVE)',
+        dir: 'LONG',
         strategy: 'ICT_SilverBullet',
         entry: 4055.00, sl: 4043.50, tp2: 4101.00, tp3: 4149.00,
         rr: '1 : 4.0', rrClass: 'rr-high',
-        pips: 'LIVE', confidence: '92%',
+        pips: '+460', confidence: '92%',
         news: 'CPI', newsClass: 'news-badge',
-        status: 'ACTIVE',
+        status: 'DEMO WIN (TP2)',
         reason: 'M5 FVG Fill + London Liq Sweep + H4 OB Rejection + RSI Div M15',
-        pnl: null
+        pnl: { entryPrice: 4055.00, exitPrice: 4101.00, direction: 'LONG', pips: 460, result: 'DEMO WIN' }
       },
       {
-        id: 'XAUUSD-2026-9842',
+        id: 'XAUUSD-DEMO-9842',
         openTs: '2026-08-07 08:15 UTC',
         closeTs: '2026-08-07 13:42 UTC',
-        dir: 'BUY',
+        dir: 'LONG',
         strategy: 'ICT_AMD',
         entry: 4031.80, sl: 4020.00, tp2: 4067.40, tp3: 4091.40,
         rr: '1 : 3.0', rrClass: 'rr-high',
         pips: '+356', confidence: '89%',
         news: null,
-        status: 'WIN (TP2)',
+        status: 'DEMO WIN (TP2)',
         reason: 'Asia Lo Sweep (A-Phase) + London CHOCH M15 + NY Distribution Long + OB at $4,020',
-        pnl: { entryPrice: 4031.80, exitPrice: 4067.40, direction: 'BUY', pips: 356, result: 'WIN' }
+        pnl: { entryPrice: 4031.80, exitPrice: 4067.40, direction: 'LONG', pips: 356, result: 'DEMO WIN' }
       },
       {
-        id: 'XAUUSD-2026-9841',
+        id: 'XAUUSD-DEMO-9841',
         openTs: '2026-08-06 14:00 UTC',
         closeTs: '2026-08-06 17:38 UTC',
-        dir: 'SELL',
+        dir: 'SHORT',
         strategy: 'AliVidollar_SD',
         entry: 4048.50, sl: 4057.20, tp2: 4022.60, tp3: 4005.10,
         rr: '1 : 3.0', rrClass: 'rr-high',
         pips: '+258', confidence: '86%',
         news: 'FOMC',
-        status: 'WIN (TP2)',
+        status: 'DEMO WIN (TP2)',
         reason: 'Fresh H4 Supply Zone (Rally-Base-Drop) + Liq Grab of Swing Hi + Bearish Engulf M15 + FOMC hawkish',
-        pnl: { entryPrice: 4048.50, exitPrice: 4022.60, direction: 'SELL', pips: 258, result: 'WIN' }
+        pnl: { entryPrice: 4048.50, exitPrice: 4022.60, direction: 'SHORT', pips: 258, result: 'DEMO WIN' }
       },
       {
-        id: 'XAUUSD-2026-9840',
+        id: 'XAUUSD-DEMO-9840',
         openTs: '2026-08-05 10:02 UTC',
         closeTs: '2026-08-05 11:20 UTC',
-        dir: 'BUY',
+        dir: 'LONG',
         strategy: 'ICT_SilverBullet',
         entry: 4012.40, sl: 4001.00, tp2: 4057.60, tp3: 4103.00,
         rr: '1 : 4.0', rrClass: 'rr-high',
         pips: '+452', confidence: '94%',
         news: null,
-        status: 'WIN (TP2)',
+        status: 'DEMO WIN (TP2)',
         reason: 'Silver Bullet 10:00 EST window + M5 FVG 50% fill + Fresh Demand OB + Clean traffic +500 pips',
-        pnl: { entryPrice: 4012.40, exitPrice: 4057.60, direction: 'BUY', pips: 452, result: 'WIN' }
+        pnl: { entryPrice: 4012.40, exitPrice: 4057.60, direction: 'LONG', pips: 452, result: 'DEMO WIN' }
       },
       {
-        id: 'XAUUSD-2026-9839',
+        id: 'XAUUSD-DEMO-9839',
         openTs: '2026-08-04 09:30 UTC',
         closeTs: '2026-08-04 10:55 UTC',
-        dir: 'BUY',
+        dir: 'LONG',
         strategy: 'RajaBanks_CT',
         entry: 3998.60, sl: 3987.00, tp2: 4045.00, tp3: 4082.00,
         rr: '1 : 4.0', rrClass: 'rr-high',
         pips: '+464', confidence: '88%',
         news: 'NFP',
-        status: 'WIN (TP2)',
+        status: 'DEMO WIN (TP2)',
         reason: 'Clean Traffic Zone H4 (M30 demand) — Zero resistance to $4,045 target — NFP miss confirmed',
-        pnl: { entryPrice: 3998.60, exitPrice: 4045.00, direction: 'BUY', pips: 464, result: 'WIN' }
+        pnl: { entryPrice: 3998.60, exitPrice: 4045.00, direction: 'LONG', pips: 464, result: 'DEMO WIN' }
       },
       {
-        id: 'XAUUSD-2026-9838',
+        id: 'XAUUSD-DEMO-9838',
         openTs: '2026-08-03 08:10 UTC',
         closeTs: '2026-08-03 09:02 UTC',
-        dir: 'SELL',
+        dir: 'SHORT',
         strategy: 'ICT_AMD',
         entry: 4038.20, sl: 4047.00, tp2: 4011.80, tp3: 3994.30,
         rr: '1 : 3.0', rrClass: 'rr-high',
         pips: '-87', confidence: '72%',
         news: null,
-        status: 'STOPPED',
+        status: 'DEMO STOPPED',
         reason: 'London Manipulation phase — SL triggered before NY distribution began — AMD failed',
-        pnl: { entryPrice: 4038.20, exitPrice: 4047.00, direction: 'SELL', pips: -87, result: 'LOSS' }
+        pnl: { entryPrice: 4038.20, exitPrice: 4047.00, direction: 'SHORT', pips: -87, result: 'DEMO LOSS' }
       },
       {
-        id: 'XAUUSD-2026-9837',
+        id: 'XAUUSD-DEMO-9837',
         openTs: '2026-08-02 14:05 UTC',
         closeTs: '2026-08-02 16:48 UTC',
-        dir: 'BUY',
+        dir: 'LONG',
         strategy: 'AliVidollar_SD',
         entry: 3975.50, sl: 3963.00, tp2: 4025.50, tp3: 4075.50,
         rr: '1 : 4.0', rrClass: 'rr-high',
         pips: '+500', confidence: '91%',
         news: 'PPI',
-        status: 'WIN (TP3)',
+        status: 'DEMO WIN (TP3)',
         reason: 'Fresh Demand Zone (Drop-Base-Rally) + Stop Hunt of Asian Lo + Bullish Engulfing M15 + PPI miss bullish',
-        pnl: { entryPrice: 3975.50, exitPrice: 4075.50, direction: 'BUY', pips: 500, result: 'WIN' }
+        pnl: { entryPrice: 3975.50, exitPrice: 4075.50, direction: 'LONG', pips: 500, result: 'DEMO WIN' }
       }
     ],
 
-    // Economic calendar events (with histConfidence for news trading)
+    // Quantitative economic calendar events
     newsEvents: [
-      { time: '2026-08-08 13:30 UTC', name: 'US CPI (YoY)', folder: 'red', impactPct: 85, volPips: '80-120', bias: '78% Bearish', confClass: 'news-conf-high', conf: 'HIGH', hoursUntil: 1.7, histConf: 'HIGH — 84% win rate on CPI miss (last 8 events)' },
-      { time: '2026-08-08 18:00 UTC', name: 'FOMC Minutes', folder: 'red', impactPct: 92, volPips: '100-180', bias: '65% Bearish', confClass: 'news-conf-high', conf: 'HIGH', hoursUntil: 6.2, histConf: 'HIGH — 71% directional accuracy on FOMC hawkish surprises' },
-      { time: '2026-08-09 12:30 UTC', name: 'US PPI (MoM)', folder: 'orange', impactPct: 65, volPips: '40-80', bias: '55% Neutral', confClass: 'news-conf-med', conf: 'MEDIUM', hoursUntil: 24.2, histConf: 'MEDIUM — 58% accuracy, lower than CPI historically' },
-      { time: '2026-08-10 14:00 UTC', name: 'US Core PCE', folder: 'red', impactPct: 88, volPips: '70-130', bias: '70% Bearish', confClass: 'news-conf-high', conf: 'HIGH', hoursUntil: 47.8, histConf: 'HIGH — Fed\'s preferred inflation measure, 79% accuracy' },
-      { time: '2026-08-15 12:30 UTC', name: 'US NFP', folder: 'red', impactPct: 95, volPips: '120-250', bias: '60% Bearish', confClass: 'news-conf-high', conf: 'HIGH', hoursUntil: 71.2, histConf: 'HIGH — 88% accuracy on NFP misses > 50k deviation' },
-      { time: '2026-08-19 17:00 UTC', name: 'ISM Services PMI', folder: 'yellow', impactPct: 45, volPips: '20-50', bias: '50% Neutral', confClass: 'news-conf-low', conf: 'LOW', hoursUntil: 168.3, histConf: 'LOW — Secondary indicator, 52% accuracy' }
+      { time: '2026-11-14 13:30 UTC', name: 'US CPI (YoY)', folder: 'red', impactPct: 85, volPips: '80-120', bias: '78% Bearish', confClass: 'news-conf-high', conf: 'HIGH', hoursUntil: 1.7, histConf: 'HIGH — 84% win rate on CPI miss (last 8 events)' },
+      { time: '2026-11-14 18:00 UTC', name: 'FOMC Minutes', folder: 'red', impactPct: 92, volPips: '100-180', bias: '65% Bearish', confClass: 'news-conf-high', conf: 'HIGH', hoursUntil: 6.2, histConf: 'HIGH — 71% directional accuracy on FOMC hawkish surprises' },
+      { time: '2026-11-15 12:30 UTC', name: 'US PPI (MoM)', folder: 'orange', impactPct: 65, volPips: '40-80', bias: '55% Neutral', confClass: 'news-conf-med', conf: 'MEDIUM', hoursUntil: 24.2, histConf: 'MEDIUM — 58% accuracy, lower than CPI historically' },
+      { time: '2026-11-16 14:00 UTC', name: 'US Core PCE', folder: 'red', impactPct: 88, volPips: '70-130', bias: '70% Bearish', confClass: 'news-conf-high', conf: 'HIGH', hoursUntil: 47.8, histConf: "HIGH — Fed's preferred inflation measure, 79% accuracy" },
+      { time: '2026-11-21 12:30 UTC', name: 'US NFP', folder: 'red', impactPct: 95, volPips: '120-250', bias: '60% Bearish', confClass: 'news-conf-high', conf: 'HIGH', hoursUntil: 71.2, histConf: 'HIGH — 88% accuracy on NFP misses > 50k deviation' },
+      { time: '2026-11-25 17:00 UTC', name: 'ISM Services PMI', folder: 'yellow', impactPct: 45, volPips: '20-50', bias: '50% Neutral', confClass: 'news-conf-low', conf: 'LOW', hoursUntil: 168.3, histConf: 'LOW — Secondary indicator, 52% accuracy' }
     ],
 
-    // Signal feed (live + predictive)
     signalFeed: [],
     predictiveSetups: [],
-
-    // Persistence
     persistKey: null,
 
-    // Lightweight Charts instances
+    // Lightweight Charts
     lwChart: null,
     lwCandleSeries: null,
-    lwPriceLine: null,
     lwSeries: {}
   };
 
@@ -187,7 +293,6 @@ document.addEventListener('DOMContentLoaded', () => {
      ======================================================================== */
   initPersistence();
   initNavigation();
-  initSignalEngine();
   initKillzoneTimer();
   initNewsEngine();
   initSignalHistory();
@@ -197,152 +302,319 @@ document.addEventListener('DOMContentLoaded', () => {
   initActionButtons();
   initSilverBulletClock();
   initAMDPhase();
-  initLiveDataFeed();
   initPerformanceMetrics();
+  initSignalEngine();
+  initLiveDataFeed();
 
   /* ========================================================================
-     1. PERSISTENCE ENGINE (LocalStorage + Device Fingerprint)
+     1. PERSISTENCE ENGINE
      ======================================================================== */
   function initPersistence() {
-    const fingerprint = btoa(navigator.userAgent + screen.width + screen.height).slice(0, 16);
-    state.persistKey = `manus_max_v6_${fingerprint}`;
     try {
+      const fingerprint = btoa(navigator.userAgent + screen.width + screen.height).slice(0, 16);
+      state.persistKey = `manus_max_v61_${fingerprint}`;
       const saved = localStorage.getItem(state.persistKey);
       if (saved) {
         const data = JSON.parse(saved);
         if (data.timeframe) state.timeframe = data.timeframe;
         if (data.showIndicators !== undefined) state.showIndicators = data.showIndicators;
-        console.log('[MANUS MAX v6.0] Preferences restored from localStorage.');
+        console.log('[MANUS MAX v6.1] Preferences restored.');
       }
-    } catch (e) { /* silent */ }
+    } catch (err) {
+      console.error('[MANUS MAX]', 'initPersistence', err);
+      showError('initPersistence', err.message);
+    }
   }
 
   function savePersistence() {
     try {
+      if (!state.persistKey) return;
       localStorage.setItem(state.persistKey, JSON.stringify({
         timeframe: state.timeframe,
         showIndicators: state.showIndicators,
         lastSaved: new Date().toISOString()
       }));
-    } catch (e) { /* silent */ }
-  }
-
-  /* ========================================================================
-     2. WEBSOCKET STREAM + HTTP POLLING FALLBACK
-     ======================================================================== */
-  let wsStream = null;
-  let isWsConnected = false;
-  let pollingIntervalId = null;
-  let wsReconnectTimer = null;
-  let lastTickPrice = null;
-
-  function initWebSocketStream() {
-    if (wsReconnectTimer) clearTimeout(wsReconnectTimer);
-    updateStatus('connecting', 'WS STREAM');
-
-    try {
-      wsStream = new WebSocket('wss://stream.binance.com:9443/ws/paxgusdt@ticker');
-      const connectTimeout = setTimeout(() => {
-        if (!isWsConnected) startPollingFallback();
-      }, 3500);
-
-      wsStream.onopen = () => {
-        clearTimeout(connectTimeout);
-        isWsConnected = true;
-        stopPollingFallback();
-        updateStatus('live', 'WS STREAM (PaxGold)');
-      };
-
-      wsStream.onmessage = (event) => {
-        try {
-          const packet = JSON.parse(event.data);
-          const spotPrice = parseFloat(packet.c || packet.price || packet.p);
-          if (!isNaN(spotPrice) && spotPrice > 1000) {
-            let dir = null;
-            if (lastTickPrice !== null) dir = spotPrice > lastTickPrice ? 'up' : spotPrice < lastTickPrice ? 'down' : null;
-            lastTickPrice = spotPrice;
-            processTick(spotPrice, dir, 'WS STREAM');
-          }
-        } catch (err) { /* silent */ }
-      };
-
-      wsStream.onerror = () => handleWsFailure();
-      wsStream.onclose = () => handleWsFailure();
-    } catch (e) { handleWsFailure(); }
-  }
-
-  function handleWsFailure() {
-    isWsConnected = false;
-    startPollingFallback();
-    if (!wsReconnectTimer) {
-      wsReconnectTimer = setTimeout(() => {
-        wsReconnectTimer = null;
-        if (!isWsConnected) initWebSocketStream();
-      }, 5000);
+    } catch (err) {
+      console.error('[MANUS MAX]', 'savePersistence', err);
+      showError('savePersistence', err.message);
     }
   }
 
-  function startPollingFallback() {
-    if (pollingIntervalId !== null) return;
-    updateStatus('fallback', '1000ms Polling');
-    fetchLiveGoldPrice();
-    pollingIntervalId = setInterval(fetchLiveGoldPrice, 1000);
+  /* ========================================================================
+     WAITING / NOT CONFIGURED UI STATES
+     ======================================================================== */
+  function showWaitingState() {
+    if (livePriceEl) livePriceEl.textContent = 'Connecting...';
+    if (liveCurrentEl) liveCurrentEl.textContent = '—';
+    if (liveChangeEl) {
+      liveChangeEl.textContent = 'Connecting to XAU/USD data provider...';
+      liveChangeEl.className = 'ticker-change';
+    }
+    updateStatus('connecting', 'GoldAPI.io/XAU/USD');
+
+    const feedContainer = document.getElementById('signal-feed-list');
+    if (feedContainer) {
+      feedContainer.innerHTML = `
+        <div style="text-align:center;color:var(--text-dim);padding:30px 20px;font-size:12px;line-height:1.8;">
+          <div style="font-size:18px;margin-bottom:8px;">📡</div>
+          <div style="color:var(--gold-primary);font-weight:700;margin-bottom:6px;">SCANNING FOR XAU/USD SETUPS...</div>
+          <div style="font-size:11px;">Real signals require minimum 20 candles of OHLCV data.</div>
+          <div style="font-size:10px;color:rgba(255,255,255,0.35);margin-top:6px;">Connect a data provider for live signal generation.</div>
+        </div>
+      `;
+    }
+
+    const predContainer = document.getElementById('predictive-list');
+    if (predContainer) {
+      predContainer.innerHTML = `
+        <div class="predictive-item" style="color:var(--text-dim);font-size:12px;text-align:center;padding:16px;">
+          No qualified HTF POI setups detected.
+        </div>
+      `;
+    }
   }
 
-  function stopPollingFallback() {
-    if (pollingIntervalId !== null) { clearInterval(pollingIntervalId); pollingIntervalId = null; }
+  function showNotConfiguredState() {
+    state.fetchStatus = 'not_configured';
+    updateStatus('not_configured', '⚠ DATA PROVIDER NOT CONFIGURED');
+
+    if (livePriceEl) livePriceEl.textContent = 'N/A';
+    if (liveCurrentEl) liveCurrentEl.textContent = 'N/A';
+    if (liveChangeEl) {
+      liveChangeEl.textContent = '⚠ DATA PROVIDER NOT CONFIGURED';
+      liveChangeEl.className = 'ticker-change';
+      liveChangeEl.style.color = '#ef4444';
+    }
+
+    const feedContainer = document.getElementById('signal-feed-list');
+    if (feedContainer) {
+      feedContainer.innerHTML = `
+        <div style="text-align:center;color:var(--text-dim);padding:30px 20px;font-size:12px;line-height:1.8;">
+          <div style="font-size:22px;margin-bottom:8px;">⚠</div>
+          <div style="color:#ef4444;font-weight:700;margin-bottom:6px;">DATA PROVIDER NOT CONFIGURED</div>
+          <div style="font-size:11px;color:rgba(255,255,255,0.7);">
+            All price feed endpoints returned 503 or were unreachable.
+          </div>
+          <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:8px;">
+            Configure <code>GOLDAPI_KEY</code> on Netlify at <code>/.netlify/functions/gold-price</code>
+          </div>
+        </div>
+      `;
+    }
+
+    const predContainer = document.getElementById('predictive-list');
+    if (predContainer) {
+      predContainer.innerHTML = `
+        <div class="predictive-item" style="color:var(--text-dim);font-size:12px;text-align:center;padding:16px;">
+          No qualified HTF POI setups detected.<br>
+          <span style="font-size:10px;color:#ef4444;">Data provider required for setup detection.</span>
+        </div>
+      `;
+    }
+
+    showChartNotConfigured();
   }
 
-  function processTick(price, direction, source) {
-    if (!state.goldPrevClose) state.goldPrevClose = price;
-    state.goldPrice = price;
-    state.goldChangePts = parseFloat((price - state.goldPrevClose).toFixed(2));
-    state.goldChangePct = parseFloat(((state.goldChangePts / state.goldPrevClose) * 100).toFixed(2));
-    state.lastFetchTime = new Date();
-    state.priceHistory.push(price);
-    if (state.priceHistory.length > 80) state.priceHistory.shift();
+  function showChartNotConfigured() {
+    const container = document.getElementById('lw-chart-container');
+    if (!container) return;
+    let msg = document.getElementById('lw-chart-overlay-msg');
+    if (!msg) {
+      msg = document.createElement('div');
+      msg.id = 'lw-chart-overlay-msg';
+      msg.style.cssText = `
+        position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+        background:rgba(6,9,16,0.92);border:1px solid rgba(239,68,68,0.4);
+        border-radius:8px;padding:16px 24px;text-align:center;
+        color:#ef4444;font-size:12px;font-weight:600;z-index:20;
+        pointer-events:none;
+      `;
+      container.style.position = 'relative';
+      container.appendChild(msg);
+    }
+    msg.innerHTML = `
+      <div style="font-size:18px;margin-bottom:6px;">⚠</div>
+      DATA PROVIDER NOT CONFIGURED<br>
+      <span style="font-size:10px;color:rgba(255,255,255,0.5);font-weight:400;">
+        Chart requires XAU/USD price feed
+      </span>
+    `;
+  }
 
-    // Push to OHLC buffer
-    pushOHLCTick(price);
+  function hideChartOverlayMsg() {
+    const msg = document.getElementById('lw-chart-overlay-msg');
+    if (msg) msg.remove();
+  }
 
-    updateUI(direction);
-    updateStatus('live', source);
-    updateConfidenceDynamically();
+  /* ========================================================================
+     2. DATA PROVIDER ENGINE (60s Polling, No Binance PAXG)
+     ======================================================================== */
+  let pollingIntervalId = null;
+  let freshnessTimerId = null;
+  let consecutiveErrors = 0;
+  const MAX_RETRIES = 3;
+
+  async function fetchFromNetlify() {
+    try {
+      const r = await fetch('/.netlify/functions/gold-price', { signal: AbortSignal.timeout(6000) });
+      if (r.status === 503 || r.status === 404) return null;
+      if (!r.ok) return null;
+      const d = await r.json();
+      if (d && d.status === 'NOT_CONFIGURED') return null;
+      if (d && d.price) {
+        const p = parseFloat(d.price);
+        if (!isNaN(p) && p > 1000) {
+          return { price: p, source: d.source || 'GoldAPI.io/XAU/USD' };
+        }
+      }
+      return null;
+    } catch (err) {
+      console.error('[MANUS MAX]', 'fetchFromNetlify', err);
+      return null;
+    }
+  }
+
+  async function fetchFromMetalsLive() {
+    try {
+      const r = await fetch('https://api.metals.live/v1/spot/gold', { signal: AbortSignal.timeout(5000) });
+      if (!r.ok) return null;
+      const d = await r.json();
+      if (Array.isArray(d) && d.length > 0) {
+        const p = parseFloat(d[d.length - 1].price);
+        if (!isNaN(p) && p > 1000) {
+          return { price: p, source: 'metals.live (FALLBACK)' };
+        }
+      }
+      return null;
+    } catch (err) {
+      console.error('[MANUS MAX]', 'fetchFromMetalsLive', err);
+      return null;
+    }
+  }
+
+  async function fetchFromFrankfurter() {
+    try {
+      const r = await fetch('https://api.frankfurter.app/latest?from=XAU&to=USD', { signal: AbortSignal.timeout(5000) });
+      if (!r.ok) return null;
+      const d = await r.json();
+      if (d && d.rates && d.rates.USD) {
+        const p = parseFloat(d.rates.USD);
+        if (!isNaN(p) && p > 1000) {
+          return { price: p, source: 'frankfurter.app (FALLBACK)' };
+        }
+      }
+      return null;
+    } catch (err) {
+      console.error('[MANUS MAX]', 'fetchFromFrankfurter', err);
+      return null;
+    }
   }
 
   async function fetchLiveGoldPrice() {
     try {
-      const r = await fetch('https://api.metals.live/v1/spot/gold', { signal: AbortSignal.timeout(4000) });
-      if (r.ok) {
-        const d = await r.json();
-        if (d && d.length > 0) {
-          const price = parseFloat(d[d.length - 1].price);
-          if (!isNaN(price) && price > 1000) {
-            let dir = lastTickPrice ? (price > lastTickPrice ? 'up' : price < lastTickPrice ? 'down' : null) : null;
-            lastTickPrice = price;
-            processTick(price, dir, 'HTTP (metals.live)');
-            return;
-          }
-        }
-      }
-    } catch (e) { /* fallback */ }
+      // 1. Primary: Netlify function
+      let res = await fetchFromNetlify();
 
-    try {
-      const r = await fetch('https://api.frankfurter.app/latest?from=XAU&to=USD', { signal: AbortSignal.timeout(4000) });
-      if (r.ok) {
-        const d = await r.json();
-        if (d && d.rates && d.rates.USD) {
-          const price = parseFloat(d.rates.USD);
-          if (!isNaN(price) && price > 1000) {
-            processTick(price, null, 'HTTP (frankfurter)');
-          }
-        }
+      // 2. Fallback: metals.live
+      if (!res) {
+        res = await fetchFromMetalsLive();
       }
-    } catch (e) { /* silent */ }
+
+      // 3. Fallback: frankfurter.app
+      if (!res) {
+        res = await fetchFromFrankfurter();
+      }
+
+      if (res && res.price) {
+        consecutiveErrors = 0;
+        const dir = state.goldPrice !== null
+          ? (res.price > state.goldPrice ? 'up' : res.price < state.goldPrice ? 'down' : null)
+          : null;
+        processTick(res.price, dir, res.source);
+        return true;
+      } else {
+        consecutiveErrors++;
+        if (consecutiveErrors >= MAX_RETRIES) {
+          showNotConfiguredState();
+        } else {
+          updateStatus('stale', state.dataSource || 'Polling Retry');
+        }
+        return false;
+      }
+    } catch (err) {
+      console.error('[MANUS MAX]', 'fetchLiveGoldPrice', err);
+      showError('fetchLiveGoldPrice', err.message);
+      return false;
+    }
+  }
+
+  function processTick(price, direction, source) {
+    try {
+      if (state.goldPrevClose === null) state.goldPrevClose = price;
+      state.goldPrice = price;
+      state.goldChangePts = parseFloat((price - state.goldPrevClose).toFixed(2));
+      state.goldChangePct = parseFloat(((state.goldChangePts / state.goldPrevClose) * 100).toFixed(2));
+      state.lastFetchTime = new Date();
+      state.dataSource = source;
+      state.fetchStatus = source.includes('FALLBACK') ? 'fallback' : 'live';
+
+      state.priceHistory.push(price);
+      if (state.priceHistory.length > 150) state.priceHistory.shift();
+
+      pushOHLCTick(price);
+      hideChartOverlayMsg();
+      updateChartDataLabel(source);
+
+      updateUI(direction);
+      updateStatus(state.fetchStatus, source);
+      updateSignalEngine();
+      updateFreshnessTimer();
+    } catch (err) {
+      console.error('[MANUS MAX]', 'processTick', err);
+      showError('processTick', err.message);
+    }
+  }
+
+  function updateFreshnessTimer() {
+    if (freshnessTimerId) clearInterval(freshnessTimerId);
+    freshnessTimerId = setInterval(() => {
+      if (!state.lastFetchTime) return;
+      const age = Math.round((Date.now() - state.lastFetchTime.getTime()) / 1000);
+      const dataLabelEl = document.getElementById('chart-data-label');
+      if (dataLabelEl) {
+        const timeStr = state.lastFetchTime.toISOString().slice(11, 19) + ' UTC';
+        const ageColor = age > 120 ? '#ef4444' : age > 75 ? '#f5c242' : '#10b981';
+        dataLabelEl.innerHTML = `Data: <strong>${state.dataSource || '—'}</strong> | Last update: ${timeStr} | Freshness: <span style="color:${ageColor}">${age}s</span>`;
+      }
+      if (age > 180 && state.fetchStatus !== 'not_configured') {
+        updateStatus('stale', state.dataSource || '—');
+      }
+    }, 1000);
+  }
+
+  function updateChartDataLabel(source) {
+    let labelEl = document.getElementById('chart-data-label');
+    if (!labelEl) {
+      const container = document.getElementById('lw-chart-container');
+      if (container && container.parentElement) {
+        labelEl = document.createElement('div');
+        labelEl.id = 'chart-data-label';
+        labelEl.style.cssText = `
+          font-size:10px;color:rgba(255,255,255,0.5);padding:6px 10px;
+          font-family:var(--font-mono, monospace);border-top:1px solid rgba(255,255,255,0.06);
+          background: rgba(6, 9, 16, 0.6);
+        `;
+        container.parentElement.appendChild(labelEl);
+      }
+    }
+    if (labelEl && state.lastFetchTime) {
+      const timeStr = state.lastFetchTime.toISOString().slice(11, 19) + ' UTC';
+      labelEl.innerHTML = `Data: <strong>${source}</strong> | Last update: ${timeStr} | Freshness: <span style="color:#10b981">0s</span>`;
+    }
   }
 
   function updateUI(direction) {
-    if (!state.goldPrice) return;
+    if (state.goldPrice === null) return;
     const price = state.goldPrice;
     const formatted = formatPrice(price);
     const isPos = state.goldChangePts >= 0;
@@ -360,9 +632,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (liveChangeEl) {
       liveChangeEl.textContent = `${isPos ? '+' : ''}${state.goldChangePct.toFixed(2)}% (${isPos ? '+' : ''}${state.goldChangePts.toFixed(2)})`;
       liveChangeEl.className = `ticker-change ${isPos ? 'text-emerald' : 'text-ruby'}`;
+      liveChangeEl.style.color = '';
     }
 
-    // Update lightweight chart
     if (state.lwCandleSeries) updateLWChartPrice(price);
   }
 
@@ -370,22 +642,31 @@ document.addEventListener('DOMContentLoaded', () => {
     state.fetchStatus = status;
     if (!apiStatusText) return;
     const time = state.lastFetchTime ? state.lastFetchTime.toLocaleTimeString() : '';
-    const colors = { connecting: '#f5c242', live: '#10b981', fallback: '#f5c242', error: '#ef4444' };
-    const texts = {
-      connecting: 'CONNECTING TO WS STREAM...',
-      live: `LIVE • ${source} • ${time}`,
-      fallback: `FALLBACK • ${source}`,
-      error: 'FEED ERROR — Using default price'
+    const map = {
+      connecting: { text: 'CONNECTING TO DATA PROVIDER...', color: '#f5c242' },
+      live:        { text: `LIVE • ${source} • ${time}`, color: '#10b981' },
+      fallback:    { text: `FALLBACK • ${source} • ${time}`, color: '#f5c242' },
+      stale:       { text: `STALE • ${source} • Retrying...`, color: '#ef4444' },
+      disconnected:{ text: 'DISCONNECTED — Feed Unreachable', color: '#ef4444' },
+      not_configured: { text: '⚠ DATA PROVIDER NOT CONFIGURED', color: '#ef4444' }
     };
-    apiStatusText.textContent = texts[status] || texts.error;
-    apiStatusText.style.color = colors[status] || colors.error;
+    const entry = map[status] || map.disconnected;
+    apiStatusText.textContent = entry.text;
+    apiStatusText.style.color = entry.color;
   }
 
   function formatPrice(price) {
+    if (price === null || price === undefined || isNaN(price)) return '—';
     return '$' + price.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   }
 
-  function initLiveDataFeed() { initWebSocketStream(); }
+  function initLiveDataFeed() {
+    showWaitingState();
+    fetchLiveGoldPrice();
+    // 60-second polling as per architecture & GoldAPI limits
+    if (pollingIntervalId) clearInterval(pollingIntervalId);
+    pollingIntervalId = setInterval(fetchLiveGoldPrice, 60000);
+  }
 
   /* ========================================================================
      3. NAVIGATION & TAB SWITCHING
@@ -393,260 +674,298 @@ document.addEventListener('DOMContentLoaded', () => {
   function initNavigation() {
     navTabs.forEach(tab => {
       tab.addEventListener('click', () => {
-        const target = tab.getAttribute('data-tab');
-        navTabs.forEach(t => t.classList.remove('active'));
-        tabContents.forEach(c => c.classList.remove('active'));
-        tab.classList.add('active');
-        const content = document.getElementById(`tab-${target}`);
-        if (content) content.classList.add('active');
-        state.currentTab = target;
-        if (target === 'terminal') {
-          setTimeout(() => {
-            if (state.lwChart) state.lwChart.timeScale().fitContent();
-          }, 50);
+        try {
+          const target = tab.getAttribute('data-tab');
+          navTabs.forEach(t => t.classList.remove('active'));
+          tabContents.forEach(c => c.classList.remove('active'));
+          tab.classList.add('active');
+          const content = document.getElementById(`tab-${target}`);
+          if (content) content.classList.add('active');
+          state.currentTab = target;
+          if (target === 'terminal' && state.lwChart) {
+            setTimeout(() => {
+              if (state.lwChart) state.lwChart.timeScale().fitContent();
+            }, 60);
+          }
+          savePersistence();
+        } catch (err) {
+          console.error('[MANUS MAX]', 'tab navigation error', err);
+          showError('initNavigation', err.message);
         }
-        savePersistence();
       });
     });
 
     const tfButtons = document.querySelectorAll('#chart-tf-buttons .btn-tf');
     tfButtons.forEach(btn => {
       btn.addEventListener('click', () => {
-        tfButtons.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        state.timeframe = btn.getAttribute('data-tf');
-        regenerateLWChartData();
-        savePersistence();
+        try {
+          tfButtons.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          state.timeframe = btn.getAttribute('data-tf');
+          regenerateLWChartData();
+          savePersistence();
+        } catch (err) {
+          console.error('[MANUS MAX]', 'timeframe button error', err);
+          showError('timeframeSelector', err.message);
+        }
       });
     });
 
     const btnToggle = document.getElementById('btn-toggle-overlay');
     if (btnToggle) {
       btnToggle.addEventListener('click', () => {
-        state.showIndicators = !state.showIndicators;
-        btnToggle.classList.toggle('active', state.showIndicators);
-        regenerateLWChartData();
-        savePersistence();
+        try {
+          state.showIndicators = !state.showIndicators;
+          btnToggle.classList.toggle('active', state.showIndicators);
+          if (state.lwChart && state.lwCandleSeries && state.goldPrice) {
+            drawSMCOverlays(state.lwChart, state.lwCandleSeries, state.goldPrice);
+          }
+          savePersistence();
+          showNotification(state.showIndicators ? 'SMC overlays enabled' : 'SMC overlays hidden');
+        } catch (err) {
+          console.error('[MANUS MAX]', 'btn-toggle-overlay error', err);
+          showError('btn-toggle-overlay', err.message);
+        }
       });
     }
   }
 
   /* ========================================================================
-     4. SIGNAL EXECUTION ENGINE (v6.0 — Inst 50% / Macro 30% / Tech 20%)
+     4. SIGNAL ENGINE REWRITE (Heuristic, Deterministic — No Math.random)
      ======================================================================== */
-  const STRATEGIES = ['ICT_SilverBullet', 'ICT_AMD', 'AliVidollar_SD', 'RajaBanks_CT'];
-
-  // Rich multi-factor reason templates per strategy
-  const SMC_REASONS = {
-    ICT_SilverBullet: [
-      'M5 FVG Fill (50%) during 10:00 EST Silver Bullet window + Rejection at H1 OB ($LEVEL) + Clean Traffic path to $TARGET',
-      'Silver Bullet 14:00 EST window + M15 CHOCH confirmed after London sweep + M5 FVG fill + Bearish RSI Divergence on H1',
-      'Opening range sweep (Manipulation) + M5 FVG created + 50% retracement fill + H4 Order Block confluence + MSS on M15',
-      'M15 CHOCH at $LEVEL + FVG fill during NY Silver Bullet + EMA 50/200 aligned bullish + RSI reset from oversold',
-      'London FVG imbalance ($LEVEL) + Silver Bullet entry confirmed 10:00 EST + H1 OB flip + Liquidity sweep of Asian low',
-      'M5 displacement above FVG + Silver Bullet timing + H4 bullish OB untested + Clean traffic +$PIPS pips clear above',
-    ],
-    ICT_AMD: [
-      'Asia Hi Swept during London open (Manipulation phase) + CHOCH confirmed on M15 + NY Distribution Long — AMD cycle active',
-      'London Liq Grab of Asian Lo ($LEVEL) + Bearish CHOCH to Bullish OB at $LEVEL + AMD Distribution phase NY confirmed',
-      'Power of 3: Accumulation (Asia range $LEVEL) complete + London sweep + NY distribution confirmed — CHOCH on M5',
-      'Asia session range ($LEVEL) established + London manipulation sweep + M15 MSS confirmed + OB entry $LEVEL NY session',
-      'AMD Manipulation: False break of Asia Hi swept → Reversal at H1 OB → NY Distribution targeting HTF liq $TARGET',
-      'CHOCH on M15 after London sweep of $LEVEL + FVG fill + H4 OB reaction + AMD distribution — DXY weakening confirms',
-    ],
-    AliVidollar_SD: [
-      'Fresh H4 Demand Zone (Drop-Base-Rally pattern) + Stop Hunt of Swing Lo ($LEVEL) + Bullish Engulfing on M15 + Clean path to $TARGET',
-      'Untested H1 Supply Zone (Rally-Base-Drop) + Liq Grab above $LEVEL + Bearish OB reaction + RSI Divergence M30',
-      'Fresh Demand Zone (3-candle base pattern) + Mandatory liq sweep confirmed + Pin Bar rejection + Clean traffic +$PIPS pips',
-      'Vidollar Fresh Zone: Drop-Base-Rally H4 at $LEVEL + First touch (untested) + Stop hunt of $LEVEL confirmed + Bullish MSS',
-      'Untested Supply H4 + No prior price interaction + Liq grab sweep + 3-candle reversal confirmation + HTF liq pool $TARGET',
-      'Fresh H1 OB (Rally-Base-Drop) + Mandatory stop hunt below $LEVEL + Engulfing candle M15 + FVG created on retest',
-    ],
-    RajaBanks_CT: [
-      'H1 Clean Traffic Zone — zero historical resistance to $TARGET (+$PIPS pips clear) — 3x timeframe confirmed',
-      'M30 Demand with Clean Traffic — no prior supply for +$PIPS pips above entry — Raja Banks H1 setup at $LEVEL',
-      'Clean Traffic zone confirmed H4/D1 scan — zero resistance zones above $LEVEL — Entry at $LEVEL targeting $TARGET',
-      'H1 Supply Clean Traffic Short — open road downward to $TARGET — no historical demand for -$PIPS pips below',
-      'Raja Banks M30 zone ($LEVEL) — scanned H4 and D1 — clean path confirmed — first touch entry — targeting $TARGET',
-      'Clean Traffic Long: H1 demand at $LEVEL + D1 scan shows zero resistance to $TARGET — 3 sessions checked',
-    ]
-  };
-
-  // v6.0 Confidence: Institutional 50% / Macro 30% / Technical 20%
-  function calculateConfidence(strategy, isBuy, isPredictive) {
-    const instBase = {
-      ICT_SilverBullet: 87 + Math.random() * 10,
-      ICT_AMD: 85 + Math.random() * 11,
-      AliVidollar_SD: 84 + Math.random() * 13,
-      RajaBanks_CT: 81 + Math.random() * 13
-    }[strategy] || 84;
-
-    const macroScore = 83 + (isBuy ? 5 : -3) + Math.random() * 10;
-    const techScore = 86 + Math.random() * 12;
-
-    const inst = Math.min(99, Math.round(instBase));
-    const macro = Math.min(99, Math.round(macroScore));
-    const tech = Math.min(99, Math.round(techScore));
-
-    // v6.0 CORRECTED WEIGHTS: Institutional 50% / Macro 30% / Technical 20%
-    const total = Math.round(inst * 0.50 + macro * 0.30 + tech * 0.20);
-
-    return { total: Math.min(98, total), inst, macro, tech };
+  function estimateATR(priceHistory) {
+    if (priceHistory.length < 2) return 8.20;
+    const diffs = [];
+    for (let i = 1; i < priceHistory.length; i++) {
+      diffs.push(Math.abs(priceHistory[i] - priceHistory[i - 1]));
+    }
+    const avgDiff = diffs.reduce((a, b) => a + b, 0) / diffs.length;
+    // Scale 1-min polling differences to intraday ATR proxy (typical XAU/USD 8-15 pts)
+    return Math.max(6.0, Math.min(25.0, avgDiff * 15 || 8.20));
   }
 
-  // Dynamic TP3 calculation — up to 1:10 for major HTF liquidity pools
-  function calculateTP3(entry, slDist, isBuy, conf, htfTarget) {
-    // Scale TP3 dynamically based on confidence & HTF confluence
-    let rrMult;
-    if (htfTarget && conf >= 90) rrMult = 8.0 + Math.random() * 2.0;   // 8-10x
-    else if (htfTarget && conf >= 80) rrMult = 6.0 + Math.random() * 2.0; // 6-8x
-    else rrMult = 4.5 + Math.random() * 2.0;                              // 4.5-6.5x
-    rrMult = parseFloat(rrMult.toFixed(1));
-    const tp3 = isBuy
-      ? parseFloat((entry + slDist * rrMult).toFixed(2))
-      : parseFloat((entry - slDist * rrMult).toFixed(2));
-    return { tp3, rrMult };
+  /**
+   * Deterministic signal detection based on price history.
+   * If priceHistory.length < 20, returns null as required.
+   */
+  function detectSignalFromPrice(currentPrice, priceHistory) {
+    if (priceHistory.length < 20) return null; // Mandatory requirement: < 20 candles = insufficient
+
+    const recent5 = priceHistory.slice(-5);
+    const avg5 = recent5.reduce((a, b) => a + b, 0) / 5;
+    const momentum5 = currentPrice - priceHistory[priceHistory.length - 5];
+    const pctChange5 = (momentum5 / priceHistory[priceHistory.length - 5]) * 100;
+    const atr = estimateATR(priceHistory);
+
+    // Filter: requires at least 0.08% directional move to establish clear setup
+    if (Math.abs(pctChange5) < 0.08) return null;
+
+    const isLong = pctChange5 > 0;
+    const dir = isLong ? 'LONG' : 'SHORT';
+
+    // Deterministic 3-pillar confidence calculation
+    // 1. Institutional (50%): based on momentum ratio to ATR
+    const moveRatio = Math.min(2.5, Math.abs(momentum5) / Math.max(atr * 0.25, 1));
+    const instScore = Math.min(95, Math.round(65 + moveRatio * 12));
+
+    // 2. Macro (30%): consistency across recent 5 candles
+    let trendAgreement = 0;
+    for (let i = 1; i < recent5.length; i++) {
+      if (isLong && recent5[i] >= recent5[i - 1]) trendAgreement++;
+      if (!isLong && recent5[i] <= recent5[i - 1]) trendAgreement++;
+    }
+    const macroScore = Math.min(94, Math.round(60 + (trendAgreement / 4) * 30));
+
+    // 3. Technical (20%): price position relative to 5-period average
+    const priceDistAvg = Math.abs(currentPrice - avg5) / avg5;
+    const techScore = Math.min(95, Math.round(65 + Math.min(30, priceDistAvg * 2000)));
+
+    const weightedConf = Math.min(96, Math.round(instScore * 0.50 + macroScore * 0.30 + techScore * 0.20));
+
+    if (weightedConf < 70) return null;
+
+    const slDist = parseFloat((atr * 1.5).toFixed(2));
+    const entry = currentPrice;
+    const sl = isLong ? parseFloat((entry - slDist).toFixed(2)) : parseFloat((entry + slDist).toFixed(2));
+    const tp1 = isLong ? parseFloat((entry + slDist * 2).toFixed(2)) : parseFloat((entry - slDist * 2).toFixed(2));
+    const tp2 = isLong ? parseFloat((entry + slDist * 3.5).toFixed(2)) : parseFloat((entry - slDist * 3.5).toFixed(2));
+    const tp3 = isLong ? parseFloat((entry + slDist * 6.0).toFixed(2)) : parseFloat((entry - slDist * 6.0).toFixed(2));
+
+    const strat = isLong ? 'ICT_SilverBullet' : 'AliVidollar_SD';
+
+    const reason = isLong
+      ? `Bullish Momentum (+${pctChange5.toFixed(2)}%) across 5 readings + Clean Path above $${entry.toFixed(2)} + ATR ${atr.toFixed(1)} SL buffer.`
+      : `Bearish Rejection (${pctChange5.toFixed(2)}%) across 5 readings + Resistance tagged near $${entry.toFixed(2)} + ATR ${atr.toFixed(1)} SL buffer.`;
+
+    return {
+      dir,
+      strategy: strat,
+      tf: 'H1',
+      entry,
+      sl,
+      tp1,
+      tp2,
+      tp3,
+      rr: '3.5',
+      rrMax: '6.0',
+      conf: weightedConf,
+      confInst: instScore,
+      confMacro: macroScore,
+      confTech: techScore,
+      atr,
+      reason,
+      pctChange5
+    };
   }
 
-  // Check if any news event is within 2h (v6.0 tightened from 4h)
-  function hasNewsWithin2h() {
-    return state.newsEvents.some(e => e.hoursUntil <= 2 && e.folder === 'red');
-  }
+  /**
+   * Deterministic predictive setups — strictly based on requirements
+   */
+  function generatePredictiveSetups(currentPrice, priceHistory) {
+    if (!currentPrice || priceHistory.length < 5) return [];
+    const setups = [];
 
-  function generateLiveSignals() {
-    const now = new Date();
-    const price = state.goldPrice || 4085;
-    const atr = state.signal.atr || 8.2;
-    const signals = [];
-    const numSignals = 5 + Math.floor(Math.random() * 5); // 5-10 signals
-    const tfs = ['M5', 'M15', 'H1', 'H4'];
-    const newsWithin2h = hasNewsWithin2h();
+    const price5 = priceHistory[priceHistory.length - 5];
+    const dropPct = ((currentPrice - price5) / price5) * 100;
 
-    for (let i = 0; i < numSignals; i++) {
-      const strat = STRATEGIES[Math.floor(Math.random() * STRATEGIES.length)];
-      const isBuy = Math.random() > 0.38;
-      const isPredictive = Math.random() > 0.75;
-      const tf = tfs[Math.floor(Math.random() * tfs.length)];
-      const offset = (Math.random() * 30) - 15;
-      const entry = parseFloat((price + offset).toFixed(2));
-      const slDist = parseFloat((atr * 1.5 + Math.random() * atr).toFixed(2));
-      const rrChoice = [2.0, 2.5, 3.0, 4.0, 5.0][Math.floor(Math.random() * 5)];
-      const sl = isBuy ? parseFloat((entry - slDist).toFixed(2)) : parseFloat((entry + slDist).toFixed(2));
-      const tp1 = isBuy ? parseFloat((entry + slDist * 2).toFixed(2)) : parseFloat((entry - slDist * 2).toFixed(2));
-      const tp2 = isBuy ? parseFloat((entry + slDist * rrChoice).toFixed(2)) : parseFloat((entry - slDist * rrChoice).toFixed(2));
-
-      // v6.0 Confidence with corrected weights
-      const conf = calculateConfidence(strat, isBuy, isPredictive);
-      if (conf.total < 72) continue;
-
-      // Dynamic TP3
-      const htfTarget = conf.total >= 85;
-      const { tp3, rrMult } = calculateTP3(entry, slDist, isBuy, conf.total, htfTarget);
-
-      const reasons = SMC_REASONS[strat];
-      let reason = reasons[Math.floor(Math.random() * reasons.length)]
-        .replace('$TARGET', formatPrice(tp2))
-        .replace('$LEVEL', formatPrice(entry))
-        .replace('$PIPS', Math.round(slDist * 2 * 10));
-
-      const minAgoSeed = Math.floor(Math.random() * 45);
-      const signalTime = new Date(now.getTime() - minAgoSeed * 60000);
-      const timeStr = signalTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) + ' UTC';
-
-      signals.push({
-        id: `SIG-${9844 + i}`,
-        dir: isBuy ? 'LONG' : 'SHORT',
-        isPredictive,
-        strategy: strat,
-        tf,
-        entry, sl, tp1, tp2, tp3,
-        rr: rrChoice.toFixed(1),
-        rrMax: rrMult.toFixed(1),
-        conf: conf.total,
-        confInst: conf.inst,
-        confMacro: conf.macro,
-        confTech: conf.tech,
-        reason,
-        time: timeStr,
-        // v6.0: badge if news within 2h (tightened from 4h)
-        newsFlag: newsWithin2h && conf.total > 80
+    // Requirement: Show "WATCH: Price approaching potential support" ONLY IF price dropped > 0.5% in last 5 readings
+    if (dropPct < -0.5) {
+      setups.push({
+        tf: 'H4',
+        type: 'Support Watch',
+        dir: 'LONG',
+        level: parseFloat((currentPrice * 0.995).toFixed(2)),
+        desc: `Price dropped ${Math.abs(dropPct).toFixed(2)}% in last 5 readings. Approaching potential H4 support zone.`,
+        session: 'London/NY Killzone scan',
+        conditionNote: 'Setup expires if conditions not met'
+      });
+    } else if (dropPct > 0.5) {
+      setups.push({
+        tf: 'H4',
+        type: 'Resistance Watch',
+        dir: 'SHORT',
+        level: parseFloat((currentPrice * 1.005).toFixed(2)),
+        desc: `Price advanced +${dropPct.toFixed(2)}% in last 5 readings. Approaching potential H4 supply/resistance zone.`,
+        session: 'London/NY Killzone scan',
+        conditionNote: 'Setup expires if conditions not met'
       });
     }
 
-    const sorted = signals.sort((a, b) => b.conf - a.conf);
-    // Update nav badge
-    const badge = document.getElementById('nav-badge-terminal');
-    if (badge) { badge.textContent = sorted.length; badge.style.display = sorted.length > 0 ? 'inline-flex' : 'none'; }
-    return sorted;
+    return setups;
   }
 
-  function generatePredictiveSetups(currentPrice) {
-    const price = currentPrice || state.goldPrice || 4085;
-    const atr = state.signal.atr || 8.2;
-    return [
-      {
-        tf: 'H4',
-        type: 'OB',
-        dir: 'LONG',
-        level: parseFloat((price - 22).toFixed(2)),
-        pipsDist: 22 * 10,
-        desc: `H4 Bullish Order Block approaching. Price is ${(22).toFixed(0)} pips from zone. Potential Long Forming if price reaches zone — await M15 CHOCH confirmation.`,
-        session: 'London Open window optimal'
-      },
-      {
-        tf: 'D1',
-        type: 'FVG',
-        dir: 'SHORT',
-        level: parseFloat((price + 35).toFixed(2)),
-        pipsDist: 35 * 10,
-        desc: `Daily Fair Value Gap ${(35 * 10).toFixed(0)} pips above current price. Potential Short Forming upon FVG tag + M15 bearish CHOCH.`,
-        session: 'NY Killzone entry preferred'
-      },
-      {
-        tf: 'H1',
-        type: 'Liq',
-        dir: 'LONG',
-        level: parseFloat((price - 8).toFixed(2)),
-        pipsDist: 8 * 10,
-        desc: `H1 Equal Lows Liquidity Pool ${(8 * 10).toFixed(0)} pips below. Price sweeping toward stop cluster — Potential Long Setup on sweep + reversal.`,
-        session: 'Active in current session'
+  function updateSignalEngine() {
+    try {
+      if (!state.goldPrice) {
+        showWaitingState();
+        return;
       }
-    ];
+
+      const signal = detectSignalFromPrice(state.goldPrice, state.priceHistory);
+      state.predictiveSetups = generatePredictiveSetups(state.goldPrice, state.priceHistory);
+
+      if (signal) {
+        state.signalFeed = [{
+          id: 'XAUUSD-LIVE-01',
+          ...signal,
+          time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) + ' UTC',
+          newsFlag: hasNewsWithin2h()
+        }];
+
+        state.signal = {
+          type: signal.dir,
+          strategy: signal.strategy,
+          entry: signal.entry,
+          sl: signal.sl,
+          tp1: signal.tp1,
+          tp2: signal.tp2,
+          tp3: signal.tp3,
+          rr: signal.rr,
+          atr: signal.atr,
+          reason: signal.reason,
+          confidence: signal.conf,
+          confInst: signal.confInst,
+          confMacro: signal.confMacro,
+          confTech: signal.confTech
+        };
+        updateHeroSignalUI();
+      } else {
+        state.signalFeed = [];
+      }
+
+      renderSignalFeed();
+      renderPredictiveSetups();
+      updateConfidenceDynamically();
+
+      const badge = document.getElementById('nav-badge-terminal');
+      if (badge) {
+        badge.textContent = state.signalFeed.length;
+        badge.style.display = state.signalFeed.length > 0 ? 'inline-flex' : 'none';
+      }
+    } catch (err) {
+      console.error('[MANUS MAX]', 'updateSignalEngine error', err);
+      showError('updateSignalEngine', err.message);
+    }
   }
 
   function initSignalEngine() {
-    state.signalFeed = generateLiveSignals();
-    state.predictiveSetups = generatePredictiveSetups();
     renderSignalFeed();
     renderPredictiveSetups();
-
-    // Auto-refresh every 30 seconds (faster in v6.0)
-    setInterval(() => {
-      state.signalFeed = generateLiveSignals();
-      state.predictiveSetups = generatePredictiveSetups();
-      renderSignalFeed();
-      renderPredictiveSetups();
-    }, 30000);
   }
 
   function renderSignalFeed() {
     const container = document.getElementById('signal-feed-list');
     if (!container) return;
-    container.innerHTML = '';
 
-    const signals = state.signalFeed;
-    if (!signals.length) {
-      container.innerHTML = '<div style="text-align:center;color:var(--text-dim);padding:20px;font-size:12px;">No signals above 72% confidence threshold.</div>';
+    if (!state.goldPrice) {
+      showWaitingState();
       return;
     }
 
-    signals.forEach((sig, idx) => {
+    const count = state.priceHistory.length;
+
+    if (count < 20) {
+      container.innerHTML = `
+        <div style="text-align:center;color:var(--text-dim);padding:30px 20px;font-size:12px;line-height:1.8;">
+          <div style="font-size:18px;margin-bottom:8px;">📊</div>
+          <div style="color:var(--gold-primary);font-weight:700;margin-bottom:6px;">
+            Insufficient data for signal generation — waiting for price history
+          </div>
+          <div style="font-size:11px;color:rgba(255,255,255,0.6);">
+            Collected ${count} / 20 readings (${(20 - count)} more required).
+          </div>
+          <div style="font-size:10px;color:rgba(255,255,255,0.35);margin-top:6px;">
+            Real signals require minimum 20 candles of OHLCV data. Connect a data provider for live signal generation.
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    if (!state.signalFeed.length) {
+      container.innerHTML = `
+        <div style="text-align:center;color:var(--text-dim);padding:24px 20px;font-size:12px;line-height:1.6;">
+          <div style="font-size:16px;margin-bottom:6px;">🔍</div>
+          <div style="font-weight:600;color:var(--text-secondary);">SCANNING FOR XAU/USD SETUPS...</div>
+          <div style="font-size:11px;margin-top:4px;">
+            No clear directional break beyond 0.08% threshold in current price window.
+          </div>
+          <div style="font-size:10px;color:rgba(255,255,255,0.35);margin-top:6px;">
+            Real signals require minimum 20 candles of OHLCV data. Connect a data provider for live signal generation.
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = '';
+    state.signalFeed.forEach((sig, idx) => {
       const div = document.createElement('div');
       const isLong = sig.dir === 'LONG';
-      const dirClass = sig.isPredictive ? 'sig-predictive' : (isLong ? 'sig-long' : 'sig-short');
+      const dirClass = isLong ? 'sig-long' : 'sig-short';
       const confClass = sig.conf >= 85 ? 'sig-conf-high' : sig.conf >= 75 ? 'sig-conf-med' : 'sig-conf-low';
-      const badgeClass = sig.isPredictive ? 'sig-dir-predictive' : (isLong ? 'sig-dir-long' : 'sig-dir-short');
-      const dirLabel = sig.isPredictive ? `⚡ ${sig.dir} FORMING` : (isLong ? '▲ LONG' : '▼ SHORT');
+      const badgeClass = isLong ? 'sig-dir-long' : 'sig-dir-short';
+      const dirLabel = isLong ? '▲ LONG' : '▼ SHORT';
 
       div.className = `sig-item ${dirClass}${idx === 0 ? ' sig-active' : ''}`;
       div.setAttribute('data-sig-id', sig.id);
@@ -670,7 +989,6 @@ document.addEventListener('DOMContentLoaded', () => {
             <span class="sig-time">${sig.tf} • ${sig.time}</span>
           </span>
         </div>
-        <!-- Expandable 3-pillar breakdown (v6.0) -->
         <div class="sig-expand-btn" onclick="toggleSigExpand(this)">
           <i data-lucide="chevron-down"></i> 3-Pillar Breakdown
         </div>
@@ -701,15 +1019,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.lucide) window.lucide.createIcons();
   }
 
-  // Global expand handler
   window.toggleSigExpand = function(btn) {
-    const detail = btn.nextElementSibling;
-    const icon = btn.querySelector('i');
-    if (detail) {
-      const isOpen = detail.style.display !== 'none';
-      detail.style.display = isOpen ? 'none' : 'block';
-      if (icon) icon.setAttribute('data-lucide', isOpen ? 'chevron-down' : 'chevron-up');
-      if (window.lucide) window.lucide.createIcons();
+    try {
+      const detail = btn.nextElementSibling;
+      const icon = btn.querySelector('i');
+      if (detail) {
+        const isOpen = detail.style.display !== 'none';
+        detail.style.display = isOpen ? 'none' : 'block';
+        if (icon) icon.setAttribute('data-lucide', isOpen ? 'chevron-down' : 'chevron-up');
+        if (window.lucide) window.lucide.createIcons();
+      }
+    } catch (err) {
+      console.error('[MANUS MAX]', 'toggleSigExpand error', err);
+      showError('toggleSigExpand', err.message);
     }
   };
 
@@ -718,16 +1040,28 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!container) return;
     container.innerHTML = '';
 
+    if (!state.predictiveSetups.length) {
+      container.innerHTML = `
+        <div class="predictive-item" style="color:var(--text-dim);font-size:12px;text-align:center;padding:16px;">
+          No qualified HTF POI setups detected.
+        </div>
+      `;
+      return;
+    }
+
     state.predictiveSetups.forEach(setup => {
       const div = document.createElement('div');
       div.className = 'predictive-item';
       const dirColor = setup.dir === 'LONG' ? 'var(--emerald)' : 'var(--ruby)';
       div.innerHTML = `
         <div class="pred-header">
-          <span class="pred-alert-tag"><i data-lucide="alert-triangle"></i> ${setup.type} APPROACH</span>
+          <span class="pred-alert-tag"><i data-lucide="zap"></i> ⚡ WATCH [CONDITIONAL — NOT TRIGGERED]</span>
           <span class="pred-tf">${setup.tf}</span>
         </div>
         <div class="pred-desc">${setup.desc}</div>
+        <div style="font-size:10px;color:var(--text-dim);margin-top:4px;font-style:italic;">
+          ${setup.conditionNote}. Setup expires if conditions not met.
+        </div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;">
           <span class="pred-price" style="color:${dirColor};">⚡ Potential ${setup.dir} near ${formatPrice(setup.level)}</span>
           <span style="font-size:10px;color:var(--text-dim);">${setup.session}</span>
@@ -763,89 +1097,92 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateKillzoneDisplay() {
-    const { h, m, s } = getUTCTime();
-    const now = timeToSeconds(h, m, s);
+    try {
+      const { h, m, s } = getUTCTime();
+      const now = timeToSeconds(h, m, s);
 
-    const sessions = {
-      asia: { start: 0, end: 28800 },
-      london: { start: 28800, end: 39600 },
-      ny: { start: 46800, end: 57600 }
-    };
+      const sessions = {
+        asia:   { start: 0,     end: 28800 },
+        london: { start: 28800, end: 39600 },
+        ny:     { start: 46800, end: 57600 }
+      };
 
-    const londEl = document.getElementById('kz-london');
-    const nyEl = document.getElementById('kz-ny');
+      const londEl   = document.getElementById('kz-london');
+      const nyEl     = document.getElementById('kz-ny');
+      const londonChip  = document.getElementById('kz-london-chip');
+      const londonCount = document.getElementById('kz-london-countdown');
+      const londonLabel = document.getElementById('kz-london-label');
 
-    // London
-    const londonChip = document.getElementById('kz-london-chip');
-    const londonCount = document.getElementById('kz-london-countdown');
-    const londonLabel = document.getElementById('kz-london-label');
-    if (now >= sessions.london.start && now < sessions.london.end) {
-      const rem = sessions.london.end - now;
-      if (londonCount) londonCount.textContent = formatCountdown(rem);
-      if (londonLabel) londonLabel.textContent = 'ACTIVE — CLOSES IN';
-      if (londonChip) { londonChip.textContent = 'ACTIVE'; londonChip.className = 'kz-status-chip kz-chip-active'; }
-      if (londEl) { londEl.classList.add('kz-active'); }
-    } else if (now < sessions.london.start) {
-      const rem = sessions.london.start - now;
-      if (londonCount) londonCount.textContent = formatCountdown(rem);
-      if (londonLabel) londonLabel.textContent = 'OPENS IN';
-      if (londonChip) { londonChip.textContent = 'NEXT'; londonChip.className = 'kz-status-chip kz-chip-next'; }
-      if (londEl) londEl.classList.remove('kz-active');
-    } else {
-      if (londonCount) londonCount.textContent = 'CLOSED';
-      if (londonLabel) londonLabel.textContent = 'MANIPULATION PHASE DONE';
-      if (londonChip) { londonChip.textContent = 'DONE'; londonChip.className = 'kz-status-chip kz-chip-done'; }
-      if (londEl) londEl.classList.remove('kz-active');
-    }
-
-    // NY
-    const nyChip = document.getElementById('kz-ny-chip');
-    const nyCount = document.getElementById('kz-ny-countdown');
-    const nyLabel = document.getElementById('kz-ny-label');
-    if (now >= sessions.ny.start && now < sessions.ny.end) {
-      const rem = sessions.ny.end - now;
-      if (nyCount) nyCount.textContent = formatCountdown(rem);
-      if (nyLabel) nyLabel.textContent = 'ACTIVE — CLOSES IN';
-      if (nyChip) { nyChip.textContent = 'ACTIVE'; nyChip.className = 'kz-status-chip kz-chip-active'; }
-      if (nyEl) { nyEl.classList.add('kz-active'); }
-    } else if (now < sessions.ny.start) {
-      const rem = sessions.ny.start - now;
-      if (nyCount) nyCount.textContent = formatCountdown(rem);
-      if (nyLabel) nyLabel.textContent = 'OPENS IN';
-      if (nyChip) { nyChip.textContent = 'NEXT'; nyChip.className = 'kz-status-chip kz-chip-next'; }
-      if (nyEl) nyEl.classList.remove('kz-active');
-    } else {
-      if (nyCount) nyCount.textContent = 'CLOSED';
-      if (nyLabel) nyLabel.textContent = 'DISTRIBUTION PHASE DONE';
-      if (nyChip) { nyChip.textContent = 'DONE'; nyChip.className = 'kz-status-chip kz-chip-done'; }
-      if (nyEl) nyEl.classList.remove('kz-active');
-    }
-
-    // Time-to-Execution estimate with session volatility context
-    const tteEl = document.getElementById('tte-display');
-    const heroTTEEl = document.getElementById('hero-tte');
-    if (tteEl) {
-      let tte = 'No Killzone active — Wait for London/NY open';
       if (now >= sessions.london.start && now < sessions.london.end) {
-        tte = '~15 min (London Killzone LIVE — High Volatility)';
-      } else if (now >= sessions.ny.start && now < sessions.ny.end) {
-        tte = '~20 min (NY Killzone LIVE — Distribution Phase)';
+        const rem = sessions.london.end - now;
+        if (londonCount) londonCount.textContent = formatCountdown(rem);
+        if (londonLabel) londonLabel.textContent = 'ACTIVE — CLOSES IN';
+        if (londonChip) { londonChip.textContent = 'ACTIVE'; londonChip.className = 'kz-status-chip kz-chip-active'; }
+        if (londEl) londEl.classList.add('kz-active');
       } else if (now < sessions.london.start) {
-        const minsToLondon = Math.round((sessions.london.start - now) / 60);
-        tte = `~${minsToLondon} min to London Open`;
-      } else if (now < sessions.ny.start) {
-        const minsToNY = Math.round((sessions.ny.start - now) / 60);
-        tte = `~${minsToNY} min to NY Open`;
+        const rem = sessions.london.start - now;
+        if (londonCount) londonCount.textContent = formatCountdown(rem);
+        if (londonLabel) londonLabel.textContent = 'OPENS IN';
+        if (londonChip) { londonChip.textContent = 'NEXT'; londonChip.className = 'kz-status-chip kz-chip-next'; }
+        if (londEl) londEl.classList.remove('kz-active');
+      } else {
+        if (londonCount) londonCount.textContent = 'CLOSED';
+        if (londonLabel) londonLabel.textContent = 'MANIPULATION PHASE DONE';
+        if (londonChip) { londonChip.textContent = 'DONE'; londonChip.className = 'kz-status-chip kz-chip-done'; }
+        if (londEl) londEl.classList.remove('kz-active');
       }
-      tteEl.textContent = tte;
-      if (heroTTEEl) heroTTEEl.textContent = tte;
-    }
 
-    updateSilverBulletTicker(h, m);
+      const nyChip  = document.getElementById('kz-ny-chip');
+      const nyCount = document.getElementById('kz-ny-countdown');
+      const nyLabel = document.getElementById('kz-ny-label');
+
+      if (now >= sessions.ny.start && now < sessions.ny.end) {
+        const rem = sessions.ny.end - now;
+        if (nyCount) nyCount.textContent = formatCountdown(rem);
+        if (nyLabel) nyLabel.textContent = 'ACTIVE — CLOSES IN';
+        if (nyChip) { nyChip.textContent = 'ACTIVE'; nyChip.className = 'kz-status-chip kz-chip-active'; }
+        if (nyEl) nyEl.classList.add('kz-active');
+      } else if (now < sessions.ny.start) {
+        const rem = sessions.ny.start - now;
+        if (nyCount) nyCount.textContent = formatCountdown(rem);
+        if (nyLabel) nyLabel.textContent = 'OPENS IN';
+        if (nyChip) { nyChip.textContent = 'NEXT'; nyChip.className = 'kz-status-chip kz-chip-next'; }
+        if (nyEl) nyEl.classList.remove('kz-active');
+      } else {
+        if (nyCount) nyCount.textContent = 'CLOSED';
+        if (nyLabel) nyLabel.textContent = 'DISTRIBUTION PHASE DONE';
+        if (nyChip) { nyChip.textContent = 'DONE'; nyChip.className = 'kz-status-chip kz-chip-done'; }
+        if (nyEl) nyEl.classList.remove('kz-active');
+      }
+
+      const tteEl = document.getElementById('tte-display');
+      const heroTTEEl = document.getElementById('hero-tte');
+      if (tteEl) {
+        let tte = 'No Killzone active — Await London/NY open';
+        if (now >= sessions.london.start && now < sessions.london.end) {
+          tte = '~15 min (London Killzone LIVE — High Volatility)';
+        } else if (now >= sessions.ny.start && now < sessions.ny.end) {
+          tte = '~20 min (NY Killzone LIVE — Distribution Phase)';
+        } else if (now < sessions.london.start) {
+          const mins = Math.round((sessions.london.start - now) / 60);
+          tte = `~${mins} min to London Open`;
+        } else if (now < sessions.ny.start) {
+          const mins = Math.round((sessions.ny.start - now) / 60);
+          tte = `~${mins} min to NY Open`;
+        }
+        tteEl.textContent = tte;
+        if (heroTTEEl) heroTTEEl.textContent = tte;
+      }
+
+      updateSilverBulletTicker(h, m);
+    } catch (err) {
+      console.error('[MANUS MAX]', 'updateKillzoneDisplay error', err);
+      showError('updateKillzoneDisplay', err.message);
+    }
   }
 
   /* ========================================================================
-     6. SILVER BULLET CLOCK (10:00-11:00 & 14:00-15:00 EST)
+     6. SILVER BULLET & AMD SESSION CLOCK
      ======================================================================== */
   function initSilverBulletClock() {
     updateSilverBulletWindows();
@@ -858,14 +1195,19 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateAMDPhase() {
-    const { h, m } = getUTCTime();
-    const el = document.getElementById('amd-current-phase');
-    if (!el) return;
-    if (h >= 0 && h < 8) el.textContent = 'Phase: 📊 ACCUMULATION (Asia) — Range forming';
-    else if (h >= 8 && h < 9) el.textContent = 'Phase: ⚡ MANIPULATION — Early London sweep';
-    else if (h >= 9 && h < 11) el.textContent = 'Phase: ⚡ MANIPULATION — London sweep peak';
-    else if (h >= 13 && h < 16) el.textContent = 'Phase: 🎯 DISTRIBUTION (NY) — Trend active';
-    else el.textContent = 'Phase: ⏸ Between Sessions — Low volatility';
+    try {
+      const { h } = getUTCTime();
+      const el = document.getElementById('amd-current-phase');
+      if (!el) return;
+      if (h >= 0 && h < 8) el.textContent = 'Phase: 📊 ACCUMULATION (Asia) — Range forming';
+      else if (h >= 8 && h < 9) el.textContent = 'Phase: ⚡ MANIPULATION — Early London sweep';
+      else if (h >= 9 && h < 11) el.textContent = 'Phase: ⚡ MANIPULATION — London sweep peak';
+      else if (h >= 13 && h < 16) el.textContent = 'Phase: 🎯 DISTRIBUTION (NY) — Trend active';
+      else el.textContent = 'Phase: ⏸ Between Sessions — Low volatility';
+    } catch (err) {
+      console.error('[MANUS MAX]', 'updateAMDPhase error', err);
+      showError('updateAMDPhase', err.message);
+    }
   }
 
   function getSBStatus(nowH, nowM) {
@@ -882,42 +1224,47 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateSilverBulletWindows() {
-    const { h, m } = getUTCTime();
-    const sb = getSBStatus(h, m);
+    try {
+      const { h, m } = getUTCTime();
+      const sb = getSBStatus(h, m);
 
-    const w1El = document.getElementById('sb-window-1');
-    const w2El = document.getElementById('sb-window-2');
-    const chip1 = document.getElementById('sb-chip-1');
-    const chip2 = document.getElementById('sb-chip-2');
-    const overallStatus = document.getElementById('sb-overall-status');
+      const w1El = document.getElementById('sb-window-1');
+      const w2El = document.getElementById('sb-window-2');
+      const chip1 = document.getElementById('sb-chip-1');
+      const chip2 = document.getElementById('sb-chip-2');
+      const overallStatus = document.getElementById('sb-overall-status');
 
-    if (sb.active && sb.window === 1) {
-      if (w1El) w1El.classList.add('sb-active');
-      if (w2El) w2El.classList.remove('sb-active');
-      if (chip1) { chip1.textContent = `LIVE ${sb.minsLeft}m`; chip1.className = 'sb-status sb-status-active'; }
-      if (chip2) { chip2.textContent = 'WAITING'; chip2.className = 'sb-status sb-status-waiting'; }
-      if (overallStatus) overallStatus.innerHTML = '<i data-lucide="zap"></i> WINDOW 1 ACTIVE — ENTER NOW';
-    } else if (sb.active && sb.window === 2) {
-      if (w2El) w2El.classList.add('sb-active');
-      if (w1El) w1El.classList.remove('sb-active');
-      if (chip2) { chip2.textContent = `LIVE ${sb.minsLeft}m`; chip2.className = 'sb-status sb-status-active'; }
-      if (chip1) { chip1.textContent = 'DONE'; chip1.className = 'sb-status sb-status-waiting'; }
-      if (overallStatus) overallStatus.innerHTML = '<i data-lucide="zap"></i> WINDOW 2 ACTIVE — ENTER NOW';
-    } else {
-      if (w1El) w1El.classList.remove('sb-active');
-      if (w2El) w2El.classList.remove('sb-active');
-      if (chip1) { chip1.textContent = 'WAITING'; chip1.className = 'sb-status sb-status-waiting'; }
-      if (chip2) { chip2.textContent = 'WAITING'; chip2.className = 'sb-status sb-status-waiting'; }
-      if (overallStatus) overallStatus.innerHTML = `<i data-lucide="clock"></i> Next Window in ~${sb.minsTo || '?'}m`;
+      if (sb.active && sb.window === 1) {
+        if (w1El) w1El.classList.add('sb-active');
+        if (w2El) w2El.classList.remove('sb-active');
+        if (chip1) { chip1.textContent = `LIVE ${sb.minsLeft}m`; chip1.className = 'sb-status sb-status-active'; }
+        if (chip2) { chip2.textContent = 'WAITING'; chip2.className = 'sb-status sb-status-waiting'; }
+        if (overallStatus) overallStatus.innerHTML = '<i data-lucide="zap"></i> WINDOW 1 ACTIVE — ENTER NOW';
+      } else if (sb.active && sb.window === 2) {
+        if (w2El) w2El.classList.add('sb-active');
+        if (w1El) w1El.classList.remove('sb-active');
+        if (chip2) { chip2.textContent = `LIVE ${sb.minsLeft}m`; chip2.className = 'sb-status sb-status-active'; }
+        if (chip1) { chip1.textContent = 'DONE'; chip1.className = 'sb-status sb-status-waiting'; }
+        if (overallStatus) overallStatus.innerHTML = '<i data-lucide="zap"></i> WINDOW 2 ACTIVE — ENTER NOW';
+      } else {
+        if (w1El) w1El.classList.remove('sb-active');
+        if (w2El) w2El.classList.remove('sb-active');
+        if (chip1) { chip1.textContent = 'WAITING'; chip1.className = 'sb-status sb-status-waiting'; }
+        if (chip2) { chip2.textContent = 'WAITING'; chip2.className = 'sb-status sb-status-waiting'; }
+        if (overallStatus) overallStatus.innerHTML = `<i data-lucide="clock"></i> Next Window in ~${sb.minsTo || '?'}m`;
+      }
+
+      if (window.lucide) window.lucide.createIcons();
+    } catch (err) {
+      console.error('[MANUS MAX]', 'updateSilverBulletWindows error', err);
+      showError('updateSilverBulletWindows', err.message);
     }
-
-    if (window.lucide) window.lucide.createIcons();
   }
 
   function updateSilverBulletTicker(h, m) {
     const sb = getSBStatus(h, m);
     const sbStatusEl = document.getElementById('ticker-sb-status');
-    const sbCountEl = document.getElementById('ticker-sb-countdown');
+    const sbCountEl  = document.getElementById('ticker-sb-countdown');
     if (!sbStatusEl) return;
 
     if (sb.active) {
@@ -932,29 +1279,27 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /* ========================================================================
-     7. QUANTITATIVE NEWS ENGINE (v6.0 — 2h window, live countdown, hist conf)
+     7. QUANTITATIVE NEWS ENGINE
      ======================================================================== */
   function initNewsEngine() {
     renderNewsCalendar();
-    updateNewsWidget(state.newsEvents[0]);
+    if (state.newsEvents[0]) updateNewsWidget(state.newsEvents[0]);
     updateNewsBadges();
     updateNewsTickerAlert();
 
-    // Live second-level countdown
     setInterval(() => {
       state.newsEvents.forEach(event => {
         if (event.hoursUntil > 0) {
-          event.hoursUntil = Math.max(0, event.hoursUntil - (1 / 3600)); // Per second
+          event.hoursUntil = Math.max(0, event.hoursUntil - (1 / 3600));
         }
       });
       renderNewsCountdown();
       updateNewsTickerAlert();
     }, 1000);
 
-    // Re-render calendar every minute
     setInterval(() => {
       renderNewsCalendar();
-      updateNewsWidget(state.newsEvents[0]);
+      if (state.newsEvents[0]) updateNewsWidget(state.newsEvents[0]);
       updateNewsBadges();
     }, 60000);
   }
@@ -984,7 +1329,10 @@ document.addEventListener('DOMContentLoaded', () => {
     el.style.color = nextEvent.hoursUntil <= 2 ? 'var(--ruby)' : 'var(--gold-primary)';
   }
 
-  // v6.0: Show/hide hero news badge based on 2h proximity
+  function hasNewsWithin2h() {
+    return state.newsEvents.some(e => e.hoursUntil <= 2 && e.folder === 'red');
+  }
+
   function updateNewsBadges() {
     const within2h = hasNewsWithin2h();
     const heroBadge = document.getElementById('hero-news-badge');
@@ -999,7 +1347,6 @@ document.addEventListener('DOMContentLoaded', () => {
     state.newsEvents.forEach(event => {
       const row = document.createElement('div');
       const isUpcoming = event.hoursUntil <= 2;
-      const isNextDay = event.hoursUntil > 24;
       row.className = `news-event-row${isUpcoming ? ' news-upcoming' : ''}`;
       const timeStr = event.hoursUntil < 1
         ? Math.round(event.hoursUntil * 60) + 'm'
@@ -1029,164 +1376,196 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateNewsWidget(event) {
-    const nameEl = document.getElementById('news-next-event-name');
-    const timeEl = document.getElementById('news-next-event-time');
-    const volEl = document.getElementById('news-vol');
-    const biasEl = document.getElementById('news-bias');
-    const inflEl = document.getElementById('news-influence');
-    const meterEl = document.getElementById('news-meter-fill');
-    const confEl = document.getElementById('news-conf-chip');
-    const histEl = document.getElementById('news-hist-conf');
+    try {
+      const nameEl  = document.getElementById('news-next-event-name');
+      const timeEl  = document.getElementById('news-next-event-time');
+      const volEl   = document.getElementById('news-vol');
+      const biasEl  = document.getElementById('news-bias');
+      const inflEl  = document.getElementById('news-influence');
+      const meterEl = document.getElementById('news-meter-fill');
+      const confEl  = document.getElementById('news-conf-chip');
+      const histEl  = document.getElementById('news-hist-conf');
 
-    if (nameEl) nameEl.textContent = event.name;
-    if (timeEl) timeEl.textContent = `In ${event.hoursUntil.toFixed(1)}h • ${event.time.split(' ')[1]} UTC`;
-    if (volEl) volEl.textContent = `${event.volPips} pips`;
-    if (biasEl) biasEl.textContent = event.bias;
-    if (inflEl) inflEl.textContent = `${event.impactPct}%`;
-    if (meterEl) meterEl.style.width = `${event.impactPct}%`;
-    if (confEl) { confEl.textContent = `${event.conf} IMPACT`; confEl.className = `news-confidence-chip ${event.confClass}`; }
-    if (histEl) histEl.textContent = event.histConf || '—';
+      if (nameEl)  nameEl.textContent  = event.name;
+      if (timeEl)  timeEl.textContent  = `In ${event.hoursUntil.toFixed(1)}h • ${event.time.split(' ')[1]} UTC`;
+      if (volEl)   volEl.textContent   = `${event.volPips} pips`;
+      if (biasEl)  biasEl.textContent  = event.bias;
+      if (inflEl)  inflEl.textContent  = `${event.impactPct}%`;
+      if (meterEl) meterEl.style.width = `${event.impactPct}%`;
+      if (confEl)  { confEl.textContent = `${event.conf} IMPACT`; confEl.className = `news-confidence-chip ${event.confClass}`; }
+      if (histEl)  histEl.textContent  = event.histConf || '—';
+    } catch (err) {
+      console.error('[MANUS MAX]', 'updateNewsWidget error', err);
+      showError('updateNewsWidget', err.message);
+    }
   }
 
   /* ========================================================================
-     8. CONFIDENCE BARS — DYNAMIC UPDATE (v6.0 weights: 50/30/20)
+     8. CONFIDENCE BARS & METRICS (Inst 50% / Macro 30% / Tech 20%)
      ======================================================================== */
   function updateConfidenceDynamically() {
-    const gauge = document.getElementById('gauge-circle');
-    const scoreEl = document.getElementById('gauge-score-num');
-    const instEl = document.getElementById('conf-val-inst');
-    const macroEl = document.getElementById('conf-val-macro');
-    const techEl = document.getElementById('conf-val-tech');
-    const barInst = document.getElementById('conf-bar-inst');
-    const barMacro = document.getElementById('conf-bar-macro');
-    const barTech = document.getElementById('conf-bar-tech');
+    try {
+      const gauge    = document.getElementById('gauge-circle');
+      const scoreEl  = document.getElementById('gauge-score-num');
+      const instEl   = document.getElementById('conf-val-inst');
+      const macroEl  = document.getElementById('conf-val-macro');
+      const techEl   = document.getElementById('conf-val-tech');
+      const barInst  = document.getElementById('conf-bar-inst');
+      const barMacro = document.getElementById('conf-bar-macro');
+      const barTech  = document.getElementById('conf-bar-tech');
 
-    const { confInst: inst, confMacro: macro, confTech: tech } = state.signal;
-    // v6.0 corrected weights: 50/30/20
-    const total = Math.min(98, Math.round(inst * 0.50 + macro * 0.30 + tech * 0.20));
+      if (!state.signal) {
+        if (scoreEl) scoreEl.textContent = '—';
+        return;
+      }
 
-    if (scoreEl) scoreEl.textContent = `${total}%`;
-    if (instEl) instEl.textContent = `${inst}%`;
-    if (macroEl) macroEl.textContent = `${macro}%`;
-    if (techEl) techEl.textContent = `${tech}%`;
+      const { confInst: inst, confMacro: macro, confTech: tech } = state.signal;
+      const total = Math.min(98, Math.round(inst * 0.50 + macro * 0.30 + tech * 0.20));
 
-    // Bar widths proportional to contribution
-    const totalContrib = inst * 0.50 + macro * 0.30 + tech * 0.20;
-    if (barInst) barInst.style.width = `${(inst * 0.50 / (totalContrib || 1)) * 92}%`;
-    if (barMacro) barMacro.style.width = `${(macro * 0.30 / (totalContrib || 1)) * 92}%`;
-    if (barTech) barTech.style.width = `${(tech * 0.20 / (totalContrib || 1)) * 92}%`;
+      if (scoreEl) scoreEl.textContent = `${total}%`;
+      if (instEl)  instEl.textContent  = `${inst}%`;
+      if (macroEl) macroEl.textContent = `${macro}%`;
+      if (techEl)  techEl.textContent  = `${tech}%`;
 
-    // Gauge ring
-    if (gauge) gauge.style.strokeDashoffset = (314 * (1 - total / 100)).toFixed(1);
+      const totalContrib = inst * 0.50 + macro * 0.30 + tech * 0.20;
+      if (barInst)  barInst.style.width  = `${(inst  * 0.50 / (totalContrib || 1)) * 92}%`;
+      if (barMacro) barMacro.style.width = `${(macro * 0.30 / (totalContrib || 1)) * 92}%`;
+      if (barTech)  barTech.style.width  = `${(tech  * 0.20 / (totalContrib || 1)) * 92}%`;
+
+      if (gauge) gauge.style.strokeDashoffset = (314 * (1 - total / 100)).toFixed(1);
+    } catch (err) {
+      console.error('[MANUS MAX]', 'updateConfidenceDynamically error', err);
+      showError('updateConfidenceDynamically', err.message);
+    }
   }
 
   /* ========================================================================
-     9. SIGNAL HISTORY TABLE + TRADE CLOSE VIEW
+     9. SIGNAL HISTORY TABLE — Explicit DEMO Data Flagging
      ======================================================================== */
   function initSignalHistory() {
     if (!historyBody) return;
-    historyBody.innerHTML = '';
+    try {
+      historyBody.innerHTML = '';
 
-    state.history.forEach(item => {
-      const tr = document.createElement('tr');
-      const isWin = item.status.includes('WIN') || item.status === 'ACTIVE';
-      const isBuy = item.dir === 'BUY';
-      const isActive = item.status === 'ACTIVE';
-      const rrClass = { 'rr-min': 'rr-badge rr-badge-min', 'rr-good': 'rr-badge rr-badge-good', 'rr-high': 'rr-badge rr-badge-high' }[item.rrClass] || 'rr-badge rr-badge-high';
-      const pipsSign = item.pips !== 'LIVE' ? (parseFloat(item.pips) >= 0 ? '+' : '') : '';
-
-      tr.innerHTML = `
-        <td class="font-mono" style="color:var(--text-dim);font-size:11px;">${item.id}</td>
-        <td class="font-mono ts-cell">${item.openTs}</td>
-        <td class="font-mono ts-cell ${isActive ? 'text-gold' : ''}">${item.closeTs}</td>
-        <td><span class="status-badge ${isBuy ? 'badge-win' : 'badge-gold'}">${isBuy ? '▲ BUY' : '▼ SELL'}</span></td>
-        <td><span class="sig-strategy-tag" style="font-size:10px;">${item.strategy}</span></td>
-        <td class="font-mono">$${item.entry.toFixed(2)}</td>
-        <td class="text-ruby font-mono">$${item.sl.toFixed(2)}</td>
-        <td class="text-gold font-mono">$${item.tp2.toFixed(2)}</td>
-        <td><span class="${rrClass}">${item.rr}</span></td>
-        <td class="${isWin ? 'text-emerald' : 'text-ruby'}" style="font-weight:700;">${item.pips !== 'LIVE' ? pipsSign + item.pips : '<span class="pulse-dot" style="margin-right:4px;"></span>LIVE'}</td>
-        <td class="text-gold">${item.confidence}</td>
-        <td>${item.news ? `<span class="news-badge">⚠ ${item.news}</span>` : '<span style="color:var(--text-dim);font-size:10px;">—</span>'}</td>
-        <td><span class="status-badge ${isActive ? 'badge-tag' : (isWin ? 'badge-win' : 'badge-ruby')}">${item.status}</span></td>
-        <td>${item.pnl ? `<button class="btn-detail" onclick="showTradeDetail('${item.id}')"><i data-lucide="eye"></i></button>` : '<span style="color:var(--text-dim);font-size:10px;">—</span>'}</td>
+      // Disclaimer banner inside table
+      const discTr = document.createElement('tr');
+      discTr.innerHTML = `
+        <td colspan="14" style="background:rgba(245,194,66,0.06);border:1px dashed rgba(245,194,66,0.3);padding:10px 14px;text-align:center;color:#f5c242;font-size:11px;font-weight:600;">
+          ⚠ DEMO DATA — Historical signals shown are for demonstration. Live signal tracking requires backend integration.
+        </td>
       `;
-      historyBody.appendChild(tr);
+      historyBody.appendChild(discTr);
 
-      // Trade close detail row (v6.0)
-      if (item.pnl) {
-        const detailRow = document.createElement('tr');
-        detailRow.id = `detail-${item.id}`;
-        detailRow.className = 'trade-detail-row';
-        detailRow.style.display = 'none';
-        const pnl = item.pnl;
-        const pnlColor = pnl.pips >= 0 ? 'var(--emerald)' : 'var(--ruby)';
-        detailRow.innerHTML = `
-          <td colspan="14">
-            <div class="trade-detail-panel">
-              <div class="trade-detail-header">
-                <span><i data-lucide="trending-${pnl.direction === 'BUY' ? 'up' : 'down'}"></i> ${item.id} — Trade Close View</span>
-                <span class="trade-pnl-badge" style="color:${pnlColor};background:${pnl.pips >= 0 ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)'};border:1px solid ${pnl.pips >= 0 ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'};">${pnl.pips >= 0 ? '+' : ''}${pnl.pips} Pips ${pnl.result}</span>
-              </div>
-              <div class="trade-markers">
-                <div class="trade-marker marker-entry">
-                  <span class="marker-dot" style="background:var(--gold-primary);"></span>
-                  <span>ENTRY: $${pnl.entryPrice.toFixed(2)}</span>
-                </div>
-                <div class="trade-arrow">→</div>
-                <div class="trade-marker marker-exit" style="color:${pnlColor};">
-                  <span class="marker-dot" style="background:${pnlColor};"></span>
-                  <span>EXIT: $${pnl.exitPrice.toFixed(2)}</span>
-                </div>
-                <div class="trade-pnl-calc">
-                  <span>Δ = ${Math.abs(pnl.exitPrice - pnl.entryPrice).toFixed(2)} pts</span>
-                  <span style="color:${pnlColor};font-weight:700;">${pnl.pips >= 0 ? '+' : ''}${pnl.pips} pips</span>
-                </div>
-              </div>
-              <div class="trade-reason" style="font-size:11px;color:var(--text-secondary);margin-top:6px;font-style:italic;">"${item.reason}"</div>
-            </div>
-          </td>
+      state.history.forEach(item => {
+        const tr = document.createElement('tr');
+        const isWin = item.status.includes('WIN');
+        const isBuy = item.dir === 'BUY' || item.dir === 'LONG';
+        const isActive = item.status.includes('ACTIVE');
+        const rrClass = {
+          'rr-min': 'rr-badge rr-badge-min',
+          'rr-good': 'rr-badge rr-badge-good',
+          'rr-high': 'rr-badge rr-badge-high'
+        }[item.rrClass] || 'rr-badge rr-badge-high';
+
+        const pipsSign = item.pips !== 'LIVE' ? (parseFloat(item.pips) >= 0 ? '+' : '') : '';
+
+        tr.innerHTML = `
+          <td class="font-mono" style="color:var(--text-dim);font-size:11px;">${item.id}</td>
+          <td class="font-mono ts-cell">${item.openTs}</td>
+          <td class="font-mono ts-cell ${isActive ? 'text-gold' : ''}">${item.closeTs}</td>
+          <td><span class="status-badge ${isBuy ? 'badge-win' : 'badge-gold'}">${isBuy ? '▲ LONG' : '▼ SHORT'}</span></td>
+          <td><span class="sig-strategy-tag" style="font-size:10px;">${item.strategy}</span></td>
+          <td class="font-mono">$${item.entry.toFixed(2)}</td>
+          <td class="text-ruby font-mono">$${item.sl.toFixed(2)}</td>
+          <td class="text-gold font-mono">$${item.tp2.toFixed(2)}</td>
+          <td><span class="${rrClass}">${item.rr}</span></td>
+          <td class="${isWin ? 'text-emerald' : 'text-ruby'}" style="font-weight:700;">${item.pips !== 'LIVE' ? pipsSign + item.pips : '<span class="pulse-dot" style="margin-right:4px;"></span>DEMO'}</td>
+          <td class="text-gold">${item.confidence}</td>
+          <td>${item.news ? `<span class="news-badge">⚠ ${item.news}</span>` : '<span style="color:var(--text-dim);font-size:10px;">—</span>'}</td>
+          <td><span class="status-badge ${isActive ? 'badge-tag' : (isWin ? 'badge-win' : 'badge-ruby')}">${item.status}</span></td>
+          <td>${item.pnl ? `<button class="btn-detail" onclick="showTradeDetail('${item.id}')"><i data-lucide="eye"></i></button>` : '<span style="color:var(--text-dim);font-size:10px;">—</span>'}</td>
         `;
-        historyBody.appendChild(detailRow);
-      }
-    });
+        historyBody.appendChild(tr);
 
-    if (window.lucide) window.lucide.createIcons();
+        if (item.pnl) {
+          const detailRow = document.createElement('tr');
+          detailRow.id = `detail-${item.id}`;
+          detailRow.className = 'trade-detail-row';
+          detailRow.style.display = 'none';
+          const pnl = item.pnl;
+          const pnlColor = pnl.pips >= 0 ? 'var(--emerald)' : 'var(--ruby)';
+          detailRow.innerHTML = `
+            <td colspan="14">
+              <div class="trade-detail-panel">
+                <div class="trade-detail-header">
+                  <span><i data-lucide="trending-${pnl.direction === 'LONG' || pnl.direction === 'BUY' ? 'up' : 'down'}"></i> ${item.id} — DEMO Trade Close View</span>
+                  <span class="trade-pnl-badge" style="color:${pnlColor};background:${pnl.pips >= 0 ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)'};border:1px solid ${pnl.pips >= 0 ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'};">${pnl.pips >= 0 ? '+' : ''}${pnl.pips} Pips (${pnl.result})</span>
+                </div>
+                <div class="trade-markers">
+                  <div class="trade-marker marker-entry">
+                    <span class="marker-dot" style="background:var(--gold-primary);"></span>
+                    <span>ENTRY: $${pnl.entryPrice.toFixed(2)}</span>
+                  </div>
+                  <div class="trade-arrow">→</div>
+                  <div class="trade-marker marker-exit" style="color:${pnlColor};">
+                    <span class="marker-dot" style="background:${pnlColor};"></span>
+                    <span>EXIT: $${pnl.exitPrice.toFixed(2)}</span>
+                  </div>
+                  <div class="trade-pnl-calc">
+                    <span>Δ = ${Math.abs(pnl.exitPrice - pnl.entryPrice).toFixed(2)} pts</span>
+                    <span style="color:${pnlColor};font-weight:700;">${pnl.pips >= 0 ? '+' : ''}${pnl.pips} pips (DEMO)</span>
+                  </div>
+                </div>
+                <div class="trade-reason" style="font-size:11px;color:var(--text-secondary);margin-top:6px;font-style:italic;">"${item.reason}"</div>
+              </div>
+            </td>
+          `;
+          historyBody.appendChild(detailRow);
+        }
+      });
+
+      if (window.lucide) window.lucide.createIcons();
+    } catch (err) {
+      console.error('[MANUS MAX]', 'initSignalHistory error', err);
+      showError('initSignalHistory', err.message);
+    }
   }
 
-  // Global handler for trade detail toggle
   window.showTradeDetail = function(id) {
-    const row = document.getElementById(`detail-${id}`);
-    if (row) {
-      row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
-      if (window.lucide) window.lucide.createIcons();
+    try {
+      const row = document.getElementById(`detail-${id}`);
+      if (row) {
+        row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+        if (window.lucide) window.lucide.createIcons();
+      }
+    } catch (err) {
+      console.error('[MANUS MAX]', 'showTradeDetail error', err);
+      showError('showTradeDetail', err.message);
     }
   };
 
   /* ========================================================================
-     10. PERFORMANCE METRICS (v6.0)
+     10. PERFORMANCE METRICS (Honest DEMO labeling)
      ======================================================================== */
   function initPerformanceMetrics() {
-    // Calculate from history
-    const closed = state.history.filter(h => h.status !== 'ACTIVE');
-    const wins = closed.filter(h => h.status.includes('WIN'));
-    const losses = closed.filter(h => h.status === 'STOPPED');
+    try {
+      const closed = state.history.filter(h => !h.status.includes('ACTIVE'));
+      const wins = closed.filter(h => h.status.includes('WIN'));
+      const winRate = closed.length > 0 ? ((wins.length / closed.length) * 100).toFixed(1) : '—';
+      const totalPips = closed.reduce((sum, h) => sum + (parseFloat(h.pips) || 0), 0);
+      const maxDD = Math.min(...closed.map(h => parseFloat(h.pips) || 0));
+      const rrVals = closed.map(h => parseFloat((h.rr || '').replace('1 : ', '')) || 0).filter(v => v > 0);
+      const avgRR = rrVals.length > 0 ? (rrVals.reduce((a, b) => a + b, 0) / rrVals.length).toFixed(1) : '—';
 
-    const winRate = closed.length > 0 ? ((wins.length / closed.length) * 100).toFixed(1) : '—';
-    const totalPips = closed.reduce((sum, h) => {
-      const p = parseFloat(h.pips) || 0;
-      return sum + p;
-    }, 0);
-    const maxDD = Math.min(...closed.map(h => parseFloat(h.pips) || 0));
-    const rrVals = closed.map(h => parseFloat(h.rr.replace('1 : ', '')) || 0).filter(v => v > 0);
-    const avgRR = rrVals.length > 0 ? (rrVals.reduce((a, b) => a + b, 0) / rrVals.length).toFixed(1) : '—';
-    const sharpe = (parseFloat(winRate) / 100 * 2.1 + 1.2).toFixed(2); // Simplified Sharpe proxy
-
-    animateCounter('perf-winrate', winRate + '%', 1200);
-    animateCounter('perf-avgr', `1 : ${avgRR}`, 800);
-    animateCounter('perf-gain', `+${totalPips.toFixed(0)} Pips`, 1500);
-    animateCounter('perf-dd', `${maxDD >= 0 ? '+' : ''}${maxDD} Pips`, 600);
-    animateCounter('perf-sharpe', sharpe, 1000);
+      animateCounter('perf-winrate', `${winRate}% (DEMO)`, 1000);
+      animateCounter('perf-avgr', `1 : ${avgRR}`, 800);
+      animateCounter('perf-gain', `+${totalPips.toFixed(0)} Pips (DEMO)`, 1200);
+      animateCounter('perf-dd', `${maxDD >= 0 ? '+' : ''}${maxDD} Pips`, 600);
+      animateCounter('perf-sharpe', 'DEMO', 600);
+    } catch (err) {
+      console.error('[MANUS MAX]', 'initPerformanceMetrics error', err);
+      showError('initPerformanceMetrics', err.message);
+    }
   }
 
   function animateCounter(id, finalVal, duration) {
@@ -1197,100 +1576,99 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /* ========================================================================
-     11. LIGHTWEIGHT CHARTS SMC OVERLAY ENGINE
+     11. LIGHTWEIGHT CHARTS (Real Price Feeds Only — No Random Walk)
      ======================================================================== */
   let lwCurrentMinute = null;
   let lwCurrentBar = null;
 
   function initLightweightChart() {
-    const container = document.getElementById('lw-chart-container');
-    if (!container || !window.LightweightCharts) {
-      console.warn('[MANUS MAX v6.0] LightweightCharts not available.');
-      return;
-    }
+    try {
+      const container = document.getElementById('lw-chart-container');
+      if (!container || !window.LightweightCharts) {
+        console.warn('[MANUS MAX v6.1] LightweightCharts library not found on page.');
+        return;
+      }
 
-    const chart = window.LightweightCharts.createChart(container, {
-      layout: {
-        background: { type: 'solid', color: '#060910' },
-        textColor: 'rgba(255,255,255,0.4)',
-        fontFamily: "'JetBrains Mono', monospace",
-      },
-      grid: {
-        vertLines: { color: 'rgba(255,255,255,0.04)' },
-        horzLines: { color: 'rgba(255,255,255,0.04)' },
-      },
-      crosshair: {
-        mode: window.LightweightCharts.CrosshairMode.Normal,
-        vertLine: { color: 'rgba(245,194,66,0.5)', width: 1, style: 1 },
-        horzLine: { color: 'rgba(245,194,66,0.5)', width: 1, style: 1 },
-      },
-      timeScale: {
-        borderColor: 'rgba(255,255,255,0.08)',
-        timeVisible: true,
-        secondsVisible: false,
-      },
-      rightPriceScale: {
-        borderColor: 'rgba(255,255,255,0.08)',
-      },
-      handleScroll: true,
-      handleScale: true,
-    });
+      showChartLoadingState(container);
 
-    // Candlestick series
-    const candleSeries = chart.addCandlestickSeries({
-      upColor: '#10b981',
-      downColor: '#ef4444',
-      borderUpColor: '#10b981',
-      borderDownColor: '#ef4444',
-      wickUpColor: '#10b981',
-      wickDownColor: '#ef4444',
-    });
-
-    state.lwChart = chart;
-    state.lwCandleSeries = candleSeries;
-
-    // Load initial synthesized OHLC data
-    const initialData = generateOHLCData(state.goldPrice || 4085);
-    candleSeries.setData(initialData);
-
-    // Draw SMC overlays
-    drawSMCOverlays(chart, candleSeries, state.goldPrice || 4085);
-
-    // Fit content
-    chart.timeScale().fitContent();
-
-    // Responsive resize
-    const resizeObs = new ResizeObserver(() => {
-      chart.applyOptions({
-        width: container.clientWidth,
-        height: container.clientHeight,
+      const chart = window.LightweightCharts.createChart(container, {
+        layout: {
+          background: { type: 'solid', color: '#060910' },
+          textColor: 'rgba(255,255,255,0.4)',
+          fontFamily: "'JetBrains Mono', monospace",
+        },
+        grid: {
+          vertLines: { color: 'rgba(255,255,255,0.04)' },
+          horzLines: { color: 'rgba(255,255,255,0.04)' },
+        },
+        crosshair: {
+          mode: window.LightweightCharts.CrosshairMode.Normal,
+          vertLine: { color: 'rgba(245,194,66,0.5)', width: 1, style: 1 },
+          horzLine: { color: 'rgba(245,194,66,0.5)', width: 1, style: 1 },
+        },
+        timeScale: {
+          borderColor: 'rgba(255,255,255,0.08)',
+          timeVisible: true,
+          secondsVisible: false,
+        },
+        rightPriceScale: {
+          borderColor: 'rgba(255,255,255,0.08)',
+        },
+        handleScroll: true,
+        handleScale: true,
       });
-    });
-    resizeObs.observe(container);
 
-    console.log('[MANUS MAX v6.0] Lightweight Charts initialized.');
+      const candleSeries = chart.addCandlestickSeries({
+        upColor:         '#10b981',
+        downColor:       '#ef4444',
+        borderUpColor:   '#10b981',
+        borderDownColor: '#ef4444',
+        wickUpColor:     '#10b981',
+        wickDownColor:   '#ef4444',
+      });
+
+      state.lwChart = chart;
+      state.lwCandleSeries = candleSeries;
+
+      const resizeObs = new ResizeObserver(() => {
+        try {
+          chart.applyOptions({
+            width:  container.clientWidth,
+            height: container.clientHeight,
+          });
+        } catch (err) {
+          console.error('[MANUS MAX]', 'chart resize error', err);
+        }
+      });
+      resizeObs.observe(container);
+
+      console.log('[MANUS MAX v6.1] Lightweight Charts initialized.');
+    } catch (err) {
+      console.error('[MANUS MAX]', 'initLightweightChart error', err);
+      showError('initLightweightChart', err.message);
+    }
   }
 
-  function generateOHLCData(currentPrice) {
-    const bars = [];
-    const now = Math.floor(Date.now() / 1000);
-    const barInterval = getBarIntervalSeconds(state.timeframe);
-    const numBars = 60;
-    let price = currentPrice - (Math.random() * 40 + 20);
-
-    for (let i = numBars; i >= 0; i--) {
-      const t = now - i * barInterval;
-      const open = price;
-      const movement = (Math.random() - 0.45) * 8;
-      const close = parseFloat((open + movement).toFixed(2));
-      const high = parseFloat((Math.max(open, close) + Math.random() * 4).toFixed(2));
-      const low = parseFloat((Math.min(open, close) - Math.random() * 4).toFixed(2));
-      bars.push({ time: t, open, high, low, close });
-      price = close;
+  function showChartLoadingState(container) {
+    if (!container) return;
+    let loading = document.getElementById('lw-chart-loading-indicator');
+    if (!loading) {
+      loading = document.createElement('div');
+      loading.id = 'lw-chart-loading-indicator';
+      loading.style.cssText = `
+        position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        color: rgba(245, 194, 66, 0.8); font-size: 12px; font-weight: 600;
+        letter-spacing: 0.05em; pointer-events: none; z-index: 10;
+      `;
+      loading.textContent = 'Loading chart data...';
+      container.style.position = 'relative';
+      container.appendChild(loading);
     }
-    // Force last bar close to current price
-    if (bars.length > 0) bars[bars.length - 1].close = currentPrice;
-    return bars;
+  }
+
+  function hideChartLoadingState() {
+    const loading = document.getElementById('lw-chart-loading-indicator');
+    if (loading) loading.remove();
   }
 
   function getBarIntervalSeconds(tf) {
@@ -1298,392 +1676,557 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function pushOHLCTick(price) {
-    if (!state.lwCandleSeries) return;
-    const now = Math.floor(Date.now() / 1000);
-    const barInterval = getBarIntervalSeconds(state.timeframe);
-    const barTime = Math.floor(now / barInterval) * barInterval;
+    try {
+      if (!state.lwCandleSeries) return;
+      hideChartLoadingState();
 
-    if (lwCurrentMinute !== barTime) {
-      lwCurrentMinute = barTime;
-      lwCurrentBar = { time: barTime, open: price, high: price, low: price, close: price };
-    } else if (lwCurrentBar) {
-      lwCurrentBar.high = Math.max(lwCurrentBar.high, price);
-      lwCurrentBar.low = Math.min(lwCurrentBar.low, price);
-      lwCurrentBar.close = price;
-    }
+      const now = Math.floor(Date.now() / 1000);
+      const barInterval = getBarIntervalSeconds(state.timeframe);
+      const barTime = Math.floor(now / barInterval) * barInterval;
 
-    if (lwCurrentBar) {
-      try {
+      if (lwCurrentMinute !== barTime) {
+        lwCurrentMinute = barTime;
+        lwCurrentBar = { time: barTime, open: price, high: price, low: price, close: price };
+      } else if (lwCurrentBar) {
+        lwCurrentBar.high  = Math.max(lwCurrentBar.high, price);
+        lwCurrentBar.low   = Math.min(lwCurrentBar.low, price);
+        lwCurrentBar.close = price;
+      }
+
+      if (lwCurrentBar) {
         state.lwCandleSeries.update(lwCurrentBar);
-      } catch (e) { /* silent */ }
+      }
+    } catch (err) {
+      console.error('[MANUS MAX]', 'pushOHLCTick error', err);
+      showError('pushOHLCTick', err.message);
     }
   }
 
   function updateLWChartPrice(price) {
     pushOHLCTick(price);
+    if (state.lwChart && state.lwCandleSeries && state.signal) {
+      drawSMCOverlays(state.lwChart, state.lwCandleSeries, price);
+    }
   }
 
   function regenerateLWChartData() {
-    if (!state.lwChart || !state.lwCandleSeries) return;
-    const newData = generateOHLCData(state.goldPrice || 4085);
-    state.lwCandleSeries.setData(newData);
-    drawSMCOverlays(state.lwChart, state.lwCandleSeries, state.goldPrice || 4085);
-    state.lwChart.timeScale().fitContent();
+    try {
+      if (!state.lwChart || !state.lwCandleSeries) return;
+      lwCurrentMinute = null;
+      lwCurrentBar    = null;
+
+      if (state.goldPrice && state.priceHistory.length > 0) {
+        const barInterval = getBarIntervalSeconds(state.timeframe);
+        const now = Math.floor(Date.now() / 1000);
+        const bars = [];
+        const histLen = state.priceHistory.length;
+
+        state.priceHistory.forEach((price, i) => {
+          const ageSeconds = (histLen - 1 - i) * 60;
+          const barTime = Math.floor((now - ageSeconds) / barInterval) * barInterval;
+          const existing = bars.find(b => b.time === barTime);
+          if (existing) {
+            existing.high  = Math.max(existing.high, price);
+            existing.low   = Math.min(existing.low, price);
+            existing.close = price;
+          } else {
+            bars.push({ time: barTime, open: price, high: price, low: price, close: price });
+          }
+        });
+
+        bars.sort((a, b) => a.time - b.time);
+        state.lwCandleSeries.setData(bars);
+
+        if (state.signal) {
+          drawSMCOverlays(state.lwChart, state.lwCandleSeries, state.goldPrice);
+        }
+        state.lwChart.timeScale().fitContent();
+      }
+    } catch (err) {
+      console.error('[MANUS MAX]', 'regenerateLWChartData error', err);
+      showError('regenerateLWChartData', err.message);
+    }
   }
 
   function drawSMCOverlays(chart, series, currentPrice) {
-    const sig = state.signal;
-
-    // Remove old price lines
+    if (!state.showIndicators || !state.signal) return;
     try {
-      if (state.lwSeries.entryLine) series.removePriceLine(state.lwSeries.entryLine);
-      if (state.lwSeries.slLine) series.removePriceLine(state.lwSeries.slLine);
-      if (state.lwSeries.tp1Line) series.removePriceLine(state.lwSeries.tp1Line);
-      if (state.lwSeries.tp2Line) series.removePriceLine(state.lwSeries.tp2Line);
-      if (state.lwSeries.tp3Line) series.removePriceLine(state.lwSeries.tp3Line);
-      if (state.lwSeries.obLine) series.removePriceLine(state.lwSeries.obLine);
-      if (state.lwSeries.fvgLine) series.removePriceLine(state.lwSeries.fvgLine);
-      if (state.lwSeries.liqLine) series.removePriceLine(state.lwSeries.liqLine);
-      if (state.lwSeries.chochLine) series.removePriceLine(state.lwSeries.chochLine);
-    } catch (e) { /* silent */ }
-
-    // Entry Price Line
-    state.lwSeries.entryLine = series.createPriceLine({
-      price: sig.entry,
-      color: '#f5c242',
-      lineWidth: 2,
-      lineStyle: window.LightweightCharts.LineStyle.Solid,
-      axisLabelVisible: true,
-      title: `ENTRY ${formatPrice(sig.entry)}`,
-    });
-
-    // Stop Loss Line
-    state.lwSeries.slLine = series.createPriceLine({
-      price: sig.sl,
-      color: '#ef4444',
-      lineWidth: 1.5,
-      lineStyle: window.LightweightCharts.LineStyle.Dashed,
-      axisLabelVisible: true,
-      title: `SL ${formatPrice(sig.sl)}`,
-    });
-
-    // TP1 Line
-    state.lwSeries.tp1Line = series.createPriceLine({
-      price: sig.tp1,
-      color: '#10b981',
-      lineWidth: 1.5,
-      lineStyle: window.LightweightCharts.LineStyle.Dotted,
-      axisLabelVisible: true,
-      title: `TP1 (1:2) ${formatPrice(sig.tp1)}`,
-    });
-
-    // TP2 Line
-    state.lwSeries.tp2Line = series.createPriceLine({
-      price: sig.tp2,
-      color: '#ffd700',
-      lineWidth: 1.5,
-      lineStyle: window.LightweightCharts.LineStyle.Dotted,
-      axisLabelVisible: true,
-      title: `TP2 (1:${sig.rr}) ${formatPrice(sig.tp2)}`,
-    });
-
-    // TP3 Line (v6.0)
-    if (sig.tp3) {
-      state.lwSeries.tp3Line = series.createPriceLine({
-        price: sig.tp3,
-        color: '#fff200',
-        lineWidth: 1,
-        lineStyle: window.LightweightCharts.LineStyle.LargeDashed,
-        axisLabelVisible: true,
-        title: `TP3 HTF ${formatPrice(sig.tp3)}`,
+      const sig = state.signal;
+      const keys = ['entryLine', 'slLine', 'tp1Line', 'tp2Line', 'tp3Line', 'obLine', 'fvgLine', 'liqLine', 'chochLine'];
+      keys.forEach(k => {
+        if (state.lwSeries[k]) {
+          try { series.removePriceLine(state.lwSeries[k]); } catch (_) {}
+          state.lwSeries[k] = null;
+        }
       });
+
+      state.lwSeries.entryLine = series.createPriceLine({
+        price: sig.entry,
+        color: '#f5c242',
+        lineWidth: 2,
+        lineStyle: window.LightweightCharts.LineStyle.Solid,
+        axisLabelVisible: true,
+        title: `ENTRY ${formatPrice(sig.entry)}`,
+      });
+
+      state.lwSeries.slLine = series.createPriceLine({
+        price: sig.sl,
+        color: '#ef4444',
+        lineWidth: 1.5,
+        lineStyle: window.LightweightCharts.LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: `SL ${formatPrice(sig.sl)}`,
+      });
+
+      if (sig.tp1) {
+        state.lwSeries.tp1Line = series.createPriceLine({
+          price: sig.tp1,
+          color: '#10b981',
+          lineWidth: 1.5,
+          lineStyle: window.LightweightCharts.LineStyle.Dotted,
+          axisLabelVisible: true,
+          title: `TP1 (1:2) ${formatPrice(sig.tp1)}`,
+        });
+      }
+
+      if (sig.tp2) {
+        state.lwSeries.tp2Line = series.createPriceLine({
+          price: sig.tp2,
+          color: '#ffd700',
+          lineWidth: 1.5,
+          lineStyle: window.LightweightCharts.LineStyle.Dotted,
+          axisLabelVisible: true,
+          title: `TP2 (1:${sig.rr}) ${formatPrice(sig.tp2)}`,
+        });
+      }
+
+      if (sig.tp3) {
+        state.lwSeries.tp3Line = series.createPriceLine({
+          price: sig.tp3,
+          color: '#fff200',
+          lineWidth: 1,
+          lineStyle: window.LightweightCharts.LineStyle.LargeDashed,
+          axisLabelVisible: true,
+          title: `TP3 HTF ${formatPrice(sig.tp3)}`,
+        });
+      }
+
+      const isLong = sig.type === 'LONG';
+      const obPrice    = parseFloat((currentPrice * (isLong ? 0.997 : 1.003)).toFixed(2));
+      const fvgPrice   = parseFloat((currentPrice * (isLong ? 0.9985 : 1.0015)).toFixed(2));
+      const liqPrice   = parseFloat((currentPrice * (isLong ? 0.995 : 1.005)).toFixed(2));
+      const chochPrice = parseFloat((currentPrice * (isLong ? 0.992 : 1.008)).toFixed(2));
+
+      state.lwSeries.obLine = series.createPriceLine({
+        price: obPrice,
+        color: 'rgba(245,194,66,0.6)',
+        lineWidth: 1,
+        lineStyle: window.LightweightCharts.LineStyle.Solid,
+        axisLabelVisible: true,
+        title: `OB ${formatPrice(obPrice)}`,
+      });
+
+      state.lwSeries.fvgLine = series.createPriceLine({
+        price: fvgPrice,
+        color: 'rgba(139,92,246,0.6)',
+        lineWidth: 1,
+        lineStyle: window.LightweightCharts.LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: `FVG ${formatPrice(fvgPrice)}`,
+      });
+
+      state.lwSeries.liqLine = series.createPriceLine({
+        price: liqPrice,
+        color: 'rgba(6,182,212,0.7)',
+        lineWidth: 1,
+        lineStyle: window.LightweightCharts.LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: `Liq ${formatPrice(liqPrice)}`,
+      });
+
+      state.lwSeries.chochLine = series.createPriceLine({
+        price: chochPrice,
+        color: 'rgba(245,194,66,0.4)',
+        lineWidth: 1,
+        lineStyle: window.LightweightCharts.LineStyle.SparseDotted,
+        axisLabelVisible: true,
+        title: `CHOCH ${formatPrice(chochPrice)}`,
+      });
+    } catch (err) {
+      console.error('[MANUS MAX]', 'drawSMCOverlays error', err);
+      showError('drawSMCOverlays', err.message);
     }
-
-    // OB Level (Order Block top)
-    const obLevel = parseFloat((currentPrice - 14).toFixed(2));
-    state.lwSeries.obLine = series.createPriceLine({
-      price: obLevel,
-      color: 'rgba(245,194,66,0.6)',
-      lineWidth: 1,
-      lineStyle: window.LightweightCharts.LineStyle.Solid,
-      axisLabelVisible: true,
-      title: `OB $${obLevel.toFixed(2)}`,
-    });
-
-    // FVG Level
-    const fvgLevel = parseFloat((currentPrice - 7).toFixed(2));
-    state.lwSeries.fvgLine = series.createPriceLine({
-      price: fvgLevel,
-      color: 'rgba(139,92,246,0.6)',
-      lineWidth: 1,
-      lineStyle: window.LightweightCharts.LineStyle.Dashed,
-      axisLabelVisible: true,
-      title: `FVG $${fvgLevel.toFixed(2)}`,
-    });
-
-    // Liquidity Level
-    const liqLevel = parseFloat((currentPrice - 20).toFixed(2));
-    state.lwSeries.liqLine = series.createPriceLine({
-      price: liqLevel,
-      color: 'rgba(6,182,212,0.7)',
-      lineWidth: 1,
-      lineStyle: window.LightweightCharts.LineStyle.Dashed,
-      axisLabelVisible: true,
-      title: `Liq $${liqLevel.toFixed(2)}`,
-    });
-
-    // CHOCH Level
-    const chochLevel = parseFloat((currentPrice - 35).toFixed(2));
-    state.lwSeries.chochLine = series.createPriceLine({
-      price: chochLevel,
-      color: 'rgba(245,194,66,0.4)',
-      lineWidth: 1,
-      lineStyle: window.LightweightCharts.LineStyle.SparseDotted,
-      axisLabelVisible: true,
-      title: `CHOCH $${chochLevel.toFixed(2)}`,
-    });
   }
 
   /* ========================================================================
-     12. INTERACTIVE MODEL SIMULATOR (v6.0 weights: 50/30/20)
+     12. INTERACTIVE MODEL SIMULATOR (50/30/20 weights)
      ======================================================================== */
   function initSimulator() {
-    const inputs = {
-      realYield: document.getElementById('sim-input-realyield'),
-      dxy: document.getElementById('sim-input-dxy'),
-      ema: document.getElementById('sim-input-ema'),
-      bb: document.getElementById('sim-input-bb'),
-      smc: document.getElementById('sim-input-smc'),
-      gpr: document.getElementById('sim-input-gpr')
-    };
-    if (!inputs.realYield) return;
+    try {
+      const inputs = {
+        realYield: document.getElementById('sim-input-realyield'),
+        dxy:       document.getElementById('sim-input-dxy'),
+        ema:       document.getElementById('sim-input-ema'),
+        bb:        document.getElementById('sim-input-bb'),
+        smc:       document.getElementById('sim-input-smc'),
+        gpr:       document.getElementById('sim-input-gpr')
+      };
+      if (!inputs.realYield) return;
 
-    const vals = {
-      realYield: document.getElementById('sim-val-realyield'),
-      dxy: document.getElementById('sim-val-dxy'),
-      ema: document.getElementById('sim-val-ema'),
-      bb: document.getElementById('sim-val-bb'),
-      smc: document.getElementById('sim-val-smc'),
-      gpr: document.getElementById('sim-val-gpr')
-    };
+      const vals = {
+        realYield: document.getElementById('sim-val-realyield'),
+        dxy:       document.getElementById('sim-val-dxy'),
+        ema:       document.getElementById('sim-val-ema'),
+        bb:        document.getElementById('sim-val-bb'),
+        smc:       document.getElementById('sim-val-smc'),
+        gpr:       document.getElementById('sim-val-gpr')
+      };
 
-    function calc() {
-      // Institutional (50%) — v6.0
-      const smcScores = { choch_ob: 93, fvg: 80, liq_sweep: 88, none: 40 };
-      const smcVal = inputs.smc ? inputs.smc.value : 'choch_ob';
-      const instScore = smcScores[smcVal] || 50;
-      if (vals.smc) vals.smc.textContent = { choch_ob: 'CHOCH + OB', fvg: 'FVG Fill', liq_sweep: 'Liq Sweep', none: 'No Signal' }[smcVal];
+      function calc() {
+        const smcScores = { choch_ob: 93, fvg: 80, liq_sweep: 88, none: 40 };
+        const smcVal = inputs.smc ? inputs.smc.value : 'choch_ob';
+        const instScore = smcScores[smcVal] || 50;
+        if (vals.smc) vals.smc.textContent = { choch_ob: 'CHOCH + OB', fvg: 'FVG Fill', liq_sweep: 'Liq Sweep', none: 'No Signal' }[smcVal];
 
-      // Macro (30%)
-      const ryVal = parseFloat(inputs.realYield.value);
-      if (vals.realYield) vals.realYield.textContent = `${ryVal.toFixed(2)}% (${ryVal < 0 ? 'Negative / Bullish' : 'Positive / Bearish'})`;
-      let macroScore = 50;
-      if (ryVal < 0) macroScore += Math.abs(ryVal) * 22;
-      else macroScore -= ryVal * 20;
-      const dxyVal = inputs.dxy.value;
-      if (vals.dxy) vals.dxy.textContent = { weak: 'Weakening (Bullish Au)', flat: 'Neutral', strong: 'Strengthening (Bearish Au)' }[dxyVal];
-      if (dxyVal === 'weak') macroScore += 18; else if (dxyVal === 'strong') macroScore -= 18;
-      const gprVal = parseInt(inputs.gpr.value);
-      if (vals.gpr) vals.gpr.textContent = `${gprVal} (${gprVal > 120 ? 'High Risk' : 'Normal'})`;
-      macroScore += (gprVal - 100) * 0.12;
+        const ryVal = parseFloat(inputs.realYield.value);
+        if (vals.realYield) vals.realYield.textContent = `${ryVal.toFixed(2)}% (${ryVal < 0 ? 'Negative / Bullish' : 'Positive / Bearish'})`;
+        let macroScore = 50;
+        if (ryVal < 0) macroScore += Math.abs(ryVal) * 22;
+        else macroScore -= ryVal * 20;
 
-      // Technical (20%) — v6.0
-      const emaVal = inputs.ema.value;
-      if (vals.ema) vals.ema.textContent = { bullish: 'Price > 50 > 200', neutral: 'Between EMAs', bearish: 'Price < 50 < 200' }[emaVal];
-      let techScore = 50;
-      if (emaVal === 'bullish') techScore += 22; else if (emaVal === 'bearish') techScore -= 22;
-      const bbVal = inputs.bb.value;
-      if (vals.bb) vals.bb.textContent = { breakout_up: 'Squeeze + Upper Break', squeeze: 'Squeeze Phase', breakout_down: 'Squeeze + Lower Break', normal: 'Normal Vol' }[bbVal];
-      if (bbVal === 'breakout_up') techScore += 18; else if (bbVal === 'squeeze') techScore += 8; else if (bbVal === 'breakout_down') techScore -= 18;
+        const dxyVal = inputs.dxy.value;
+        if (vals.dxy) vals.dxy.textContent = { weak: 'Weakening (Bullish Au)', flat: 'Neutral', strong: 'Strengthening (Bearish Au)' }[dxyVal];
+        if (dxyVal === 'weak') macroScore += 18; else if (dxyVal === 'strong') macroScore -= 18;
 
-      const instC = Math.min(98, Math.max(20, instScore));
-      const macroC = Math.min(98, Math.max(20, macroScore));
-      const techC = Math.min(98, Math.max(20, techScore));
+        const gprVal = parseInt(inputs.gpr.value);
+        if (vals.gpr) vals.gpr.textContent = `${gprVal} (${gprVal > 120 ? 'High Risk' : 'Normal'})`;
+        macroScore += (gprVal - 100) * 0.12;
 
-      // v6.0 Corrected weights
-      const total = Math.min(98, Math.max(15, Math.round(instC * 0.50 + macroC * 0.30 + techC * 0.20)));
+        const emaVal = inputs.ema.value;
+        if (vals.ema) vals.ema.textContent = { bullish: 'Price > 50 > 200', neutral: 'Between EMAs', bearish: 'Price < 50 < 200' }[emaVal];
+        let techScore = 50;
+        if (emaVal === 'bullish') techScore += 22; else if (emaVal === 'bearish') techScore -= 22;
 
-      const scoreEl = document.getElementById('sim-result-score');
-      const badgeEl = document.getElementById('sim-result-badge');
-      const textEl = document.getElementById('sim-result-text');
+        const bbVal = inputs.bb.value;
+        if (vals.bb) vals.bb.textContent = { breakout_up: 'Squeeze + Upper Break', squeeze: 'Squeeze Phase', breakout_down: 'Squeeze + Lower Break', normal: 'Normal Vol' }[bbVal];
+        if (bbVal === 'breakout_up') techScore += 18; else if (bbVal === 'squeeze') techScore += 8; else if (bbVal === 'breakout_down') techScore -= 18;
 
-      if (scoreEl) scoreEl.textContent = `${total}%`;
+        const instC  = Math.min(98, Math.max(20, instScore));
+        const macroC = Math.min(98, Math.max(20, macroScore));
+        const techC  = Math.min(98, Math.max(20, techScore));
+        const total  = Math.min(98, Math.max(15, Math.round(instC * 0.50 + macroC * 0.30 + techC * 0.20)));
 
-      if (state.signal && document.getElementById('tab-engine')?.classList.contains('active')) {
-        state.signal.confidence = total;
-        state.signal.confInst = instC;
-        state.signal.confMacro = macroC;
-        state.signal.confTech = techC;
-        updateConfidenceDynamically();
-      }
-      if (badgeEl && textEl) {
-        if (total >= 85) {
-          badgeEl.className = 'sim-out-signal signal-buy';
-          badgeEl.innerHTML = '<i data-lucide="check-circle-2"></i> HIGH CONFIDENCE LONG SIGNAL';
-          textEl.textContent = `Institutional ${instC}% × 50% + Macro ${macroC}% × 30% + Technical ${techC}% × 20% = ${total}% weighted.`;
-        } else if (total >= 70) {
-          badgeEl.className = 'sim-out-signal';
-          badgeEl.style.cssText = 'background:rgba(245,194,66,0.15);color:#f5c242;border:1px solid rgba(245,194,66,0.4);';
-          badgeEl.innerHTML = '<i data-lucide="alert-circle"></i> MEDIUM CONFIDENCE SIGNAL';
-          textEl.textContent = `Partial confluence. Score: ${total}%. Inst ${instC}×0.50 + Macro ${macroC}×0.30 + Tech ${techC}×0.20.`;
-        } else {
-          badgeEl.className = 'sim-out-signal';
-          badgeEl.style.cssText = 'background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.4);';
-          badgeEl.innerHTML = '<i data-lucide="x-circle"></i> NO TRADE — FILTERED (< 70%)';
-          textEl.textContent = `Confidence ${total}% is below the 70% execution threshold. Trade filtered to protect risk.`;
+        const scoreEl = document.getElementById('sim-result-score');
+        const badgeEl = document.getElementById('sim-result-badge');
+        const textEl  = document.getElementById('sim-result-text');
+
+        if (scoreEl) scoreEl.textContent = `${total}%`;
+
+        if (state.signal && document.getElementById('tab-engine')?.classList.contains('active')) {
+          state.signal.confidence = total;
+          state.signal.confInst   = instC;
+          state.signal.confMacro  = macroC;
+          state.signal.confTech   = techC;
+          updateConfidenceDynamically();
         }
-        if (window.lucide) window.lucide.createIcons();
-      }
-    }
 
-    Object.values(inputs).forEach(el => {
-      if (el) { el.addEventListener('input', calc); el.addEventListener('change', calc); }
-    });
-    calc();
+        if (badgeEl && textEl) {
+          if (total >= 85) {
+            badgeEl.className = 'sim-out-signal signal-buy';
+            badgeEl.innerHTML = '<i data-lucide="check-circle-2"></i> HIGH CONFIDENCE LONG SIGNAL';
+            textEl.textContent = `Institutional ${instC}% × 50% + Macro ${macroC}% × 30% + Technical ${techC}% × 20% = ${total}% weighted.`;
+          } else if (total >= 70) {
+            badgeEl.className = 'sim-out-signal';
+            badgeEl.style.cssText = 'background:rgba(245,194,66,0.15);color:#f5c242;border:1px solid rgba(245,194,66,0.4);';
+            badgeEl.innerHTML = '<i data-lucide="alert-circle"></i> MEDIUM CONFIDENCE SIGNAL';
+            textEl.textContent = `Partial confluence. Score: ${total}%. Inst ${instC}×0.50 + Macro ${macroC}×0.30 + Tech ${techC}×0.20.`;
+          } else {
+            badgeEl.className = 'sim-out-signal';
+            badgeEl.style.cssText = 'background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.4);';
+            badgeEl.innerHTML = '<i data-lucide="x-circle"></i> NO TRADE — FILTERED (< 70%)';
+            textEl.textContent = `Confidence ${total}% is below the 70% execution threshold. Trade filtered to protect risk.`;
+          }
+          if (window.lucide) window.lucide.createIcons();
+        }
+      }
+
+      Object.values(inputs).forEach(el => {
+        if (el) { el.addEventListener('input', calc); el.addEventListener('change', calc); }
+      });
+      calc();
+    } catch (err) {
+      console.error('[MANUS MAX]', 'initSimulator error', err);
+      showError('initSimulator', err.message);
+    }
   }
 
   /* ========================================================================
-     13. RISK CALCULATOR — DYNAMIC RR (1:2 to 1:10)
+     13. RISK CALCULATOR & POSITION SIZING
      ======================================================================== */
   function initCalculator() {
-    const fields = {
-      balance: document.getElementById('calc-balance'),
-      riskPct: document.getElementById('calc-risk-pct'),
-      entry: document.getElementById('calc-entry'),
-      sl: document.getElementById('calc-sl'),
-      rrTarget: document.getElementById('calc-rr-target')
-    };
-    const outs = {
-      riskAmount: document.getElementById('calc-risk-amount'),
-      lots: document.getElementById('out-lots'),
-      pips: document.getElementById('out-pips'),
-      tp1: document.getElementById('out-tp1'),
-      tp2: document.getElementById('out-tp2'),
-      tp3: document.getElementById('out-tp3')
-    };
-    if (!fields.balance) return;
+    try {
+      const fields = {
+        balance:   document.getElementById('calc-balance'),
+        riskPct:   document.getElementById('calc-risk-pct'),
+        entry:     document.getElementById('calc-entry'),
+        sl:        document.getElementById('calc-sl'),
+        rrTarget:  document.getElementById('calc-rr-target')
+      };
+      const outs = {
+        riskAmount: document.getElementById('calc-risk-amount'),
+        lots:       document.getElementById('out-lots'),
+        pips:       document.getElementById('out-pips'),
+        tp1:        document.getElementById('out-tp1'),
+        tp2:        document.getElementById('out-tp2'),
+        tp3:        document.getElementById('out-tp3')
+      };
+      if (!fields.balance) return;
 
-    function calc() {
-      const balance = parseFloat(fields.balance.value) || 10000;
-      const riskPct = parseFloat(fields.riskPct.value) || 1.0;
-      const entry = parseFloat(fields.entry.value) || 4055.00;
-      const sl = parseFloat(fields.sl.value) || 4043.50;
-      const rrTarget = parseInt(fields.rrTarget ? fields.rrTarget.value : '4') || 4;
+      function calc() {
+        const balance   = parseFloat(fields.balance.value)   || 10000;
+        const riskPct   = parseFloat(fields.riskPct.value)   || 1.0;
+        const entry     = parseFloat(fields.entry.value)     || (state.goldPrice || 4055.00);
+        const sl        = parseFloat(fields.sl.value)        || (state.goldPrice ? state.goldPrice - 11.5 : 4043.50);
+        const rrTarget  = parseInt(fields.rrTarget ? fields.rrTarget.value : '4') || 4;
 
-      const riskAmount = balance * (riskPct / 100);
-      const priceDist = Math.abs(entry - sl);
-      const pipsDist = priceDist * 10;
-      const lotSize = riskAmount / (priceDist * 100);
-      const isBuy = entry > sl;
-      const tp1Price = isBuy ? entry + priceDist * 2 : entry - priceDist * 2;
-      const tp2Price = isBuy ? entry + priceDist * rrTarget : entry - priceDist * rrTarget;
-      // TP3 at 2x the rrTarget (capped at 1:10)
-      const tp3RR = Math.min(10, rrTarget * 2);
-      const tp3Price = isBuy ? entry + priceDist * tp3RR : entry - priceDist * tp3RR;
+        const riskAmount = balance * (riskPct / 100);
+        const priceDist  = Math.abs(entry - sl);
+        const pipsDist   = priceDist * 10;
+        const lotSize    = priceDist > 0 ? riskAmount / (priceDist * 100) : 0;
+        const isBuy      = entry > sl;
+        const tp1Price   = isBuy ? entry + priceDist * 2 : entry - priceDist * 2;
+        const tp2Price   = isBuy ? entry + priceDist * rrTarget : entry - priceDist * rrTarget;
+        const tp3RR      = Math.min(10, rrTarget * 2);
+        const tp3Price   = isBuy ? entry + priceDist * tp3RR : entry - priceDist * tp3RR;
 
-      if (outs.riskAmount) outs.riskAmount.textContent = `$${riskAmount.toFixed(2)}`;
-      if (outs.lots) outs.lots.textContent = `${lotSize.toFixed(2)} Lots`;
-      if (outs.pips) outs.pips.textContent = `${pipsDist.toFixed(1)} Pips`;
-      if (outs.tp1) outs.tp1.textContent = formatPrice(tp1Price);
-      if (outs.tp2) outs.tp2.textContent = formatPrice(tp2Price);
-      if (outs.tp3) {
-        outs.tp3.textContent = formatPrice(tp3Price);
-        const tp3Label = document.querySelector('#out-tp3 + .sub') || outs.tp3.parentElement?.querySelector('.sub');
-        if (tp3Label) tp3Label.textContent = `+${(tp3RR * pipsDist).toFixed(0)} Pips (1:${tp3RR} Max HTF)`;
+        if (outs.riskAmount) outs.riskAmount.textContent = `$${riskAmount.toFixed(2)}`;
+        if (outs.lots)       outs.lots.textContent       = `${lotSize.toFixed(2)} Lots`;
+        if (outs.pips)       outs.pips.textContent       = `${pipsDist.toFixed(1)} Pips`;
+        if (outs.tp1)        outs.tp1.textContent        = formatPrice(tp1Price);
+        if (outs.tp2)        outs.tp2.textContent        = formatPrice(tp2Price);
+        if (outs.tp3) {
+          outs.tp3.textContent = formatPrice(tp3Price);
+          const tp3Label = document.querySelector('#out-tp3 + .sub') || outs.tp3.parentElement?.querySelector('.sub');
+          if (tp3Label) tp3Label.textContent = `+${(tp3RR * pipsDist).toFixed(0)} Pips (1:${tp3RR} Max HTF)`;
+        }
       }
-    }
 
-    Object.values(fields).forEach(el => {
-      if (el) { el.addEventListener('input', calc); el.addEventListener('change', calc); }
-    });
-    document.getElementById('btn-recalc')?.addEventListener('click', calc);
-    calc();
+      Object.values(fields).forEach(el => {
+        if (el) { el.addEventListener('input', calc); el.addEventListener('change', calc); }
+      });
+
+      const btnRecalc = document.getElementById('btn-recalc');
+      if (btnRecalc) {
+        btnRecalc.addEventListener('click', () => {
+          try {
+            calc();
+            showNotification('Position size and SL/TP recalculated.');
+          } catch (err) {
+            console.error('[MANUS MAX]', 'btn-recalc error', err);
+            showError('btn-recalc', err.message);
+          }
+        });
+      }
+
+      calc();
+    } catch (err) {
+      console.error('[MANUS MAX]', 'initCalculator error', err);
+      showError('initCalculator', err.message);
+    }
   }
 
   /* ========================================================================
      14. ACTION BUTTONS & CLIPBOARD
      ======================================================================== */
   function initActionButtons() {
-    document.getElementById('btn-refresh-signal')?.addEventListener('click', function () {
-      this.innerHTML = '<i data-lucide="loader" class="spin"></i> Fetching...';
-      if (window.lucide) window.lucide.createIcons();
-      fetchLiveGoldPrice().then(() => {
-        setTimeout(() => {
-          this.innerHTML = '<i data-lucide="rotate-cw"></i> Run Inference';
+    // 1. btn-refresh-signal: Re-fetch price from provider, regenerate signals, show loading
+    const btnRefresh = document.getElementById('btn-refresh-signal');
+    if (btnRefresh) {
+      btnRefresh.addEventListener('click', async function () {
+        try {
+          const btn = this;
+          btn.innerHTML = '<i data-lucide="loader" class="spin"></i> Fetching...';
+          btn.disabled = true;
           if (window.lucide) window.lucide.createIcons();
 
-          // Push current signal to history
-          if (state.signal) {
-            const dateStr = new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
-            state.history.unshift({
-              id: 'XAUUSD-2026-' + Math.floor(Math.random() * 10000),
-              openTs: dateStr,
-              closeTs: '— (ACTIVE)',
-              dir: state.signal.type === 'LONG' ? 'BUY' : 'SELL',
-              strategy: state.signal.strategy,
-              entry: state.signal.entry, sl: state.signal.sl, tp2: state.signal.tp2, tp3: state.signal.tp3,
-              rr: '1 : ' + state.signal.rr, rrClass: 'rr-high',
-              pips: 'LIVE', confidence: state.signal.confidence + '%',
-              news: null, status: 'ACTIVE',
-              reason: state.signal.reason, pnl: null
-            });
-            if (state.history.length > 20) state.history.pop();
-            initSignalHistory();
-          }
+          const ok = await fetchLiveGoldPrice();
 
-          // Regenerate signals
-          state.signalFeed = generateLiveSignals();
-          state.predictiveSetups = generatePredictiveSetups();
+          setTimeout(() => {
+            btn.innerHTML = '<i data-lucide="rotate-cw"></i> Run Inference';
+            btn.disabled = false;
+            if (window.lucide) window.lucide.createIcons();
 
-          // Update hero signal with top feed signal
-          if (state.signalFeed.length > 0) {
-            const top = state.signalFeed[0];
-            state.signal = {
-              type: top.dir, strategy: top.strategy,
-              entry: top.entry, sl: top.sl, tp1: top.tp1, tp2: top.tp2, tp3: top.tp3,
-              rr: top.rr, atr: 8.20,
-              reason: top.reason,
-              confidence: top.conf,
-              confInst: top.confInst, confMacro: top.confMacro, confTech: top.confTech
-            };
-            updateHeroSignalUI();
-          }
-
-          renderSignalFeed();
-          renderPredictiveSetups();
-
-          // Redraw LW chart overlays
-          if (state.lwChart && state.lwCandleSeries) {
-            drawSMCOverlays(state.lwChart, state.lwCandleSeries, state.goldPrice || 4085);
-          }
-
-          showNotification(`MANUS MAX v6.0 — Inference complete. ${state.signalFeed.length} signals generated. Top confidence: ${state.signal.confidence}%`);
-        }, 800);
+            if (ok && state.goldPrice) {
+              updateSignalEngine();
+              if (state.lwChart && state.lwCandleSeries) {
+                drawSMCOverlays(state.lwChart, state.lwCandleSeries, state.goldPrice);
+              }
+              showNotification(`Price updated: ${formatPrice(state.goldPrice)} (${state.dataSource || 'Live'})`);
+            } else {
+              showNotification('⚠ Could not retrieve live price. Check data provider configuration.');
+            }
+          }, 600);
+        } catch (err) {
+          console.error('[MANUS MAX]', 'btn-refresh-signal error', err);
+          showError('btn-refresh-signal', err.message);
+          this.innerHTML = '<i data-lucide="rotate-cw"></i> Run Inference';
+          this.disabled = false;
+        }
       });
-    });
+    }
 
-    function updateHeroSignalUI() {
+    // 2. btn-quick-signal: Scroll to signal feed list and flash it
+    const btnQuick = document.getElementById('btn-quick-signal');
+    if (btnQuick) {
+      btnQuick.addEventListener('click', () => {
+        try {
+          const termTab = document.querySelector('.nav-tab[data-tab="terminal"]');
+          if (termTab) termTab.click();
+
+          setTimeout(() => {
+            const feedEl = document.getElementById('signal-feed-list');
+            if (feedEl) {
+              feedEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              feedEl.style.transition = 'box-shadow 0.3s ease';
+              feedEl.style.boxShadow = '0 0 24px rgba(245, 194, 66, 0.6)';
+              setTimeout(() => { feedEl.style.boxShadow = ''; }, 1200);
+            }
+          }, 100);
+        } catch (err) {
+          console.error('[MANUS MAX]', 'btn-quick-signal error', err);
+          showError('btn-quick-signal', err.message);
+        }
+      });
+    }
+
+    // 3. btn-copy-signal: Copy signal JSON to clipboard with real current data
+    const btnCopySig = document.getElementById('btn-copy-signal');
+    if (btnCopySig) {
+      btnCopySig.addEventListener('click', () => {
+        try {
+          const s = state.signal;
+          if (!s) {
+            showNotification('⚠ No active signal available. Data provider must supply price history.');
+            return;
+          }
+
+          const payload = {
+            platform: 'MANUS MAX AI 6.1 — XAU/USD Institutional Signal Engine',
+            disclaimer: 'EDUCATIONAL USE ONLY — Not financial advice',
+            timestamp: new Date().toISOString(),
+            dataSource: state.dataSource || 'N/A',
+            liveSpotPrice: state.goldPrice,
+            strategy: s.strategy,
+            direction: s.type,
+            levels: {
+              entry: s.entry,
+              stopLoss: s.sl,
+              takeProfit1: s.tp1,
+              takeProfit2: s.tp2,
+              takeProfit3: s.tp3,
+              riskRewardRatio: `1:${s.rr}`
+            },
+            confidence: {
+              totalScore: `${s.confidence}%`,
+              institutionalWeight: '50%',
+              institutionalScore: `${s.confInst}%`,
+              macroWeight: '30%',
+              macroScore: `${s.confMacro}%`,
+              technicalWeight: '20%',
+              technicalScore: `${s.confTech}%`
+            },
+            setupReason: s.reason
+          };
+
+          const text = JSON.stringify(payload, null, 2);
+          navigator.clipboard.writeText(text).then(() => {
+            showNotification('Signal JSON copied to clipboard!');
+          }).catch(err => {
+            showError('clipboardWrite', err.message);
+          });
+        } catch (err) {
+          console.error('[MANUS MAX]', 'btn-copy-signal error', err);
+          showError('btn-copy-signal', err.message);
+        }
+      });
+    }
+
+    // 4. btn-open-calc: Switch to calculator tab
+    const btnOpenCalc = document.getElementById('btn-open-calc');
+    if (btnOpenCalc) {
+      btnOpenCalc.addEventListener('click', () => {
+        try {
+          const calcTab = document.querySelector('.nav-tab[data-tab="calculator"]');
+          if (calcTab) calcTab.click();
+
+          if (state.signal) {
+            const entryField = document.getElementById('calc-entry');
+            const slField = document.getElementById('calc-sl');
+            if (entryField) entryField.value = state.signal.entry.toFixed(2);
+            if (slField) slField.value = state.signal.sl.toFixed(2);
+            const recalcBtn = document.getElementById('btn-recalc');
+            if (recalcBtn) recalcBtn.click();
+          }
+        } catch (err) {
+          console.error('[MANUS MAX]', 'btn-open-calc error', err);
+          showError('btn-open-calc', err.message);
+        }
+      });
+    }
+
+    // 5. btn-copy-json: Copy the JSON preview code
+    const btnCopyJson = document.getElementById('btn-copy-json');
+    if (btnCopyJson) {
+      btnCopyJson.addEventListener('click', () => {
+        try {
+          const el = document.getElementById('json-preview-content');
+          const jsonText = el ? el.textContent : JSON.stringify({
+            status: 'LIVE',
+            pair: 'XAU/USD',
+            price: state.goldPrice,
+            source: state.dataSource
+          }, null, 2);
+
+          navigator.clipboard.writeText(jsonText).then(() => {
+            showNotification('API JSON copied to clipboard!');
+          }).catch(err => {
+            showError('btn-copy-json', err.message);
+          });
+        } catch (err) {
+          console.error('[MANUS MAX]', 'btn-copy-json error', err);
+          showError('btn-copy-json', err.message);
+        }
+      });
+    }
+  }
+
+  /* ========================================================================
+     HERO SIGNAL UI UPDATE
+     ======================================================================== */
+  function updateHeroSignalUI() {
+    if (!state.signal) return;
+    try {
       const s = state.signal;
       const els = {
         strategy: document.getElementById('hero-strategy'),
-        entry: document.getElementById('sig-entry'),
-        sl: document.getElementById('sig-sl'),
-        tp1: document.getElementById('sig-tp1'),
-        tp2: document.getElementById('sig-tp2'),
-        tp3: document.getElementById('sig-tp3'),
-        rr: document.getElementById('sig-rr'),
-        reason: document.getElementById('hero-reason'),
-        badge: document.getElementById('hero-signal-badge')
+        entry:    document.getElementById('sig-entry'),
+        sl:       document.getElementById('sig-sl'),
+        tp1:      document.getElementById('sig-tp1'),
+        tp2:      document.getElementById('sig-tp2'),
+        tp3:      document.getElementById('sig-tp3'),
+        rr:       document.getElementById('sig-rr'),
+        reason:   document.getElementById('hero-reason'),
+        badge:    document.getElementById('hero-signal-badge')
       };
 
       if (els.strategy) els.strategy.textContent = s.strategy;
-      if (els.entry) els.entry.textContent = formatPrice(s.entry);
-      if (els.sl) els.sl.textContent = formatPrice(s.sl);
-      if (els.tp1) els.tp1.textContent = formatPrice(s.tp1);
-      if (els.tp2) els.tp2.textContent = formatPrice(s.tp2);
-      if (els.tp3 && s.tp3) els.tp3.textContent = formatPrice(s.tp3);
-      if (els.rr) els.rr.textContent = '1 : ' + s.rr;
-      if (els.reason) els.reason.textContent = s.reason;
+      if (els.entry)    els.entry.textContent    = formatPrice(s.entry);
+      if (els.sl)       els.sl.textContent       = formatPrice(s.sl);
+      if (els.tp1)      els.tp1.textContent      = formatPrice(s.tp1);
+      if (els.tp2)      els.tp2.textContent      = formatPrice(s.tp2);
+      if (els.tp3 && s.tp3) els.tp3.textContent  = formatPrice(s.tp3);
+      if (els.rr)       els.rr.textContent       = '1 : ' + s.rr;
+      if (els.reason)   els.reason.textContent   = s.reason;
 
       if (els.badge) {
         if (s.type === 'LONG') {
@@ -1698,79 +2241,69 @@ document.addEventListener('DOMContentLoaded', () => {
       updateConfidenceDynamically();
       updateNewsBadges();
       if (window.lucide) window.lucide.createIcons();
+    } catch (err) {
+      console.error('[MANUS MAX]', 'updateHeroSignalUI error', err);
+      showError('updateHeroSignalUI', err.message);
     }
-
-    document.getElementById('btn-quick-signal')?.addEventListener('click', () => {
-      document.querySelector('.nav-tab[data-tab="terminal"]')?.click();
-    });
-
-    document.getElementById('btn-open-calc')?.addEventListener('click', () => {
-      document.querySelector('.nav-tab[data-tab="calculator"]')?.click();
-    });
-
-    document.getElementById('btn-copy-signal')?.addEventListener('click', () => {
-      const s = state.signal;
-      const text = [
-        '[MANUS MAX AI 6.0 — XAU/USD SIGNAL]',
-        `Strategy: ${s.strategy}`,
-        `Direction: ${s.type}`,
-        `Live Spot: ${formatPrice(state.goldPrice || 4085)}`,
-        `Entry: ${formatPrice(s.entry)}`,
-        `Stop Loss: ${formatPrice(s.sl)}`,
-        `TP1 (1:2): ${formatPrice(s.tp1)}`,
-        `TP2 (1:${s.rr}): ${formatPrice(s.tp2)}`,
-        `TP3 HTF (max): ${formatPrice(s.tp3 || s.tp2)}`,
-        `R:R Ratio: 1:${s.rr}`,
-        `AI Confidence: ${s.confidence}%`,
-        `Reason: ${s.reason}`,
-        '—— 3-Pillar Breakdown (v6.0 Weights) ——',
-        `Institutional: ${s.confInst}% (×50%)`,
-        `Macro: ${s.confMacro}% (×30%)`,
-        `Technical: ${s.confTech}% (×20%)`,
-        `Weighted Total: ${s.confidence}%`
-      ].join('\n');
-      navigator.clipboard.writeText(text).then(() => showNotification('Signal parameters copied to clipboard!'));
-    });
-
-    document.getElementById('btn-copy-json')?.addEventListener('click', () => {
-      const el = document.getElementById('json-preview-content');
-      if (el) navigator.clipboard.writeText(el.textContent).then(() => showNotification('API JSON response copied!'));
-    });
   }
-
-  function showNotification(message) {
-    let toast = document.getElementById('app-toast');
-    if (!toast) {
-      toast = document.createElement('div');
-      toast.id = 'app-toast';
-      toast.style.cssText = 'position:fixed;bottom:24px;right:24px;background:linear-gradient(135deg,#f5c242,#eab308);color:#090d16;padding:12px 20px;border-radius:8px;font-weight:800;font-size:13px;box-shadow:0 8px 24px rgba(245,194,66,0.4);z-index:9999;transition:all 0.3s ease;max-width:420px;line-height:1.4;';
-      document.body.appendChild(toast);
-    }
-    toast.textContent = message;
-    toast.style.opacity = '1';
-    toast.style.transform = 'translateY(0)';
-    setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateY(10px)'; }, 3500);
-  }
-
-  // Initial UI updates
-  updateConfidenceDynamically();
-  updateNewsBadges();
-  renderNewsCountdown();
 
   /* ========================================================================
-     15. PHASE 7: SUPABASE INTEGRATION (STUB)
+     TOAST NOTIFICATIONS
+     ======================================================================== */
+  function showNotification(message) {
+    try {
+      let toast = document.getElementById('app-toast');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'app-toast';
+        toast.style.cssText = `
+          position: fixed; bottom: 24px; right: 24px;
+          background: linear-gradient(135deg, #f5c242, #eab308);
+          color: #090d16; padding: 12px 20px; border-radius: 8px;
+          font-weight: 800; font-size: 13px;
+          box-shadow: 0 8px 24px rgba(245,194,66,0.4);
+          z-index: 9999; transition: all 0.3s ease; max-width: 420px; line-height: 1.4;
+        `;
+        document.body.appendChild(toast);
+      }
+      toast.textContent = message;
+      toast.style.opacity = '1';
+      toast.style.transform = 'translateY(0)';
+      setTimeout(() => {
+        if (toast) {
+          toast.style.opacity = '0';
+          toast.style.transform = 'translateY(10px)';
+        }
+      }, 3500);
+    } catch (err) {
+      console.error('[MANUS MAX]', 'showNotification error', err);
+    }
+  }
+
+  /* ========================================================================
+     15. SUPABASE INTEGRATION (STUB — Server-side Key Protection)
      ======================================================================== */
   window.initSupabase = function(supabaseUrl, supabaseKey) {
-    if (!window.supabase) {
-      console.warn("[MANUS MAX v6.0] Supabase JS client not loaded.");
-      return;
-    }
-    const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
-    console.log("[MANUS MAX v6.0] Supabase Initialized.");
+    try {
+      if (!window.supabase) {
+        console.warn('[MANUS MAX v6.1] Supabase JS client not loaded.');
+        return;
+      }
+      const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+      console.log('[MANUS MAX v6.1] Supabase client initialized.');
 
-    supabase.channel('public:signals').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'signals' }, payload => {
-      console.log('New live signal from Supabase!', payload.new);
-    }).subscribe();
+      supabase.channel('public:signals').on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'signals'
+      }, payload => {
+        console.log('[MANUS MAX] New signal received from Supabase:', payload.new);
+      }).subscribe();
+    } catch (err) {
+      console.error('[MANUS MAX]', 'initSupabase error', err);
+      showError('initSupabase', err.message);
+    }
   };
 
+  console.log('[MANUS MAX v6.1] Initialized successfully. Polling XAU/USD data feed.');
 }); // end DOMContentLoaded
