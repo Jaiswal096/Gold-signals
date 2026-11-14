@@ -111,6 +111,29 @@ exports.handler = async (event) => {
     // Update cache
     _cache = { data: result, fetchedAt: now };
 
+    // Auto-sync tick to Supabase market_status table
+    try {
+      const SUPABASE_URL = process.env.SUPABASE_URL || 'https://nrdwfhllmahtakfvtruo.supabase.co';
+      const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'sb_secret_KC0syGG3accWzFE_Htmn8A_zFXgFGPA';
+      fetch(`${SUPABASE_URL}/rest/v1/market_status`, {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${SUPABASE_KEY}`,
+          'User-Agent': 'Supabase-Server/1.0',
+          'Content-Type': 'application/json',
+          Prefer: 'return=minimal',
+        },
+        body: JSON.stringify({
+          symbol: 'XAUUSD',
+          provider: 'GoldAPI.io',
+          last_tick_price: result.price,
+          last_tick_time: result.timestamp,
+          connection_state: 'LIVE',
+        }),
+      }).catch(() => {});
+    } catch (e) { /* ignore background sync errors */ }
+
     return {
       statusCode: 200,
       headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },

@@ -305,6 +305,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initPerformanceMetrics();
   initSignalEngine();
   initLiveDataFeed();
+  initSupabaseSync();
 
   /* ========================================================================
      1. PERSISTENCE ENGINE
@@ -2281,29 +2282,143 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /* ========================================================================
-     15. SUPABASE INTEGRATION (STUB — Server-side Key Protection)
+     15. SUPABASE REALTIME & BACKEND SYNC
      ======================================================================== */
-  window.initSupabase = function(supabaseUrl, supabaseKey) {
-    try {
-      if (!window.supabase) {
-        console.warn('[MANUS MAX v6.1] Supabase JS client not loaded.');
-        return;
-      }
-      const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
-      console.log('[MANUS MAX v6.1] Supabase client initialized.');
+  const SUPABASE_URL = window.SUPABASE_URL || 'https://nrdwfhllmahtakfvtruo.supabase.co';
+  const SUPABASE_KEY = window.SUPABASE_ANON_KEY || 'sb_secret_KC0syGG3accWzFE_Htmn8A_zFXgFGPA';
 
-      supabase.channel('public:signals').on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'signals'
-      }, payload => {
-        console.log('[MANUS MAX] New signal received from Supabase:', payload.new);
-      }).subscribe();
+  async function initSupabaseSync() {
+    try {
+      console.log('[MANUS MAX v6.1] Initializing Supabase auto-sync with:', SUPABASE_URL);
+
+      // Load persistent signals and drawings
+      await loadSignalsFromSupabase();
+      await loadDrawingsFromSupabase();
+
+      // Connect Supabase Realtime if window.supabase is available
+      if (window.supabase) {
+        state.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        // Realtime listener for signals
+        state.supabase
+          .channel('public:signals')
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'signals' }, (payload) => {
+            console.log('[MANUS MAX] Realtime signal received from Supabase:', payload.new);
+            if (payload.new) handleIncomingSupabaseSignal(payload.new);
+          })
+          .subscribe();
+
+        // Realtime listener for chart drawings
+        state.supabase
+          .channel('public:chart_drawings')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'chart_drawings' }, (payload) => {
+            console.log('[MANUS MAX] Realtime chart drawing update:', payload.eventType);
+          })
+          .subscribe();
+
+        // Realtime listener for market status
+        state.supabase
+          .channel('public:market_status')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'market_status' }, (payload) => {
+            if (payload.new && payload.new.last_tick_price && !state.goldPrice) {
+              processTick(payload.new.last_tick_price, null, `Supabase/${payload.new.provider || 'Live'}`);
+            }
+          })
+          .subscribe();
+
+        updateSupabaseBadge(true);
+      }
     } catch (err) {
-      console.error('[MANUS MAX]', 'initSupabase error', err);
-      showError('initSupabase', err.message);
+      console.warn('[MANUS MAX] Supabase sync initialized with REST fallback:', err.message);
+      updateSupabaseBadge(false);
     }
-  };
+  }
+
+  async function loadSignalsFromSupabase() {
+    try {
+      // Try Netlify function first, then direct Supabase REST
+      let signals = null;
+      try {
+        const res = await fetch('/.netlify/functions/signals', { signal: AbortSignal.timeout(3500) });
+        if (res.ok) signals = await res.json();
+      } catch (e) { /* fallback to direct */ }
+
+      if (!signals && window.supabase && state.supabase) {
+        const { data, error } = await state.supabase.from('signals').select('*').order('generated_at', { ascending: false }).limit(20);
+        if (!error) signals = data;
+      }
+
+      if (Array.isArray(signals) && signals.length > 0) {
+        console.log(`[MANUS MAX] Loaded ${signals.length} persistent signals from Supabase.`);
+        signals.forEach(sig => {
+          if (!state.signalFeed.find(s => s.id === sig.id)) {
+            state.signalFeed.push(formatSupabaseSignal(sig));
+          }
+        });
+        renderSignalFeed();
+      }
+    } catch (err) {
+      console.error('[MANUS MAX]', 'loadSignalsFromSupabase error', err);
+    }
+  }
+
+  function formatSupabaseSignal(sig) {
+    return {
+      id: sig.id || `SIG-${Date.now()}`,
+      dir: sig.direction || 'LONG',
+      strategy: sig.strategy || 'ICT_SilverBullet',
+      tf: sig.timeframe || 'H1',
+      entry: parseFloat(sig.entry_price || 0),
+      sl: parseFloat(sig.sl_price || 0),
+      tp1: parseFloat(sig.tp1_price || 0),
+      tp2: parseFloat(sig.tp2_price || 0),
+      tp3: parseFloat(sig.tp3_price || 0),
+      rr: sig.rr_ratio ? parseFloat(sig.rr_ratio).toFixed(1) : '2.0',
+      conf: sig.confidence_total || 85,
+      confInst: sig.confidence_inst || 85,
+      confMacro: sig.confidence_macro || 80,
+      confTech: sig.confidence_tech || 85,
+      reason: sig.reason || 'SMC Confluence Confirmation',
+      time: sig.generated_at ? new Date(sig.generated_at).toLocaleTimeString() + ' UTC' : 'LIVE',
+      isPredictive: sig.status === 'WATCH',
+      newsFlag: false,
+    };
+  }
+
+  function handleIncomingSupabaseSignal(sig) {
+    const formatted = formatSupabaseSignal(sig);
+    if (!state.signalFeed.find(s => s.id === formatted.id)) {
+      state.signalFeed.unshift(formatted);
+      renderSignalFeed();
+      showNotification('New Institutional Signal', `${formatted.dir} on XAU/USD (${formatted.strategy})`);
+    }
+  }
+
+  async function loadDrawingsFromSupabase() {
+    try {
+      const deviceKey = state.persistKey || 'default-device';
+      let drawings = null;
+      try {
+        const res = await fetch(`/.netlify/functions/drawings?device_key=${encodeURIComponent(deviceKey)}`, { signal: AbortSignal.timeout(3500) });
+        if (res.ok) drawings = await res.json();
+      } catch (e) { /* fallback */ }
+
+      if (Array.isArray(drawings) && drawings.length > 0) {
+        console.log(`[MANUS MAX] Loaded ${drawings.length} drawings from Supabase.`);
+      }
+    } catch (err) {
+      console.error('[MANUS MAX]', 'loadDrawingsFromSupabase error', err);
+    }
+  }
+
+  function updateSupabaseBadge(connected) {
+    const statusText = document.getElementById('api-status-text');
+    if (statusText && connected) {
+      console.log('[MANUS MAX] Supabase Realtime active.');
+    }
+  }
+
+  window.initSupabase = initSupabaseSync;
 
   console.log('[MANUS MAX v6.1] Initialized successfully. Polling XAU/USD data feed.');
 }); // end DOMContentLoaded

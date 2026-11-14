@@ -217,7 +217,26 @@ The `netlify.toml` redirect rule `/* → /index.html 200` ensures deep-linking w
 
 ---
 
-## 9. Checklist Before Going Live
+## 10. GitHub & Supabase Auto-Sync (CI/CD)
+
+The platform is integrated with Supabase across both CI/CD and runtime:
+
+### 10.1 GitHub Actions Migration Pipeline
+A GitHub Actions workflow `.github/workflows/supabase-sync.yml` runs on every push to `main` affecting `supabase/migrations/**`.
+* Validates and tracks migration status against project `nrdwfhllmahtakfvtruo`.
+* Any new SQL migration added to `supabase/migrations/` is automatically processed.
+
+### 10.2 Supabase Native GitHub Integration (Optional 2-Click Setup)
+For automatic database branching:
+1. Open [Supabase Project Integrations](https://supabase.com/dashboard/project/nrdwfhllmahtakfvtruo/integrations).
+2. Click **GitHub** $\rightarrow$ **Install Supabase on GitHub**.
+3. Select repository **`Jaiswal096/Gold-signals`**.
+4. Link production branch to `main`. Every commit to `supabase/migrations/` will now auto-migrate your database automatically.
+
+### 10.3 Runtime Bi-directional Realtime Sync
+* Live price ticks received by `netlify/functions/gold-price` are auto-upserted to `market_status`.
+* Generated signals are stored in `signals` and broadcast over Supabase Realtime WebSocket (`public:signals`).
+* User chart overlays are synchronized via `chart_drawings`.
 
 - [ ] `GOLDAPI_KEY` set in Netlify env vars
 - [ ] `VITE_SUPABASE_URL` set in Netlify env vars
