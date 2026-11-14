@@ -182,23 +182,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const historyBody = document.getElementById('history-table-body');
   const apiStatusText = document.getElementById('api-status-text');
 
-  /* ========================================================================
-     BOOT SEQUENCE
-     ======================================================================== */
-  initPersistence();
-  initNavigation();
-  initSignalEngine();
-  initKillzoneTimer();
-  initNewsEngine();
-  initSignalHistory();
-  initLightweightChart();
-  initSimulator();
-  initCalculator();
-  initActionButtons();
-  initSilverBulletClock();
-  initAMDPhase();
-  initLiveDataFeed();
-  initPerformanceMetrics();
 
   /* ========================================================================
      1. PERSISTENCE ENGINE (LocalStorage + Device Fingerprint)
@@ -228,20 +211,36 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /* ========================================================================
-     2. WEBSOCKET STREAM + HTTP POLLING FALLBACK
+     2. LIVE PRICE FEED
+     Primary spot:  gold-api.com (true XAU/USD spot, CORS-enabled, no key)
+     Tick stream:   Binance public market-data WS (PAXG/USDT, geo-unrestricted
+                    data-stream.binance.vision endpoint), re-based onto XAU spot
+     Fallbacks:     Binance public REST 24h ticker → Coinbase PAXG-USD spot
      ======================================================================== */
+  const SPOT_POLL_MS = 5000;           // gold-api spot refresh
+  const FALLBACK_POLL_MS = 3000;       // REST polling when WS is down
   let wsStream = null;
   let isWsConnected = false;
   let pollingIntervalId = null;
+  let spotIntervalId = null;
   let wsReconnectTimer = null;
   let lastTickPrice = null;
+  let paxgBasis = null;                // XAU spot − PAXG price
+  let lastPaxgPrice = null;
+  let hasLivePrice = false;
+  let lastSpotPrice = null;            // last true XAU spot from gold-api
+
+  function notePaxg(paxg) {
+    lastPaxgPrice = paxg;
+    if (paxgBasis === null && lastSpotPrice) paxgBasis = lastSpotPrice - paxg;
+  }
 
   function initWebSocketStream() {
-    if (wsReconnectTimer) clearTimeout(wsReconnectTimer);
+    if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
     updateStatus('connecting', 'WS STREAM');
 
     try {
-      wsStream = new WebSocket('wss://stream.binance.com:9443/ws/paxgusdt@ticker');
+      wsStream = new WebSocket('wss://data-stream.binance.vision/ws/paxgusdt@ticker');
       const connectTimeout = setTimeout(() => {
         if (!isWsConnected) startPollingFallback();
       }, 3500);
@@ -250,20 +249,19 @@ document.addEventListener('DOMContentLoaded', () => {
         clearTimeout(connectTimeout);
         isWsConnected = true;
         stopPollingFallback();
-        updateStatus('live', 'WS STREAM (PaxGold)');
       };
 
       wsStream.onmessage = (event) => {
         try {
           const packet = JSON.parse(event.data);
-          const spotPrice = parseFloat(packet.c || packet.price || packet.p);
-          if (!isNaN(spotPrice) && spotPrice > 1000) {
-            let dir = null;
-            if (lastTickPrice !== null) dir = spotPrice > lastTickPrice ? 'up' : spotPrice < lastTickPrice ? 'down' : null;
-            lastTickPrice = spotPrice;
-            processTick(spotPrice, dir, 'WS STREAM');
+          const paxg = parseFloat(packet.c);
+          const pct = parseFloat(packet.P);
+          if (!isNaN(paxg) && paxg > 1000) {
+            notePaxg(paxg);
+            if (!isNaN(pct)) setPrevCloseFromPct(paxg, pct);
+            processTick(toSpot(paxg), isWsConnected ? 'WS STREAM' : 'WS');
           }
-        } catch (err) { /* silent */ }
+        } catch (err) { /* ignore malformed packet */ }
       };
 
       wsStream.onerror = () => handleWsFailure();
@@ -284,16 +282,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function startPollingFallback() {
     if (pollingIntervalId !== null) return;
-    updateStatus('fallback', '1000ms Polling');
-    fetchLiveGoldPrice();
-    pollingIntervalId = setInterval(fetchLiveGoldPrice, 1000);
+    updateStatus('fallback', 'HTTP polling');
+    fetchFallbackPrice();
+    pollingIntervalId = setInterval(fetchFallbackPrice, FALLBACK_POLL_MS);
   }
 
   function stopPollingFallback() {
     if (pollingIntervalId !== null) { clearInterval(pollingIntervalId); pollingIntervalId = null; }
   }
 
-  function processTick(price, direction, source) {
+  // PAXG trades at a small discount/premium to spot; shift it onto XAU spot
+  function toSpot(paxg) {
+    return paxgBasis !== null ? paxg + paxgBasis : paxg;
+  }
+
+  // Derive the reference (24h-ago) price from the exchange-reported % change
+  function setPrevCloseFromPct(paxgPrice, pct) {
+    const paxgOpen = paxgPrice / (1 + pct / 100);
+    state.goldPrevClose = toSpot(paxgOpen);
+  }
+
+  function processTick(price, source) {
+    if (!isFinite(price) || price <= 0) return;
+    price = parseFloat(price.toFixed(2));
+    const direction = lastTickPrice === null ? null : price > lastTickPrice ? 'up' : price < lastTickPrice ? 'down' : null;
+    lastTickPrice = price;
+
     if (!state.goldPrevClose) state.goldPrevClose = price;
     state.goldPrice = price;
     state.goldChangePts = parseFloat((price - state.goldPrevClose).toFixed(2));
@@ -302,43 +316,89 @@ document.addEventListener('DOMContentLoaded', () => {
     state.priceHistory.push(price);
     if (state.priceHistory.length > 80) state.priceHistory.shift();
 
-    // Push to OHLC buffer
-    pushOHLCTick(price);
+    if (!hasLivePrice) {
+      hasLivePrice = true;
+      onFirstLivePrice();
+    }
 
     updateUI(direction);
     updateStatus('live', source);
-    updateConfidenceDynamically();
   }
 
-  async function fetchLiveGoldPrice() {
+  // Primary: real XAU/USD spot price
+  async function fetchSpotPrice() {
     try {
-      const r = await fetch('https://api.metals.live/v1/spot/gold', { signal: AbortSignal.timeout(4000) });
+      const r = await fetch('https://api.gold-api.com/price/XAU', { signal: AbortSignal.timeout(4000), cache: 'no-store' });
+      if (!r.ok) return false;
+      const d = await r.json();
+      const spot = parseFloat(d && d.price);
+      if (isNaN(spot) || spot < 1000) return false;
+      lastSpotPrice = spot;
+      // Calibrate PAXG basis so WS ticks line up with spot
+      if (lastPaxgPrice) {
+        const oldBasis = paxgBasis;
+        paxgBasis = spot - lastPaxgPrice;
+        if (oldBasis === null && state.goldPrevClose) state.goldPrevClose += paxgBasis;
+      }
+      processTick(spot, isWsConnected ? 'XAU SPOT + WS' : 'XAU SPOT');
+      return true;
+    } catch (e) { return false; }
+  }
+
+  // Fallbacks used while the WS stream is down
+  async function fetchFallbackPrice() {
+    try {
+      const r = await fetch('https://data-api.binance.vision/api/v3/ticker/24hr?symbol=PAXGUSDT', { signal: AbortSignal.timeout(4000) });
       if (r.ok) {
         const d = await r.json();
-        if (d && d.length > 0) {
-          const price = parseFloat(d[d.length - 1].price);
-          if (!isNaN(price) && price > 1000) {
-            let dir = lastTickPrice ? (price > lastTickPrice ? 'up' : price < lastTickPrice ? 'down' : null) : null;
-            lastTickPrice = price;
-            processTick(price, dir, 'HTTP (metals.live)');
-            return;
-          }
+        const paxg = parseFloat(d.lastPrice);
+        const pct = parseFloat(d.priceChangePercent);
+        if (!isNaN(paxg) && paxg > 1000) {
+          notePaxg(paxg);
+          if (!isNaN(pct)) setPrevCloseFromPct(paxg, pct);
+          processTick(toSpot(paxg), 'HTTP (Binance)');
+          return;
         }
       }
-    } catch (e) { /* fallback */ }
+    } catch (e) { /* try next source */ }
 
     try {
-      const r = await fetch('https://api.frankfurter.app/latest?from=XAU&to=USD', { signal: AbortSignal.timeout(4000) });
+      const r = await fetch('https://api.coinbase.com/v2/prices/PAXG-USD/spot', { signal: AbortSignal.timeout(4000) });
       if (r.ok) {
         const d = await r.json();
-        if (d && d.rates && d.rates.USD) {
-          const price = parseFloat(d.rates.USD);
-          if (!isNaN(price) && price > 1000) {
-            processTick(price, null, 'HTTP (frankfurter)');
-          }
+        const paxg = parseFloat(d && d.data && d.data.amount);
+        if (!isNaN(paxg) && paxg > 1000) {
+          notePaxg(paxg);
+          processTick(toSpot(paxg), 'HTTP (Coinbase)');
+          return;
         }
       }
-    } catch (e) { /* silent */ }
+    } catch (e) { /* all sources failed */ }
+
+    if (!hasLivePrice) updateStatus('error');
+  }
+
+  // Manual refresh (Run Inference button)
+  async function fetchLiveGoldPrice() {
+    const ok = await fetchSpotPrice();
+    if (!ok) await fetchFallbackPrice();
+  }
+
+  // Once a real price is known, rebuild everything that was seeded from the placeholder price
+  function onFirstLivePrice() {
+    state.signalFeed = generateLiveSignals();
+    state.predictiveSetups = generatePredictiveSetups();
+    if (state.signalFeed.length > 0) applyTopSignalToHero();
+    renderSignalFeed();
+    renderPredictiveSetups();
+    regenerateLWChartData();
+    const calcEntry = document.getElementById('calc-entry');
+    const calcSl = document.getElementById('calc-sl');
+    if (calcEntry && calcSl) {
+      calcEntry.value = state.signal.entry.toFixed(2);
+      calcSl.value = state.signal.sl.toFixed(2);
+      calcEntry.dispatchEvent(new Event('input', { bubbles: true }));
+    }
   }
 
   function updateUI(direction) {
@@ -372,20 +432,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const time = state.lastFetchTime ? state.lastFetchTime.toLocaleTimeString() : '';
     const colors = { connecting: '#f5c242', live: '#10b981', fallback: '#f5c242', error: '#ef4444' };
     const texts = {
-      connecting: 'CONNECTING TO WS STREAM...',
+      connecting: 'CONNECTING TO LIVE FEED...',
       live: `LIVE • ${source} • ${time}`,
       fallback: `FALLBACK • ${source}`,
-      error: 'FEED ERROR — Using default price'
+      error: 'FEED ERROR — retrying...'
     };
     apiStatusText.textContent = texts[status] || texts.error;
     apiStatusText.style.color = colors[status] || colors.error;
   }
 
   function formatPrice(price) {
-    return '$' + price.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return '$' + Number(price).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   }
 
-  function initLiveDataFeed() { initWebSocketStream(); }
+  function initLiveDataFeed() {
+    initWebSocketStream();
+    fetchSpotPrice();
+    spotIntervalId = setInterval(fetchSpotPrice, SPOT_POLL_MS);
+  }
 
   /* ========================================================================
      3. NAVIGATION & TAB SWITCHING
@@ -551,7 +615,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const minAgoSeed = Math.floor(Math.random() * 45);
       const signalTime = new Date(now.getTime() - minAgoSeed * 60000);
-      const timeStr = signalTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) + ' UTC';
+      const timeStr = signalTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' }) + ' UTC';
 
       signals.push({
         id: `SIG-${9844 + i}`,
@@ -1273,8 +1337,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function generateOHLCData(currentPrice) {
     const bars = [];
-    const now = Math.floor(Date.now() / 1000);
     const barInterval = getBarIntervalSeconds(state.timeframe);
+    const now = Math.floor(Date.now() / 1000 / barInterval) * barInterval;
     const numBars = 60;
     let price = currentPrice - (Math.random() * 40 + 20);
 
@@ -1289,7 +1353,15 @@ document.addEventListener('DOMContentLoaded', () => {
       price = close;
     }
     // Force last bar close to current price
-    if (bars.length > 0) bars[bars.length - 1].close = currentPrice;
+    if (bars.length > 0) {
+      const last = bars[bars.length - 1];
+      last.close = currentPrice;
+      last.high = Math.max(last.high, currentPrice);
+      last.low = Math.min(last.low, currentPrice);
+      // Continue live updates from this bar instead of starting a new one
+      lwCurrentMinute = last.time;
+      lwCurrentBar = { ...last };
+    }
     return bars;
   }
 
@@ -1603,6 +1675,57 @@ document.addEventListener('DOMContentLoaded', () => {
   /* ========================================================================
      14. ACTION BUTTONS & CLIPBOARD
      ======================================================================== */
+  function applyTopSignalToHero() {
+    const top = state.signalFeed[0];
+    state.signal = {
+      type: top.dir, strategy: top.strategy,
+      entry: top.entry, sl: top.sl, tp1: top.tp1, tp2: top.tp2, tp3: top.tp3,
+      rr: top.rr, atr: state.signal.atr || 8.20,
+      reason: top.reason,
+      confidence: top.conf,
+      confInst: top.confInst, confMacro: top.confMacro, confTech: top.confTech
+    };
+    updateHeroSignalUI();
+  }
+
+  function updateHeroSignalUI() {
+    const s = state.signal;
+    const els = {
+      strategy: document.getElementById('hero-strategy'),
+      entry: document.getElementById('sig-entry'),
+      sl: document.getElementById('sig-sl'),
+      tp1: document.getElementById('sig-tp1'),
+      tp2: document.getElementById('sig-tp2'),
+      tp3: document.getElementById('sig-tp3'),
+      rr: document.getElementById('sig-rr'),
+      reason: document.getElementById('hero-reason'),
+      badge: document.getElementById('hero-signal-badge')
+    };
+
+    if (els.strategy) els.strategy.textContent = s.strategy;
+    if (els.entry) els.entry.textContent = formatPrice(s.entry);
+    if (els.sl) els.sl.textContent = formatPrice(s.sl);
+    if (els.tp1) els.tp1.textContent = formatPrice(s.tp1);
+    if (els.tp2) els.tp2.textContent = formatPrice(s.tp2);
+    if (els.tp3 && s.tp3) els.tp3.textContent = formatPrice(s.tp3);
+    if (els.rr) els.rr.textContent = '1 : ' + s.rr;
+    if (els.reason) els.reason.textContent = s.reason;
+
+    if (els.badge) {
+      if (s.type === 'LONG') {
+        els.badge.className = 'signal-type-badge signal-buy';
+        els.badge.innerHTML = '<i data-lucide="trending-up"></i> <span id="hero-signal-label">INSTITUTIONAL LONG SIGNAL</span>';
+      } else {
+        els.badge.className = 'signal-type-badge signal-sell';
+        els.badge.innerHTML = '<i data-lucide="trending-down"></i> <span id="hero-signal-label">INSTITUTIONAL SHORT SIGNAL</span>';
+      }
+    }
+
+    updateConfidenceDynamically();
+    updateNewsBadges();
+    if (window.lucide) window.lucide.createIcons();
+  }
+
   function initActionButtons() {
     document.getElementById('btn-refresh-signal')?.addEventListener('click', function () {
       this.innerHTML = '<i data-lucide="loader" class="spin"></i> Fetching...';
@@ -1636,18 +1759,7 @@ document.addEventListener('DOMContentLoaded', () => {
           state.predictiveSetups = generatePredictiveSetups();
 
           // Update hero signal with top feed signal
-          if (state.signalFeed.length > 0) {
-            const top = state.signalFeed[0];
-            state.signal = {
-              type: top.dir, strategy: top.strategy,
-              entry: top.entry, sl: top.sl, tp1: top.tp1, tp2: top.tp2, tp3: top.tp3,
-              rr: top.rr, atr: 8.20,
-              reason: top.reason,
-              confidence: top.conf,
-              confInst: top.confInst, confMacro: top.confMacro, confTech: top.confTech
-            };
-            updateHeroSignalUI();
-          }
+          if (state.signalFeed.length > 0) applyTopSignalToHero();
 
           renderSignalFeed();
           renderPredictiveSetups();
@@ -1661,44 +1773,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 800);
       });
     });
-
-    function updateHeroSignalUI() {
-      const s = state.signal;
-      const els = {
-        strategy: document.getElementById('hero-strategy'),
-        entry: document.getElementById('sig-entry'),
-        sl: document.getElementById('sig-sl'),
-        tp1: document.getElementById('sig-tp1'),
-        tp2: document.getElementById('sig-tp2'),
-        tp3: document.getElementById('sig-tp3'),
-        rr: document.getElementById('sig-rr'),
-        reason: document.getElementById('hero-reason'),
-        badge: document.getElementById('hero-signal-badge')
-      };
-
-      if (els.strategy) els.strategy.textContent = s.strategy;
-      if (els.entry) els.entry.textContent = formatPrice(s.entry);
-      if (els.sl) els.sl.textContent = formatPrice(s.sl);
-      if (els.tp1) els.tp1.textContent = formatPrice(s.tp1);
-      if (els.tp2) els.tp2.textContent = formatPrice(s.tp2);
-      if (els.tp3 && s.tp3) els.tp3.textContent = formatPrice(s.tp3);
-      if (els.rr) els.rr.textContent = '1 : ' + s.rr;
-      if (els.reason) els.reason.textContent = s.reason;
-
-      if (els.badge) {
-        if (s.type === 'LONG') {
-          els.badge.className = 'signal-type-badge signal-buy';
-          els.badge.innerHTML = '<i data-lucide="trending-up"></i> <span id="hero-signal-label">INSTITUTIONAL LONG SIGNAL</span>';
-        } else {
-          els.badge.className = 'signal-type-badge signal-sell';
-          els.badge.innerHTML = '<i data-lucide="trending-down"></i> <span id="hero-signal-label">INSTITUTIONAL SHORT SIGNAL</span>';
-        }
-      }
-
-      updateConfidenceDynamically();
-      updateNewsBadges();
-      if (window.lucide) window.lucide.createIcons();
-    }
 
     document.getElementById('btn-quick-signal')?.addEventListener('click', () => {
       document.querySelector('.nav-tab[data-tab="terminal"]')?.click();
@@ -1751,6 +1825,24 @@ document.addEventListener('DOMContentLoaded', () => {
     toast.style.transform = 'translateY(0)';
     setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateY(10px)'; }, 3500);
   }
+
+  /* ========================================================================
+     BOOT SEQUENCE (runs after all declarations to avoid TDZ errors)
+     ======================================================================== */
+  initPersistence();
+  initNavigation();
+  initSignalEngine();
+  initKillzoneTimer();
+  initNewsEngine();
+  initSignalHistory();
+  initLightweightChart();
+  initSimulator();
+  initCalculator();
+  initActionButtons();
+  initSilverBulletClock();
+  initAMDPhase();
+  initLiveDataFeed();
+  initPerformanceMetrics();
 
   // Initial UI updates
   updateConfidenceDynamically();
