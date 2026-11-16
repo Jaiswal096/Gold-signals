@@ -3499,3 +3499,341 @@ input[type="range"] {
     display: none;
   }
 }
+
+/* ==========================================================================
+   ULTRA-FAST & MOBILE-RESPONSIVE UPGRADE (v6.2)
+   ========================================================================== */
+
+/* ── Smooth Scrolling & Performance Optimizations ── */
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  overflow-x: hidden;
+  width: 100%;
+}
+
+/* ── Touch Optimization ── */
+button, input, select, .nav-tab, .btn-tf {
+  touch-action: manipulation;
+}
+
+/* ── Responsive Ticker Bar ── */
+.ticker-bar {
+  padding: 6px 16px;
+  overflow: hidden;
+}
+
+.ticker-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.ticker-container::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Responsive Tables & Wrappers ── */
+.table-responsive,
+.sltp-logic-table-wrapper,
+.blueprint-card pre,
+.signal-history-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Tablet & Small Desktop (max-width: 1024px) ── */
+@media (max-width: 1024px) {
+  .main-container {
+    padding: 16px;
+  }
+
+  .chart-and-feeds-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .signal-engine-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .engine-grid,
+  .calc-grid,
+  .blueprint-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Mobile Devices (max-width: 768px) ── */
+@media (max-width: 768px) {
+  .ticker-bar {
+    padding: 6px 10px;
+  }
+
+  .ticker-item {
+    font-size: 11px;
+    gap: 5px;
+  }
+
+  .ticker-label {
+    font-size: 10px;
+  }
+
+  .ticker-val {
+    font-size: 11px;
+  }
+
+  .status-indicator {
+    padding: 2px 8px;
+    font-size: 10px;
+  }
+
+  /* Navbar Stacking */
+  .navbar {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 12px 14px;
+    gap: 12px;
+  }
+
+  .nav-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .brand-title {
+    font-size: 16px;
+  }
+
+  .brand-subtitle {
+    font-size: 10px;
+    line-height: 1.2;
+  }
+
+  .nav-tabs {
+    display: flex;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 4px;
+    gap: 4px;
+    width: 100%;
+  }
+
+  .nav-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav-tab {
+    padding: 8px 12px;
+    font-size: 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .nav-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .nav-actions .btn {
+    width: 100%;
+    padding: 8px 10px;
+    font-size: 12px;
+    justify-content: center;
+  }
+
+  /* Main Container */
+  .main-container {
+    padding: 12px 8px;
+  }
+
+  /* Hero Signal Card */
+  .glass-card {
+    padding: 16px;
+    border-radius: 12px;
+  }
+
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .signal-type-badge {
+    font-size: 11px;
+    padding: 4px 10px;
+  }
+
+  .signal-timeframe {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .signal-body {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    padding: 8px 0;
+  }
+
+  .signal-main-stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .stat-group {
+    padding: 4px;
+  }
+
+  .stat-label {
+    font-size: 10px;
+  }
+
+  .stat-value {
+    font-size: 15px;
+  }
+
+  .stat-sub {
+    font-size: 9px;
+  }
+
+  /* Confidence Box on Mobile */
+  .confidence-box {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 12px;
+  }
+
+  .confidence-details {
+    width: 100%;
+    text-align: left;
+  }
+
+  /* Card Footer on Mobile */
+  .card-footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .target-horizon {
+    font-size: 11px;
+    justify-content: center;
+  }
+
+  .footer-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .footer-actions .btn {
+    flex: 1;
+    min-width: 120px;
+    justify-content: center;
+    font-size: 11px;
+    padding: 8px;
+  }
+
+  /* Chart Container on Mobile */
+  .lw-chart-wrapper {
+    height: 310px;
+  }
+
+  #lw-chart-container {
+    touch-action: pan-y;
+  }
+
+  .chart-controls {
+    flex-wrap: wrap;
+    gap: 6px;
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .btn-group {
+    overflow-x: auto;
+  }
+
+  .btn-tf {
+    padding: 4px 8px;
+    font-size: 10px;
+  }
+
+  /* Calculator on Mobile */
+  .calc-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .calc-out-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .calc-out-box {
+    padding: 12px;
+  }
+
+  .calc-out-box .val {
+    font-size: 18px;
+  }
+
+  /* Killzone & Strategies on Mobile */
+  .killzone-panel {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .strategy-lib-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  /* Footer on Mobile */
+  .footer-container {
+    flex-direction: column;
+    gap: 12px;
+    text-align: center;
+    padding: 16px 8px;
+  }
+
+  .footer-disclaimer {
+    font-size: 10px;
+    line-height: 1.4;
+  }
+}
+
+/* ── Extra Small Phones (max-width: 420px) ── */
+@media (max-width: 420px) {
+  .signal-main-stats {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .calc-out-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .nav-tab {
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+
+  .lw-chart-wrapper {
+    height: 280px;
+  }
+}

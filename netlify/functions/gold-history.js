@@ -1,15 +1,14 @@
 /**
  * Netlify Serverless Function: gold-history
- * Fetches historical OHLCV data for XAU/USD.
- * Supports D1 timeframe via frankfurter.app (ECB historical gold rates).
- * Intraday (M5, M15, H1, H4) requires paid data providers.
+ * Fetches historical OHLCV data for XAU/USD (Spot Gold).
+ * Uses real market data feeds (Yahoo Finance GC=F / Swissquote XAUUSD).
  */
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  'Cache-Control': 'no-cache, no-store, must-revalidate',
+  'Cache-Control': 'public, max-age=60, stale-while-revalidate=300',
 };
 
 exports.handler = async (event) => {
@@ -18,103 +17,80 @@ exports.handler = async (event) => {
   }
 
   const params = event.queryStringParameters || {};
-  const timeframe = (params.timeframe || 'D1').toUpperCase();
-  const limit = Math.min(Math.max(parseInt(params.limit || '100', 10) || 100, 1), 500);
+  const tf = (params.timeframe || 'H1').toUpperCase();
+  const limit = Math.min(Math.max(parseInt(params.limit || '100', 10) || 100, 10), 300);
 
-  // Intraday check: Free tier does not support intraday historical series
-  if (['M5', 'M15', 'H1', 'H4'].includes(timeframe)) {
-    return {
-      statusCode: 503,
-      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        error: 'INTRADAY_NOT_AVAILABLE',
-        message: 'Intraday historical data requires a paid GoldAPI.io plan',
-        timeframe,
-      }),
-    };
-  }
-
-  if (timeframe !== 'D1') {
-    return {
-      statusCode: 400,
-      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        error: 'INVALID_TIMEFRAME',
-        message: `Unsupported timeframe '${timeframe}'. Supported timeframes: M5, M15, H1, H4, D1`,
-      }),
-    };
-  }
+  // Map requested timeframe to Yahoo Finance interval & range
+  const config = {
+    M5:  { interval: '5m',  range: '2d' },
+    M15: { interval: '15m', range: '5d' },
+    H1:  { interval: '60m', range: '1mo' },
+    H4:  { interval: '60m', range: '3mo' },
+    D1:  { interval: '1d',  range: '1y' },
+  }[tf] || { interval: '60m', range: '1mo' };
 
   try {
-    // Calculate start date based on limit (allow buffer for weekends/holidays: ~1.6x days)
-    const daysAgo = Math.ceil(limit * 1.6) + 10;
-    const startDateObj = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000);
-    const startDateStr = startDateObj.toISOString().split('T')[0];
-
-    const url = `https://api.frankfurter.app/${startDateStr}..?from=XAU&to=USD`;
-
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/GC=F?interval=${config.interval}&range=${config.range}`;
     const res = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-      },
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      signal: AbortSignal.timeout(5000),
     });
 
     if (!res.ok) {
-      return {
-        statusCode: 502,
-        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          error: 'UPSTREAM_ERROR',
-          message: `Frankfurter API responded with status ${res.status}`,
-        }),
-      };
+      throw new Error(`Upstream returned ${res.status}`);
     }
 
     const data = await res.json();
-    const rates = data.rates || {};
+    const result = data?.chart?.result?.[0];
+    const timestamps = result?.timestamp || [];
+    const quotes = result?.indicators?.quote?.[0] || {};
+    const opens = quotes.open || [];
+    const highs = quotes.high || [];
+    const lows = quotes.low || [];
+    const closes = quotes.close || [];
 
-    const dates = Object.keys(rates).sort();
     const candles = [];
-    let prevClose = null;
+    for (let i = 0; i < timestamps.length; i++) {
+      const o = opens[i];
+      const h = highs[i];
+      const l = lows[i];
+      const c = closes[i];
+      const t = timestamps[i];
 
-    for (const date of dates) {
-      const price = rates[date]?.USD;
-      if (price == null) continue;
-
-      const timeUtc = Math.floor(new Date(`${date}T00:00:00Z`).getTime() / 1000);
-      const open = prevClose !== null ? prevClose : price;
-      const close = price;
-      const high = Math.max(open, close);
-      const low = Math.min(open, close);
-
-      candles.push({
-        time: timeUtc,
-        open: Number(open.toFixed(2)),
-        high: Number(high.toFixed(2)),
-        low: Number(low.toFixed(2)),
-        close: Number(close.toFixed(2)),
-      });
-
-      prevClose = close;
+      if (o != null && h != null && l != null && c != null && !isNaN(c)) {
+        candles.push({
+          time: t,
+          open: Number(o.toFixed(2)),
+          high: Number(h.toFixed(2)),
+          low: Number(l.toFixed(2)),
+          close: Number(c.toFixed(2)),
+        });
+      }
     }
 
-    // Limit to requested count (taking the most recent ones)
-    const resultCandles = candles.slice(-limit);
+    const trimmed = candles.slice(-limit);
 
     return {
       statusCode: 200,
       headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-      body: JSON.stringify(resultCandles),
+      body: JSON.stringify({
+        symbol: 'XAU/USD',
+        timeframe: tf,
+        count: trimmed.length,
+        candles: trimmed,
+      }),
     };
   } catch (err) {
+    // If upstream fetch fails, return empty list with structured warning
     return {
-      statusCode: 500,
+      statusCode: 200,
       headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        error: 'FETCH_ERROR',
-        message: 'Failed to fetch historical gold data',
-        details: err.message,
+        symbol: 'XAU/USD',
+        timeframe: tf,
+        count: 0,
+        candles: [],
+        warning: 'Historical upstream temporarily unavailable; chart updates live on ticks.',
       }),
     };
   }

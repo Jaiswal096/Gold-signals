@@ -457,15 +457,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function fetchFromNetlify() {
     try {
-      const r = await fetch('/.netlify/functions/gold-price', { signal: AbortSignal.timeout(6000) });
-      if (r.status === 503 || r.status === 404) return null;
-      if (!r.ok) return null;
-      const d = await r.json();
-      if (d && d.status === 'NOT_CONFIGURED') return null;
-      if (d && d.price) {
-        const p = parseFloat(d.price);
-        if (!isNaN(p) && p > 1000) {
-          return { price: p, source: d.source || 'GoldAPI.io/XAU/USD' };
+      // Try both standard Netlify function path and /api rewrite
+      const endpoints = ['/.netlify/functions/gold-price', '/api/gold-price'];
+      for (const endpoint of endpoints) {
+        try {
+          const r = await fetch(endpoint, { signal: AbortSignal.timeout(4500) });
+          if (!r.ok) continue;
+          const d = await r.json();
+          if (d && d.price) {
+            const p = parseFloat(d.price);
+            if (!isNaN(p) && p > 1000) {
+              return { price: p, source: d.source || 'GoldAPI.io/XAU/USD' };
+            }
+          }
+        } catch (e) {
+          // Try next endpoint
         }
       }
       return null;
@@ -475,9 +481,39 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  async function fetchFromGoldPriceOrg() {
+    try {
+      const r = await fetch('https://data-asg.goldprice.org/dbXRates/USD', { signal: AbortSignal.timeout(4000) });
+      if (!r.ok) return null;
+      const d = await r.json();
+      const p = parseFloat(d?.items?.[0]?.xauPrice);
+      if (!isNaN(p) && p > 1000) {
+        return { price: p, source: 'GoldPrice.org (Live Spot)' };
+      }
+      return null;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  async function fetchFromGoldApiCom() {
+    try {
+      const r = await fetch('https://api.gold-api.com/price/XAU', { signal: AbortSignal.timeout(4000) });
+      if (!r.ok) return null;
+      const d = await r.json();
+      const p = parseFloat(d?.price);
+      if (!isNaN(p) && p > 1000) {
+        return { price: p, source: 'Gold-API.com (Spot)' };
+      }
+      return null;
+    } catch (err) {
+      return null;
+    }
+  }
+
   async function fetchFromMetalsLive() {
     try {
-      const r = await fetch('https://api.metals.live/v1/spot/gold', { signal: AbortSignal.timeout(5000) });
+      const r = await fetch('https://api.metals.live/v1/spot/gold', { signal: AbortSignal.timeout(4000) });
       if (!r.ok) return null;
       const d = await r.json();
       if (Array.isArray(d) && d.length > 0) {
@@ -488,42 +524,28 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       return null;
     } catch (err) {
-      console.error('[MANUS MAX]', 'fetchFromMetalsLive', err);
-      return null;
-    }
-  }
-
-  async function fetchFromFrankfurter() {
-    try {
-      const r = await fetch('https://api.frankfurter.app/latest?from=XAU&to=USD', { signal: AbortSignal.timeout(5000) });
-      if (!r.ok) return null;
-      const d = await r.json();
-      if (d && d.rates && d.rates.USD) {
-        const p = parseFloat(d.rates.USD);
-        if (!isNaN(p) && p > 1000) {
-          return { price: p, source: 'frankfurter.app (FALLBACK)' };
-        }
-      }
-      return null;
-    } catch (err) {
-      console.error('[MANUS MAX]', 'fetchFromFrankfurter', err);
       return null;
     }
   }
 
   async function fetchLiveGoldPrice() {
     try {
-      // 1. Primary: Netlify function
+      // 1. Primary: Netlify backend function pipeline
       let res = await fetchFromNetlify();
 
-      // 2. Fallback: metals.live
+      // 2. Fallback: GoldPrice.org live spot feed
       if (!res) {
-        res = await fetchFromMetalsLive();
+        res = await fetchFromGoldPriceOrg();
       }
 
-      // 3. Fallback: frankfurter.app
+      // 3. Fallback: Gold-API.com
       if (!res) {
-        res = await fetchFromFrankfurter();
+        res = await fetchFromGoldApiCom();
+      }
+
+      // 4. Fallback: metals.live
+      if (!res) {
+        res = await fetchFromMetalsLive();
       }
 
       if (res && res.price) {
@@ -670,45 +692,124 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /* ========================================================================
-     3. NAVIGATION & TAB SWITCHING
+     3. NAVIGATION, URL SYNCHRONIZATION & TAB SWITCHING
      ======================================================================== */
+  function switchTab(target, updateUrl = true) {
+    try {
+      const tabBtn = document.querySelector(`.nav-tab[data-tab="${target}"]`);
+      const content = document.getElementById(`tab-${target}`);
+      if (!content) return;
+
+      navTabs.forEach(t => t.classList.remove('active'));
+      tabContents.forEach(c => c.classList.remove('active'));
+
+      if (tabBtn) tabBtn.classList.add('active');
+      content.classList.add('active');
+      state.currentTab = target;
+
+      if (updateUrl) {
+        const tfParam = state.timeframe ? `?tf=${state.timeframe}` : '';
+        const newHash = `#${target}${tfParam}`;
+        if (window.location.hash !== newHash) {
+          history.replaceState(null, '', newHash);
+        }
+      }
+
+      if (target === 'terminal' && state.lwChart) {
+        setTimeout(() => {
+          if (state.lwChart) {
+            const container = document.getElementById('lw-chart-container');
+            if (container) {
+              state.lwChart.applyOptions({
+                width: container.clientWidth,
+                height: container.clientHeight,
+              });
+            }
+            state.lwChart.timeScale().fitContent();
+          }
+        }, 50);
+      }
+      savePersistence();
+    } catch (err) {
+      console.error('[MANUS MAX]', 'switchTab error', err);
+      showError('switchTab', err.message);
+    }
+  }
+
+  function setTimeframe(tf, updateUrl = true) {
+    try {
+      const tfButtons = document.querySelectorAll('#chart-tf-buttons .btn-tf');
+      tfButtons.forEach(b => {
+        b.classList.toggle('active', b.getAttribute('data-tf') === tf);
+      });
+      state.timeframe = tf;
+
+      // Fetch historical candles for this timeframe from backend pipeline
+      fetchHistoricalCandles(tf);
+      regenerateLWChartData();
+      savePersistence();
+
+      if (updateUrl) {
+        const curTab = state.currentTab || 'terminal';
+        const newHash = `#${curTab}?tf=${tf}`;
+        if (window.location.hash !== newHash) {
+          history.replaceState(null, '', newHash);
+        }
+      }
+    } catch (err) {
+      console.error('[MANUS MAX]', 'setTimeframe error', err);
+      showError('setTimeframe', err.message);
+    }
+  }
+
+  function syncFromUrl() {
+    try {
+      const rawHash = (window.location.hash || '').replace('#', '');
+      let tabName = null;
+      let tfVal = null;
+
+      if (rawHash) {
+        const [tabPart, queryPart] = rawHash.split('?');
+        if (tabPart && document.getElementById(`tab-${tabPart}`)) {
+          tabName = tabPart;
+        }
+        if (queryPart) {
+          const params = new URLSearchParams(queryPart);
+          tfVal = params.get('tf');
+        }
+      } else if (window.location.search) {
+        const params = new URLSearchParams(window.location.search);
+        const t = params.get('tab');
+        if (t && document.getElementById(`tab-${t}`)) tabName = t;
+        tfVal = params.get('tf');
+      }
+
+      if (tabName) {
+        switchTab(tabName, false);
+      }
+      if (tfVal && ['M5', 'M15', 'H1', 'H4', 'D1'].includes(tfVal)) {
+        setTimeframe(tfVal, false);
+      }
+    } catch (e) {
+      console.warn('[MANUS MAX] syncFromUrl error', e);
+    }
+  }
+
+  window.addEventListener('hashchange', () => syncFromUrl());
+
   function initNavigation() {
     navTabs.forEach(tab => {
       tab.addEventListener('click', () => {
-        try {
-          const target = tab.getAttribute('data-tab');
-          navTabs.forEach(t => t.classList.remove('active'));
-          tabContents.forEach(c => c.classList.remove('active'));
-          tab.classList.add('active');
-          const content = document.getElementById(`tab-${target}`);
-          if (content) content.classList.add('active');
-          state.currentTab = target;
-          if (target === 'terminal' && state.lwChart) {
-            setTimeout(() => {
-              if (state.lwChart) state.lwChart.timeScale().fitContent();
-            }, 60);
-          }
-          savePersistence();
-        } catch (err) {
-          console.error('[MANUS MAX]', 'tab navigation error', err);
-          showError('initNavigation', err.message);
-        }
+        const target = tab.getAttribute('data-tab');
+        switchTab(target, true);
       });
     });
 
     const tfButtons = document.querySelectorAll('#chart-tf-buttons .btn-tf');
     tfButtons.forEach(btn => {
       btn.addEventListener('click', () => {
-        try {
-          tfButtons.forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          state.timeframe = btn.getAttribute('data-tf');
-          regenerateLWChartData();
-          savePersistence();
-        } catch (err) {
-          console.error('[MANUS MAX]', 'timeframe button error', err);
-          showError('timeframeSelector', err.message);
-        }
+        const tf = btn.getAttribute('data-tf');
+        setTimeframe(tf, true);
       });
     });
 
@@ -729,6 +830,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
     }
+
+    // Sync active view from URL on initial load
+    syncFromUrl();
   }
 
   /* ========================================================================
@@ -1643,10 +1747,54 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       resizeObs.observe(container);
 
-      console.log('[MANUS MAX v6.1] Lightweight Charts initialized.');
+      // Immediately fetch real historical candles from backend pipeline
+      fetchHistoricalCandles(state.timeframe);
+
+      console.log('[MANUS MAX v6.2] Lightweight Charts initialized.');
     } catch (err) {
       console.error('[MANUS MAX]', 'initLightweightChart error', err);
       showError('initLightweightChart', err.message);
+    }
+  }
+
+  async function fetchHistoricalCandles(tf = state.timeframe) {
+    try {
+      const container = document.getElementById('lw-chart-container');
+      showChartLoadingState(container);
+
+      const endpoints = [
+        `/.netlify/functions/gold-history?timeframe=${tf}&limit=100`,
+        `/api/gold-history?timeframe=${tf}&limit=100`,
+      ];
+      let candles = null;
+      for (const endpoint of endpoints) {
+        try {
+          const res = await fetch(endpoint, { signal: AbortSignal.timeout(4500) });
+          if (!res.ok) continue;
+          const data = await res.json();
+          if (data && Array.isArray(data.candles) && data.candles.length > 0) {
+            candles = data.candles;
+            break;
+          }
+        } catch (e) {
+          // Proceed to next fallback
+        }
+      }
+
+      if (candles && state.lwCandleSeries) {
+        state.lwCandleSeries.setData(candles);
+        hideChartLoadingState();
+        if (state.lwChart) state.lwChart.timeScale().fitContent();
+        updateChartDataLabel(`XAU/USD (${tf}) • Real Feed`);
+        if (state.signal && state.goldPrice) {
+          drawSMCOverlays(state.lwChart, state.lwCandleSeries, state.goldPrice);
+        }
+      } else {
+        hideChartLoadingState();
+      }
+    } catch (e) {
+      console.warn('[MANUS MAX] fetchHistoricalCandles error', e);
+      hideChartLoadingState();
     }
   }
 
@@ -2282,22 +2430,50 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /* ========================================================================
-     15. SUPABASE REALTIME & BACKEND SYNC
+     15. BACKEND PIPELINE & SUPABASE REALTIME SYNC
      ======================================================================== */
   const SUPABASE_URL = window.SUPABASE_URL || 'https://nrdwfhllmahtakfvtruo.supabase.co';
-  const SUPABASE_KEY = window.SUPABASE_ANON_KEY || 'sb_secret_KC0syGG3accWzFE_Htmn8A_zFXgFGPA';
+  const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || '';
+
+  async function checkBackendPipelineHealth() {
+    try {
+      const endpoints = ['/.netlify/functions/health', '/api/health'];
+      for (const endpoint of endpoints) {
+        try {
+          const res = await fetch(endpoint, { signal: AbortSignal.timeout(3500) });
+          if (res.ok) {
+            const health = await res.json();
+            console.log('[MANUS MAX v6.2] Backend pipeline connected:', health);
+            const statusText = document.getElementById('api-status-text');
+            if (statusText) {
+              statusText.textContent = `PIPELINE: ${health.provider || 'LIVE (XAU/USD)'}`;
+            }
+            return true;
+          }
+        } catch (e) {
+          // Try next endpoint
+        }
+      }
+    } catch (err) {
+      console.warn('[MANUS MAX] Backend pipeline health check deferred:', err.message);
+    }
+    return false;
+  }
 
   async function initSupabaseSync() {
     try {
-      console.log('[MANUS MAX v6.1] Initializing Supabase auto-sync with:', SUPABASE_URL);
+      console.log('[MANUS MAX v6.2] Initializing backend pipeline & Supabase sync...');
 
-      // Load persistent signals and drawings
+      // 1. Verify backend pipeline health
+      await checkBackendPipelineHealth();
+
+      // 2. Load persistent signals and drawings from backend
       await loadSignalsFromSupabase();
       await loadDrawingsFromSupabase();
 
-      // Connect Supabase Realtime if window.supabase is available
-      if (window.supabase) {
-        state.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      // 3. Connect Supabase Realtime if window.supabase and public anon key are available
+      if (window.supabase && SUPABASE_ANON_KEY && !SUPABASE_ANON_KEY.startsWith('sb_secret')) {
+        state.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         // Realtime listener for signals
         state.supabase
@@ -2329,27 +2505,27 @@ document.addEventListener('DOMContentLoaded', () => {
         updateSupabaseBadge(true);
       }
     } catch (err) {
-      console.warn('[MANUS MAX] Supabase sync initialized with REST fallback:', err.message);
+      console.warn('[MANUS MAX] Backend sync initialized with REST pipeline:', err.message);
       updateSupabaseBadge(false);
     }
   }
 
   async function loadSignalsFromSupabase() {
     try {
-      // Try Netlify function first, then direct Supabase REST
       let signals = null;
-      try {
-        const res = await fetch('/.netlify/functions/signals', { signal: AbortSignal.timeout(3500) });
-        if (res.ok) signals = await res.json();
-      } catch (e) { /* fallback to direct */ }
-
-      if (!signals && window.supabase && state.supabase) {
-        const { data, error } = await state.supabase.from('signals').select('*').order('generated_at', { ascending: false }).limit(20);
-        if (!error) signals = data;
+      const endpoints = ['/.netlify/functions/signals', '/api/signals'];
+      for (const endpoint of endpoints) {
+        try {
+          const res = await fetch(endpoint, { signal: AbortSignal.timeout(3500) });
+          if (res.ok) {
+            signals = await res.json();
+            break;
+          }
+        } catch (e) { /* try next */ }
       }
 
       if (Array.isArray(signals) && signals.length > 0) {
-        console.log(`[MANUS MAX] Loaded ${signals.length} persistent signals from Supabase.`);
+        console.log(`[MANUS MAX] Loaded ${signals.length} persistent signals from backend.`);
         signals.forEach(sig => {
           if (!state.signalFeed.find(s => s.id === sig.id)) {
             state.signalFeed.push(formatSupabaseSignal(sig));
@@ -2359,6 +2535,41 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } catch (err) {
       console.error('[MANUS MAX]', 'loadSignalsFromSupabase error', err);
+    }
+  }
+
+  async function persistSignalToSupabase(sig) {
+    try {
+      const endpoints = ['/.netlify/functions/signals', '/api/signals'];
+      for (const endpoint of endpoints) {
+        try {
+          const res = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              symbol: 'XAUUSD',
+              direction: sig.dir,
+              strategy: sig.strategy,
+              timeframe: sig.tf || state.timeframe || 'H1',
+              entry_price: sig.entry,
+              sl_price: sig.sl,
+              tp1_price: sig.tp1,
+              tp2_price: sig.tp2,
+              tp3_price: sig.tp3,
+              rr_ratio: parseFloat(sig.rr) || 2.0,
+              confidence_total: sig.conf || 85,
+              confidence_inst: sig.confInst || 85,
+              confidence_macro: sig.confMacro || 80,
+              confidence_tech: sig.confTech || 85,
+              reason: sig.reason || 'SMC Confluence Confirmation',
+              status: 'ACTIVE',
+            }),
+          });
+          if (res.ok) break;
+        } catch (e) { /* try next */ }
+      }
+    } catch (e) {
+      // Background sync error ignored
     }
   }
 
@@ -2398,13 +2609,22 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const deviceKey = state.persistKey || 'default-device';
       let drawings = null;
-      try {
-        const res = await fetch(`/.netlify/functions/drawings?device_key=${encodeURIComponent(deviceKey)}`, { signal: AbortSignal.timeout(3500) });
-        if (res.ok) drawings = await res.json();
-      } catch (e) { /* fallback */ }
+      const endpoints = [
+        `/.netlify/functions/drawings?device_key=${encodeURIComponent(deviceKey)}`,
+        `/api/drawings?device_key=${encodeURIComponent(deviceKey)}`,
+      ];
+      for (const endpoint of endpoints) {
+        try {
+          const res = await fetch(endpoint, { signal: AbortSignal.timeout(3500) });
+          if (res.ok) {
+            drawings = await res.json();
+            break;
+          }
+        } catch (e) { /* try next */ }
+      }
 
       if (Array.isArray(drawings) && drawings.length > 0) {
-        console.log(`[MANUS MAX] Loaded ${drawings.length} drawings from Supabase.`);
+        console.log(`[MANUS MAX] Loaded ${drawings.length} drawings from backend.`);
       }
     } catch (err) {
       console.error('[MANUS MAX]', 'loadDrawingsFromSupabase error', err);
@@ -2414,11 +2634,11 @@ document.addEventListener('DOMContentLoaded', () => {
   function updateSupabaseBadge(connected) {
     const statusText = document.getElementById('api-status-text');
     if (statusText && connected) {
-      console.log('[MANUS MAX] Supabase Realtime active.');
+      console.log('[MANUS MAX] Backend sync active.');
     }
   }
 
   window.initSupabase = initSupabaseSync;
 
-  console.log('[MANUS MAX v6.1] Initialized successfully. Polling XAU/USD data feed.');
+  console.log('[MANUS MAX v6.2] Initialized successfully. Polling XAU/USD data feed.');
 }); // end DOMContentLoaded
