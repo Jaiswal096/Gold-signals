@@ -11,7 +11,7 @@
   --bg-input: #0f172a;
 
   /* Brand Accent Colors */
-  --gold-primary: #eff542;
+  --gold-primary: #e3f542;
   --gold-bright: #ffd700;
   --gold-glow: rgba(245, 194, 66, 0.3);
   --gold-muted: rgba(245, 194, 66, 0.15);
@@ -3837,3 +3837,4 @@ button, input, select, .nav-tab, .btn-tf {
     height: 280px;
   }
 }
+

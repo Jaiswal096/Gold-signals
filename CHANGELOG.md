@@ -73,6 +73,26 @@ All changes are listed under the single repair milestone. This project did not h
 
 ---
 
+## [1.3.0] — 2026-11-18 — TradingView Integration & Real-Time OHLCV Signal Sync
+
+### Added
+- **TradingView Widget Dynamic Timeframe Synchronization** — The embedded TradingView widget (`OANDA:XAUUSD`) now dynamically updates its timeframe interval (`M5` → `"5"`, `M15` → `"15"`, `H1` → `"60"`, `H4` → `"240"`, `D1` → `"D"`) when the user selects timeframe buttons, synchronizing with the active timeframe badge `#tv-active-tf`.
+- **OHLCV Candle-Driven Signal Engine** — Signal generation upgraded from polling snapshot estimates to full Smart Money Concepts (SMC) candle analysis:
+  - True-Range ATR calculation from 14-period candle history.
+  - Multi-candle swing detection (Swing High / Swing Low).
+  - Fair Value Gap (FVG) detection from candle imbalances.
+  - Order Block (OB) demand & supply zone identification.
+  - Change of Character (CHoCH) structural breakout confirmation.
+  - Liquidity sweep pattern detection.
+- **Dynamic SMC Price Overlays** — The Lightweight Charts SMC lines (Order Block, FVG, Liquidity pool, CHoCH) now calculate exact price levels from candle history rather than static percentage offsets.
+- **Fast 30-Second Polling Pipeline** — Spot gold price polling interval reduced from 60 seconds to 30 seconds for tighter synchronization with TradingView market ticks.
+
+### Changed
+- **Demo Signal History Realignment** — All illustrative signal records updated from outdated $4,000+ levels to current market range (~$3,740–$3,865) matching TradingView spot gold pricing.
+- **Responsive Mobile & Tablet Layout** — Polished responsive CSS grid and touch handling across mobile (max 768px) and extra-small phones (max 420px).
+
+---
+
 ### Architecture Notes
 
 The repair follows an in-place fix strategy — the single-page app structure, five-tab layout, Vite build, and existing CSS design language are preserved. Only the data layer, signal logic, and missing UI handlers were changed. No external framework was introduced.

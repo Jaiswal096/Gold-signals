@@ -320,36 +320,65 @@
           <div class="chart-title">
             <i data-lucide="candlestick-chart" class="text-gold"></i>
             <span>XAU/USD Live Chart</span>
-            <span class="chart-sub">Real-time • TradingView</span>
+            <span class="chart-sub">Real-time • TradingView • OANDA:XAUUSD</span>
           </div>
           <div class="tv-live-badge">
             <span class="pulse-dot"></span>
             <span>LIVE</span>
+            <span class="badge-tag" id="tv-active-tf" style="margin-left:6px;font-size:10px;padding:2px 7px;">H1</span>
           </div>
         </div>
         <div class="tradingview-widget-wrapper" id="tradingview-widget-container">
           <div id="tradingview_chart_embed" style="width:100%; height:520px;"></div>
           <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
           <script type="text/javascript">
-            new TradingView.widget({
-              "autosize": true,
-              "symbol": "OANDA:XAUUSD",
-              "interval": "60",
-              "timezone": "Etc/UTC",
-              "theme": "dark",
-              "style": "1",
-              "locale": "en",
-              "toolbar_bg": "#090d16",
-              "enable_publishing": false,
-              "allow_symbol_change": true,
-              "studies": ["MASimple@tv-basicstudies", "BollingerBands@tv-basicstudies", "RSI@tv-basicstudies"],
-              "container_id": "tradingview_chart_embed",
-              "hide_side_toolbar": false,
-              "withdateranges": true,
-              "details": true,
-              "backgroundColor": "rgba(9, 13, 22, 1)",
-              "gridColor": "rgba(255, 255, 255, 0.04)"
-            });
+            // TF → TradingView interval map
+            window._tvIntervalMap = { M5: '5', M15: '15', H1: '60', H4: '240', D1: 'D' };
+
+            function createTVWidget(interval) {
+              var container = document.getElementById('tradingview_chart_embed');
+              if (!container) return;
+              container.innerHTML = '';
+              try {
+                window._tvWidgetRef = new TradingView.widget({
+                  autosize: true,
+                  symbol: 'OANDA:XAUUSD',
+                  interval: interval || '60',
+                  timezone: 'Etc/UTC',
+                  theme: 'dark',
+                  style: '1',
+                  locale: 'en',
+                  toolbar_bg: '#090d16',
+                  enable_publishing: false,
+                  allow_symbol_change: false,
+                  studies: ['MASimple@tv-basicstudies', 'BollingerBands@tv-basicstudies', 'RSI@tv-basicstudies'],
+                  container_id: 'tradingview_chart_embed',
+                  hide_side_toolbar: false,
+                  withdateranges: true,
+                  details: true,
+                  backgroundColor: 'rgba(9, 13, 22, 1)',
+                  gridColor: 'rgba(255, 255, 255, 0.04)'
+                });
+              } catch (e) {
+                console.warn('[TV Widget]', e);
+              }
+            }
+
+            // Global function called by app.js setTimeframe()
+            window.updateTVInterval = function(tf) {
+              var iv = window._tvIntervalMap[tf] || '60';
+              createTVWidget(iv);
+              // Update badge
+              var badge = document.getElementById('tv-active-tf');
+              if (badge) badge.textContent = tf;
+            };
+
+            // Initial widget — wait for tv.js to load
+            if (document.readyState === 'loading') {
+              document.addEventListener('DOMContentLoaded', function() { createTVWidget('60'); });
+            } else {
+              createTVWidget('60');
+            }
           </script>
         </div>
       </div>

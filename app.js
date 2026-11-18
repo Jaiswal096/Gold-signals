@@ -151,109 +151,110 @@ document.addEventListener('DOMContentLoaded', () => {
     dataSource: null,          // e.g. "GoldAPI.io/XAU/USD" or "metals.live (FALLBACK)"
     priceHistory: [],          // array of float prices from polling
     ohlcBuffer: [],
+    ohlcHistory: [],           // full OHLCV candle series from backend (Yahoo GC=F / gold-history API)
 
     // Hero signal — deterministic based on verified price or static fallback
     signal: null,
 
-    // Signal history — Explicitly DEMO data
+    // Signal history — Explicitly DEMO data (prices updated to reflect current XAU/USD range ~$3,780)
     history: [
       {
         id: 'XAUUSD-DEMO-9843',
-        openTs: '2026-08-08 10:25 UTC',
+        openTs: '2026-11-14 10:25 UTC',
         closeTs: '— (DEMO ACTIVE)',
         dir: 'LONG',
         strategy: 'ICT_SilverBullet',
-        entry: 4055.00, sl: 4043.50, tp2: 4101.00, tp3: 4149.00,
+        entry: 3821.50, sl: 3810.00, tp2: 3867.50, tp3: 3915.50,
         rr: '1 : 4.0', rrClass: 'rr-high',
         pips: '+460', confidence: '92%',
         news: 'CPI', newsClass: 'news-badge',
         status: 'DEMO WIN (TP2)',
         reason: 'M5 FVG Fill + London Liq Sweep + H4 OB Rejection + RSI Div M15',
-        pnl: { entryPrice: 4055.00, exitPrice: 4101.00, direction: 'LONG', pips: 460, result: 'DEMO WIN' }
+        pnl: { entryPrice: 3821.50, exitPrice: 3867.50, direction: 'LONG', pips: 460, result: 'DEMO WIN' }
       },
       {
         id: 'XAUUSD-DEMO-9842',
-        openTs: '2026-08-07 08:15 UTC',
-        closeTs: '2026-08-07 13:42 UTC',
+        openTs: '2026-11-13 08:15 UTC',
+        closeTs: '2026-11-13 13:42 UTC',
         dir: 'LONG',
         strategy: 'ICT_AMD',
-        entry: 4031.80, sl: 4020.00, tp2: 4067.40, tp3: 4091.40,
+        entry: 3797.80, sl: 3786.00, tp2: 3833.40, tp3: 3857.40,
         rr: '1 : 3.0', rrClass: 'rr-high',
         pips: '+356', confidence: '89%',
         news: null,
         status: 'DEMO WIN (TP2)',
-        reason: 'Asia Lo Sweep (A-Phase) + London CHOCH M15 + NY Distribution Long + OB at $4,020',
-        pnl: { entryPrice: 4031.80, exitPrice: 4067.40, direction: 'LONG', pips: 356, result: 'DEMO WIN' }
+        reason: 'Asia Lo Sweep (A-Phase) + London CHOCH M15 + NY Distribution Long + OB at $3,786',
+        pnl: { entryPrice: 3797.80, exitPrice: 3833.40, direction: 'LONG', pips: 356, result: 'DEMO WIN' }
       },
       {
         id: 'XAUUSD-DEMO-9841',
-        openTs: '2026-08-06 14:00 UTC',
-        closeTs: '2026-08-06 17:38 UTC',
+        openTs: '2026-11-12 14:00 UTC',
+        closeTs: '2026-11-12 17:38 UTC',
         dir: 'SHORT',
         strategy: 'AliVidollar_SD',
-        entry: 4048.50, sl: 4057.20, tp2: 4022.60, tp3: 4005.10,
+        entry: 3815.50, sl: 3824.20, tp2: 3789.60, tp3: 3772.10,
         rr: '1 : 3.0', rrClass: 'rr-high',
         pips: '+258', confidence: '86%',
         news: 'FOMC',
         status: 'DEMO WIN (TP2)',
         reason: 'Fresh H4 Supply Zone (Rally-Base-Drop) + Liq Grab of Swing Hi + Bearish Engulf M15 + FOMC hawkish',
-        pnl: { entryPrice: 4048.50, exitPrice: 4022.60, direction: 'SHORT', pips: 258, result: 'DEMO WIN' }
+        pnl: { entryPrice: 3815.50, exitPrice: 3789.60, direction: 'SHORT', pips: 258, result: 'DEMO WIN' }
       },
       {
         id: 'XAUUSD-DEMO-9840',
-        openTs: '2026-08-05 10:02 UTC',
-        closeTs: '2026-08-05 11:20 UTC',
+        openTs: '2026-11-11 10:02 UTC',
+        closeTs: '2026-11-11 11:20 UTC',
         dir: 'LONG',
         strategy: 'ICT_SilverBullet',
-        entry: 4012.40, sl: 4001.00, tp2: 4057.60, tp3: 4103.00,
+        entry: 3779.40, sl: 3768.00, tp2: 3824.60, tp3: 3870.00,
         rr: '1 : 4.0', rrClass: 'rr-high',
         pips: '+452', confidence: '94%',
         news: null,
         status: 'DEMO WIN (TP2)',
-        reason: 'Silver Bullet 10:00 EST window + M5 FVG 50% fill + Fresh Demand OB + Clean traffic +500 pips',
-        pnl: { entryPrice: 4012.40, exitPrice: 4057.60, direction: 'LONG', pips: 452, result: 'DEMO WIN' }
+        reason: 'Silver Bullet 10:00 EST window + M5 FVG 50% fill + Fresh Demand OB + Clean traffic +450 pips',
+        pnl: { entryPrice: 3779.40, exitPrice: 3824.60, direction: 'LONG', pips: 452, result: 'DEMO WIN' }
       },
       {
         id: 'XAUUSD-DEMO-9839',
-        openTs: '2026-08-04 09:30 UTC',
-        closeTs: '2026-08-04 10:55 UTC',
+        openTs: '2026-11-10 09:30 UTC',
+        closeTs: '2026-11-10 10:55 UTC',
         dir: 'LONG',
         strategy: 'RajaBanks_CT',
-        entry: 3998.60, sl: 3987.00, tp2: 4045.00, tp3: 4082.00,
+        entry: 3765.60, sl: 3754.00, tp2: 3812.00, tp3: 3849.00,
         rr: '1 : 4.0', rrClass: 'rr-high',
         pips: '+464', confidence: '88%',
         news: 'NFP',
         status: 'DEMO WIN (TP2)',
-        reason: 'Clean Traffic Zone H4 (M30 demand) — Zero resistance to $4,045 target — NFP miss confirmed',
-        pnl: { entryPrice: 3998.60, exitPrice: 4045.00, direction: 'LONG', pips: 464, result: 'DEMO WIN' }
+        reason: 'Clean Traffic Zone H4 (M30 demand) — Zero resistance to $3,812 target — NFP miss confirmed',
+        pnl: { entryPrice: 3765.60, exitPrice: 3812.00, direction: 'LONG', pips: 464, result: 'DEMO WIN' }
       },
       {
         id: 'XAUUSD-DEMO-9838',
-        openTs: '2026-08-03 08:10 UTC',
-        closeTs: '2026-08-03 09:02 UTC',
+        openTs: '2026-11-08 08:10 UTC',
+        closeTs: '2026-11-08 09:02 UTC',
         dir: 'SHORT',
         strategy: 'ICT_AMD',
-        entry: 4038.20, sl: 4047.00, tp2: 4011.80, tp3: 3994.30,
+        entry: 3804.20, sl: 3813.00, tp2: 3777.80, tp3: 3760.30,
         rr: '1 : 3.0', rrClass: 'rr-high',
         pips: '-87', confidence: '72%',
         news: null,
         status: 'DEMO STOPPED',
         reason: 'London Manipulation phase — SL triggered before NY distribution began — AMD failed',
-        pnl: { entryPrice: 4038.20, exitPrice: 4047.00, direction: 'SHORT', pips: -87, result: 'DEMO LOSS' }
+        pnl: { entryPrice: 3804.20, exitPrice: 3813.00, direction: 'SHORT', pips: -87, result: 'DEMO LOSS' }
       },
       {
         id: 'XAUUSD-DEMO-9837',
-        openTs: '2026-08-02 14:05 UTC',
-        closeTs: '2026-08-02 16:48 UTC',
+        openTs: '2026-11-07 14:05 UTC',
+        closeTs: '2026-11-07 16:48 UTC',
         dir: 'LONG',
         strategy: 'AliVidollar_SD',
-        entry: 3975.50, sl: 3963.00, tp2: 4025.50, tp3: 4075.50,
+        entry: 3741.50, sl: 3729.00, tp2: 3791.50, tp3: 3841.50,
         rr: '1 : 4.0', rrClass: 'rr-high',
         pips: '+500', confidence: '91%',
         news: 'PPI',
         status: 'DEMO WIN (TP3)',
         reason: 'Fresh Demand Zone (Drop-Base-Rally) + Stop Hunt of Asian Lo + Bullish Engulfing M15 + PPI miss bullish',
-        pnl: { entryPrice: 3975.50, exitPrice: 4075.50, direction: 'LONG', pips: 500, result: 'DEMO WIN' }
+        pnl: { entryPrice: 3741.50, exitPrice: 3841.50, direction: 'LONG', pips: 500, result: 'DEMO WIN' }
       }
     ],
 
@@ -467,7 +468,15 @@ document.addEventListener('DOMContentLoaded', () => {
           if (d && d.price) {
             const p = parseFloat(d.price);
             if (!isNaN(p) && p > 1000) {
-              return { price: p, source: d.source || 'GoldAPI.io/XAU/USD' };
+              return {
+                price: p,
+                source: d.source || 'GoldAPI.io/XAU/USD',
+                change: d.change ?? null,
+                changePercent: d.changePercent ?? null,
+                high: d.high ?? null,
+                low: d.low ?? null,
+                open: d.open ?? null
+              };
             }
           }
         } catch (e) {
@@ -553,7 +562,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const dir = state.goldPrice !== null
           ? (res.price > state.goldPrice ? 'up' : res.price < state.goldPrice ? 'down' : null)
           : null;
-        processTick(res.price, dir, res.source);
+        processTick(res.price, dir, res.source, res);
         return true;
       } else {
         consecutiveErrors++;
@@ -571,12 +580,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function processTick(price, direction, source) {
+  function processTick(price, direction, source, extra = {}) {
     try {
-      if (state.goldPrevClose === null) state.goldPrevClose = price;
+      if (state.goldPrevClose === null) state.goldPrevClose = extra.open || price;
       state.goldPrice = price;
-      state.goldChangePts = parseFloat((price - state.goldPrevClose).toFixed(2));
-      state.goldChangePct = parseFloat(((state.goldChangePts / state.goldPrevClose) * 100).toFixed(2));
+
+      if (extra.change !== null && extra.change !== undefined && !isNaN(extra.change)) {
+        state.goldChangePts = Number(extra.change);
+        state.goldChangePct = extra.changePercent !== null && extra.changePercent !== undefined && !isNaN(extra.changePercent)
+          ? Number(extra.changePercent)
+          : parseFloat(((state.goldChangePts / (price - state.goldChangePts || 1)) * 100).toFixed(2));
+      } else {
+        state.goldChangePts = parseFloat((price - state.goldPrevClose).toFixed(2));
+        state.goldChangePct = parseFloat(((state.goldChangePts / state.goldPrevClose) * 100).toFixed(2));
+      }
+
       state.lastFetchTime = new Date();
       state.dataSource = source;
       state.fetchStatus = source.includes('FALLBACK') ? 'fallback' : 'live';
@@ -686,9 +704,9 @@ document.addEventListener('DOMContentLoaded', () => {
   function initLiveDataFeed() {
     showWaitingState();
     fetchLiveGoldPrice();
-    // 60-second polling as per architecture & GoldAPI limits
+    // 30-second polling for fast XAU/USD price sync (backend caches 15s, so 30s is safe)
     if (pollingIntervalId) clearInterval(pollingIntervalId);
-    pollingIntervalId = setInterval(fetchLiveGoldPrice, 60000);
+    pollingIntervalId = setInterval(fetchLiveGoldPrice, 30000);
   }
 
   /* ========================================================================
@@ -743,6 +761,14 @@ document.addEventListener('DOMContentLoaded', () => {
         b.classList.toggle('active', b.getAttribute('data-tf') === tf);
       });
       state.timeframe = tf;
+
+      // Sync TradingView widget to the same timeframe
+      if (window.updateTVInterval) {
+        try { window.updateTVInterval(tf); } catch (_) {}
+      }
+      // Update TV active-TF badge
+      const tvBadge = document.getElementById('tv-active-tf');
+      if (tvBadge) tvBadge.textContent = tf;
 
       // Fetch historical candles for this timeframe from backend pipeline
       fetchHistoricalCandles(tf);
@@ -836,25 +862,161 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /* ========================================================================
-     4. SIGNAL ENGINE REWRITE (Heuristic, Deterministic — No Math.random)
+     4. SIGNAL ENGINE — OHLCV-BASED (Heuristic, Deterministic — No Math.random)
+        Uses real candle data from fetchHistoricalCandles() / gold-history API.
+        Falls back to priceHistory polling if candles are unavailable.
      ======================================================================== */
+
+  /**
+   * Compute ATR from real OHLCV candles (True Range method).
+   * Falls back to polling-history estimate if no candles available.
+   */
   function estimateATR(priceHistory) {
+    // Prefer real candle ATR when available
+    if (state.ohlcHistory && state.ohlcHistory.length >= 5) {
+      return computeATRFromCandles(state.ohlcHistory, 14);
+    }
     if (priceHistory.length < 2) return 8.20;
     const diffs = [];
     for (let i = 1; i < priceHistory.length; i++) {
       diffs.push(Math.abs(priceHistory[i] - priceHistory[i - 1]));
     }
     const avgDiff = diffs.reduce((a, b) => a + b, 0) / diffs.length;
-    // Scale 1-min polling differences to intraday ATR proxy (typical XAU/USD 8-15 pts)
     return Math.max(6.0, Math.min(25.0, avgDiff * 15 || 8.20));
   }
 
   /**
-   * Deterministic signal detection based on price history.
-   * If priceHistory.length < 20, returns null as required.
+   * True-Range ATR from OHLCV candle array.
+   * @param {Array} candles - [{open, high, low, close, time}, ...]
+   * @param {number} period - ATR period (default 14)
+   */
+  function computeATRFromCandles(candles, period = 14) {
+    if (!candles || candles.length < 2) return 10.0;
+    const trs = [];
+    for (let i = 1; i < candles.length; i++) {
+      const c = candles[i];
+      const prev = candles[i - 1];
+      const tr = Math.max(
+        c.high - c.low,
+        Math.abs(c.high - prev.close),
+        Math.abs(c.low - prev.close)
+      );
+      trs.push(tr);
+    }
+    const slice = trs.slice(-period);
+    const atr = slice.reduce((a, b) => a + b, 0) / slice.length;
+    return Math.max(4.0, Math.min(50.0, atr));
+  }
+
+  /**
+   * Detect swing high/low from candle array.
+   * Returns { swingHigh, swingLow, swingHighIdx, swingLowIdx }
+   */
+  function detectSwings(candles, lookback = 10) {
+    if (!candles || candles.length < 3) return { swingHigh: null, swingLow: null };
+    const slice = candles.slice(-Math.min(lookback, candles.length));
+    let swingHigh = -Infinity, swingLow = Infinity;
+    let swingHighIdx = 0, swingLowIdx = 0;
+    slice.forEach((c, i) => {
+      if (c.high > swingHigh) { swingHigh = c.high; swingHighIdx = i; }
+      if (c.low < swingLow)  { swingLow = c.low;  swingLowIdx = i;  }
+    });
+    return { swingHigh, swingLow, swingHighIdx, swingLowIdx };
+  }
+
+  /**
+   * Detect Order Block: last bearish candle before a bullish swing (or vice versa).
+   * Returns { obHigh, obLow, obType } or null.
+   */
+  function detectOrderBlock(candles, dir) {
+    if (!candles || candles.length < 5) return null;
+    const slice = candles.slice(-20);
+    if (dir === 'LONG') {
+      // Find last bearish candle before a bullish impulse
+      for (let i = slice.length - 2; i >= 1; i--) {
+        if (slice[i].close < slice[i].open) { // bearish candle
+          return { obHigh: slice[i].open, obLow: slice[i].low, obType: 'demand' };
+        }
+      }
+    } else {
+      // Find last bullish candle before a bearish impulse
+      for (let i = slice.length - 2; i >= 1; i--) {
+        if (slice[i].close > slice[i].open) { // bullish candle
+          return { obHigh: slice[i].high, obLow: slice[i].close, obType: 'supply' };
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Detect Fair Value Gap (FVG / Imbalance):
+   * Bullish FVG: candle[i-2].high < candle[i].low  (gap above)
+   * Bearish FVG: candle[i-2].low  > candle[i].high (gap below)
+   * Returns midpoint price of most recent FVG.
+   */
+  function detectFVG(candles, dir) {
+    if (!candles || candles.length < 3) return null;
+    const slice = candles.slice(-15);
+    for (let i = slice.length - 1; i >= 2; i--) {
+      if (dir === 'LONG' && slice[i - 2].high < slice[i].low) {
+        const mid = (slice[i - 2].high + slice[i].low) / 2;
+        return parseFloat(mid.toFixed(2));
+      }
+      if (dir === 'SHORT' && slice[i - 2].low > slice[i].high) {
+        const mid = (slice[i - 2].low + slice[i].high) / 2;
+        return parseFloat(mid.toFixed(2));
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Detect CHoCH (Change of Character): close breaks prior swing high (bullish CHoCH) or low (bearish CHoCH).
+   * Returns { detected, breakLevel }
+   */
+  function detectCHoCH(candles, dir) {
+    if (!candles || candles.length < 5) return { detected: false, breakLevel: null };
+    const { swingHigh, swingLow } = detectSwings(candles, 15);
+    const latest = candles[candles.length - 1];
+    if (dir === 'LONG' && latest.close > swingHigh) {
+      return { detected: true, breakLevel: parseFloat(swingHigh.toFixed(2)) };
+    }
+    if (dir === 'SHORT' && latest.close < swingLow) {
+      return { detected: true, breakLevel: parseFloat(swingLow.toFixed(2)) };
+    }
+    return { detected: false, breakLevel: dir === 'LONG' ? parseFloat(swingHigh.toFixed(2)) : parseFloat(swingLow.toFixed(2)) };
+  }
+
+  /**
+   * Detect liquidity sweep: price dips below prior swing low then recovers (bullish) or spikes above swing high then falls (bearish).
+   * Returns true/false.
+   */
+  function detectLiquiditySweep(candles, dir) {
+    if (!candles || candles.length < 6) return false;
+    const slice = candles.slice(-10);
+    const { swingHigh, swingLow } = detectSwings(candles.slice(0, -5), 20);
+    const recent = slice.slice(-5);
+    if (dir === 'LONG') {
+      // Any candle's low went below prior swing low, then closed above it
+      return recent.some(c => c.low < swingLow && c.close > swingLow);
+    } else {
+      return recent.some(c => c.high > swingHigh && c.close < swingHigh);
+    }
+  }
+
+  /**
+   * OHLCV-based signal detection. Uses state.ohlcHistory if available, else falls back to priceHistory.
+   * Returns signal object or null.
    */
   function detectSignalFromPrice(currentPrice, priceHistory) {
-    if (priceHistory.length < 20) return null; // Mandatory requirement: < 20 candles = insufficient
+    // === PRIMARY PATH: OHLCV candle analysis ===
+    if (state.ohlcHistory && state.ohlcHistory.length >= 20) {
+      return detectSignalFromOHLC(state.ohlcHistory, currentPrice);
+    }
+
+    // === FALLBACK PATH: price-history polling analysis ===
+    if (priceHistory.length < 20) return null;
 
     const recent5 = priceHistory.slice(-5);
     const avg5 = recent5.reduce((a, b) => a + b, 0) / 5;
@@ -862,18 +1024,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const pctChange5 = (momentum5 / priceHistory[priceHistory.length - 5]) * 100;
     const atr = estimateATR(priceHistory);
 
-    // Filter: requires at least 0.08% directional move to establish clear setup
     if (Math.abs(pctChange5) < 0.08) return null;
 
     const isLong = pctChange5 > 0;
     const dir = isLong ? 'LONG' : 'SHORT';
 
-    // Deterministic 3-pillar confidence calculation
-    // 1. Institutional (50%): based on momentum ratio to ATR
     const moveRatio = Math.min(2.5, Math.abs(momentum5) / Math.max(atr * 0.25, 1));
     const instScore = Math.min(95, Math.round(65 + moveRatio * 12));
 
-    // 2. Macro (30%): consistency across recent 5 candles
     let trendAgreement = 0;
     for (let i = 1; i < recent5.length; i++) {
       if (isLong && recent5[i] >= recent5[i - 1]) trendAgreement++;
@@ -881,7 +1039,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const macroScore = Math.min(94, Math.round(60 + (trendAgreement / 4) * 30));
 
-    // 3. Technical (20%): price position relative to 5-period average
     const priceDistAvg = Math.abs(currentPrice - avg5) / avg5;
     const techScore = Math.min(95, Math.round(65 + Math.min(30, priceDistAvg * 2000)));
 
@@ -891,35 +1048,107 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const slDist = parseFloat((atr * 1.5).toFixed(2));
     const entry = currentPrice;
-    const sl = isLong ? parseFloat((entry - slDist).toFixed(2)) : parseFloat((entry + slDist).toFixed(2));
-    const tp1 = isLong ? parseFloat((entry + slDist * 2).toFixed(2)) : parseFloat((entry - slDist * 2).toFixed(2));
+    const sl  = isLong ? parseFloat((entry - slDist).toFixed(2)) : parseFloat((entry + slDist).toFixed(2));
+    const tp1 = isLong ? parseFloat((entry + slDist * 2).toFixed(2))   : parseFloat((entry - slDist * 2).toFixed(2));
     const tp2 = isLong ? parseFloat((entry + slDist * 3.5).toFixed(2)) : parseFloat((entry - slDist * 3.5).toFixed(2));
     const tp3 = isLong ? parseFloat((entry + slDist * 6.0).toFixed(2)) : parseFloat((entry - slDist * 6.0).toFixed(2));
-
-    const strat = isLong ? 'ICT_SilverBullet' : 'AliVidollar_SD';
 
     const reason = isLong
       ? `Bullish Momentum (+${pctChange5.toFixed(2)}%) across 5 readings + Clean Path above $${entry.toFixed(2)} + ATR ${atr.toFixed(1)} SL buffer.`
       : `Bearish Rejection (${pctChange5.toFixed(2)}%) across 5 readings + Resistance tagged near $${entry.toFixed(2)} + ATR ${atr.toFixed(1)} SL buffer.`;
 
     return {
-      dir,
-      strategy: strat,
-      tf: 'H1',
-      entry,
-      sl,
-      tp1,
-      tp2,
-      tp3,
-      rr: '3.5',
-      rrMax: '6.0',
-      conf: weightedConf,
-      confInst: instScore,
-      confMacro: macroScore,
-      confTech: techScore,
-      atr,
-      reason,
-      pctChange5
+      dir, strategy: isLong ? 'ICT_SilverBullet' : 'AliVidollar_SD',
+      tf: state.timeframe, entry, sl, tp1, tp2, tp3,
+      rr: '3.5', rrMax: '6.0', conf: weightedConf,
+      confInst: instScore, confMacro: macroScore, confTech: techScore,
+      atr, reason, pctChange5,
+      smcDetails: null
+    };
+  }
+
+  /**
+   * OHLCV-based signal detection using real candles from gold-history API.
+   * SMC analysis: CHoCH, Order Block, FVG, Liquidity Sweep.
+   */
+  function detectSignalFromOHLC(candles, currentPrice) {
+    if (!candles || candles.length < 20) return null;
+
+    const atr = computeATRFromCandles(candles, 14);
+    const { swingHigh, swingLow } = detectSwings(candles, 20);
+
+    // Determine direction from price position relative to swings
+    const priceRange = swingHigh - swingLow;
+    if (priceRange <= 0) return null;
+    const pricePosition = (currentPrice - swingLow) / priceRange; // 0=at low, 1=at high
+
+    // Direction: near lows (< 0.35) = potential LONG; near highs (> 0.65) = potential SHORT
+    let dir = null;
+    if (pricePosition <= 0.40) dir = 'LONG';
+    else if (pricePosition >= 0.60) dir = 'SHORT';
+    else return null; // Midrange — no clear setup
+
+    // Check CHoCH confirmation
+    const choch = detectCHoCH(candles, dir);
+    const liqSweep = detectLiquiditySweep(candles, dir);
+    const ob = detectOrderBlock(candles, dir);
+    const fvgLevel = detectFVG(candles, dir);
+
+    // Confluence scoring
+    let confluencePoints = 0;
+    const confluenceFactors = [];
+
+    if (choch.detected) { confluencePoints += 35; confluenceFactors.push('CHoCH Confirmed'); }
+    else if (choch.breakLevel) { confluencePoints += 10; confluenceFactors.push('CHoCH Pending'); }
+
+    if (liqSweep) { confluencePoints += 25; confluenceFactors.push('Liquidity Sweep'); }
+
+    if (ob) { confluencePoints += 20; confluenceFactors.push(`${ob.obType === 'demand' ? 'Demand' : 'Supply'} OB`); }
+
+    if (fvgLevel !== null) { confluencePoints += 20; confluenceFactors.push('FVG Present'); }
+
+    // Minimum confluence threshold
+    if (confluencePoints < 40) return null;
+
+    // 3-pillar weighted confidence from OHLCV analysis
+    const instScore = Math.min(96, Math.round(55 + Math.min(41, confluencePoints * 0.6)));
+
+    // Momentum check: last 3 candles
+    const last3 = candles.slice(-3);
+    let momentumAgree = 0;
+    last3.forEach(c => {
+      if (dir === 'LONG' && c.close >= c.open) momentumAgree++;
+      if (dir === 'SHORT' && c.close <= c.open) momentumAgree++;
+    });
+    const macroScore = Math.min(94, Math.round(58 + momentumAgree * 12));
+
+    // ATR volatility positioning (lower ATR relative to price range = cleaner setup)
+    const atrRatio = atr / priceRange;
+    const techScore = Math.min(93, Math.round(60 + Math.max(0, (0.3 - atrRatio) * 100)));
+
+    const weightedConf = Math.min(96, Math.round(instScore * 0.50 + macroScore * 0.30 + techScore * 0.20));
+    if (weightedConf < 70) return null;
+
+    // Calculate levels from real candle data
+    const slDist = parseFloat((atr * 1.5).toFixed(2));
+    const isLong = dir === 'LONG';
+    const entry = currentPrice;
+    const sl  = isLong ? parseFloat((entry - slDist).toFixed(2)) : parseFloat((entry + slDist).toFixed(2));
+    const tp1 = isLong ? parseFloat((entry + slDist * 2).toFixed(2))   : parseFloat((entry - slDist * 2).toFixed(2));
+    const tp2 = isLong ? parseFloat((entry + slDist * 3.5).toFixed(2)) : parseFloat((entry - slDist * 3.5).toFixed(2));
+    const tp3 = isLong ? parseFloat((entry + slDist * 6.0).toFixed(2)) : parseFloat((entry - slDist * 6.0).toFixed(2));
+
+    const strategyMap = { LONG: 'ICT_SilverBullet', SHORT: 'AliVidollar_SD' };
+    const reason = confluenceFactors.join(' + ') +
+      ` | ATR(14): ${atr.toFixed(1)} | Swing H: ${swingHigh.toFixed(2)} / L: ${swingLow.toFixed(2)} | ${candles.length} candles (${state.timeframe})`;
+
+    return {
+      dir, strategy: strategyMap[dir],
+      tf: state.timeframe, entry, sl, tp1, tp2, tp3,
+      rr: '3.5', rrMax: '6.0', conf: weightedConf,
+      confInst: instScore, confMacro: macroScore, confTech: techScore,
+      atr, reason, pctChange5: 0,
+      smcDetails: { choch, liqSweep, ob, fvgLevel, swingHigh, swingLow, confluencePoints }
     };
   }
 
@@ -1783,9 +2012,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (candles && state.lwCandleSeries) {
         state.lwCandleSeries.setData(candles);
+        // Store OHLCV candles for the signal engine — this is the core data bridge
+        state.ohlcHistory = candles;
         hideChartLoadingState();
         if (state.lwChart) state.lwChart.timeScale().fitContent();
         updateChartDataLabel(`XAU/USD (${tf}) • Real Feed`);
+        // Re-run signal engine with fresh OHLCV data
+        if (state.goldPrice) {
+          updateSignalEngine();
+        }
         if (state.signal && state.goldPrice) {
           drawSMCOverlays(state.lwChart, state.lwCandleSeries, state.goldPrice);
         }
@@ -1961,10 +2196,33 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const isLong = sig.type === 'LONG';
-      const obPrice    = parseFloat((currentPrice * (isLong ? 0.997 : 1.003)).toFixed(2));
-      const fvgPrice   = parseFloat((currentPrice * (isLong ? 0.9985 : 1.0015)).toFixed(2));
-      const liqPrice   = parseFloat((currentPrice * (isLong ? 0.995 : 1.005)).toFixed(2));
-      const chochPrice = parseFloat((currentPrice * (isLong ? 0.992 : 1.008)).toFixed(2));
+
+      // Use real candle-derived SMC levels when ohlcHistory is available
+      let obPrice, fvgPrice, liqPrice, chochPrice;
+
+      if (state.ohlcHistory && state.ohlcHistory.length >= 10) {
+        const candles = state.ohlcHistory;
+        const { swingHigh, swingLow } = detectSwings(candles, 20);
+        const ob = detectOrderBlock(candles, sig.type);
+        const fvgLevel = detectFVG(candles, sig.type);
+        const choch = detectCHoCH(candles, sig.type);
+
+        // Liquidity level = relevant swing high/low
+        liqPrice   = isLong ? parseFloat(swingLow.toFixed(2))  : parseFloat(swingHigh.toFixed(2));
+        // CHoCH level
+        chochPrice = choch.breakLevel || (isLong ? parseFloat((currentPrice * 0.992).toFixed(2)) : parseFloat((currentPrice * 1.008).toFixed(2)));
+        // Order Block
+        obPrice    = ob ? (isLong ? parseFloat(ob.obLow.toFixed(2)) : parseFloat(ob.obHigh.toFixed(2)))
+                        : parseFloat((currentPrice * (isLong ? 0.997 : 1.003)).toFixed(2));
+        // FVG
+        fvgPrice   = fvgLevel !== null ? fvgLevel : parseFloat((currentPrice * (isLong ? 0.9985 : 1.0015)).toFixed(2));
+      } else {
+        // Fallback: percentage offsets when no candle data
+        obPrice    = parseFloat((currentPrice * (isLong ? 0.997 : 1.003)).toFixed(2));
+        fvgPrice   = parseFloat((currentPrice * (isLong ? 0.9985 : 1.0015)).toFixed(2));
+        liqPrice   = parseFloat((currentPrice * (isLong ? 0.995 : 1.005)).toFixed(2));
+        chochPrice = parseFloat((currentPrice * (isLong ? 0.992 : 1.008)).toFixed(2));
+      }
 
       state.lwSeries.obLine = series.createPriceLine({
         price: obPrice,
