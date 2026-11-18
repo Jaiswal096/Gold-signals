@@ -4,6 +4,25 @@ All changes are listed under the single repair milestone. This project did not h
 
 ---
 
+## [1.2.0] — 2026-11-18
+
+### Added
+- **Multi-Signal Feed Architecture**:
+  - `XAUUSD-LIVE-01`: Master Institutional Fused Signal (SMC + Price Action + EMA 9/15 Confluence).
+  - `XAUUSD-PA-01`: Pure Price Action Signal detecting Bullish/Bearish Pin Bars, Engulfing Patterns, Inside Bar Compressions, and Marubozu momentum bars.
+  - `XAUUSD-EMA-01`: EMA 9/15 Trend Ribbon & Momentum Cross Signal tracking dynamic ribbon spread and directional crossovers.
+- **Future Predictive Setups Enhancement**:
+  - Integrated EMA 9/15 Dynamic Pullback and Retest setups into the Future Predictive Setups panel.
+  - Integrated Price Action trigger/invalidation structure into the Future Predictive Setups panel.
+- **Lightweight Charts EMA 9/15 Visual Overlays**:
+  - Added EMA 9 (cyan `#06b6d4`) and EMA 15 (purple `#a855f7`) line series directly onto the chart.
+  - Synchronized chart overlay legend with color-coded badges for 9 EMA, 15 EMA, 50 EMA, Bollinger, and Demand zones.
+  - Linked overlay visibility toggle to show/hide EMA ribbon seamlessly with SMC levels.
+- **Interactive Signal Selection**:
+  - Clicking any signal in the feed highlights it as active, updates the Hero Signal Card, and immediately renders its Entry, SL, and TP lines onto the chart.
+
+---
+
 ## [1.0.0-repair] — 2026-11-14
 
 ### Removed
