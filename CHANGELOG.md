@@ -105,6 +105,19 @@ All changes are listed under the single repair milestone. This project did not h
 
 ---
 
+## [1.5.0] — 2026-11-18 — Live Active Signals & TradingView Future Setup Synchronization
+
+### Fixed & Upgraded
+- **Active Hero Signal Real-Time Data Connection** — Replaced all legacy hardcoded prices in the hero active signal card ($4,055.00 entry, $4,085.00 spot, $4,043.50 SL, $4,101.00 TP2, $4,149.00 TP3) with dynamic real-time values tied directly to live TradingView data feeds (~$3,780–$3,865 range).
+- **Live Spot Price in Active Signal** — The `#sig-current-live` indicator inside the active signal card is now directly driven by the verified multi-provider spot ticker, updating on every tick in real-time alongside TradingView.
+- **Continuous Live / Future Setup Generation** — The signal engine now continuously outputs either:
+  - `INSTITUTIONAL SIGNAL (LIVE)` when immediate execution confluence (CHoCH, Liquidity Sweep, Order Block) is triggered; or
+  - `⚡ CONDITIONAL SETUP [WATCH — PENDING TRIGGER]` when consolidating or setting up future breakouts/pullbacks, complete with active trigger levels, SL ATR buffer, dynamic R:R targets, and real-time point distances.
+- **Unblocked Signal Feed** — Removed legacy 20-polling-sample threshold blocking the signal feed; the engine now immediately analyzes the 100 historical/real-time OHLCV candles loaded from the backend pipeline.
+- **Dynamic Calculator Defaults** — Realignment of profit calculator defaults to current spot gold levels ($3,815 / $3,842 / $3,875).
+
+---
+
 ### Architecture Notes
 
 The repair follows an in-place fix strategy — the single-page app structure, five-tab layout, Vite build, and existing CSS design language are preserved. Only the data layer, signal logic, and missing UI handlers were changed. No external framework was introduced.

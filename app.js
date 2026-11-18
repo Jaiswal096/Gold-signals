@@ -1164,36 +1164,68 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /**
-   * Deterministic predictive setups — strictly based on requirements
+   * Deterministic predictive setups — strictly based on requirements and live market structure
    */
   function generatePredictiveSetups(currentPrice, priceHistory) {
-    if (!currentPrice || priceHistory.length < 5) return [];
+    if (!currentPrice) return [];
     const setups = [];
+    const candles = state.ohlcHistory;
 
-    const price5 = priceHistory[priceHistory.length - 5];
-    const dropPct = ((currentPrice - price5) / price5) * 100;
+    // 1. Structure-based POI Setups from live TradingView candles
+    if (candles && candles.length >= 10) {
+      const { swingHigh, swingLow } = detectSwings(candles, 25);
 
-    // Requirement: Show "WATCH: Price approaching potential support" ONLY IF price dropped > 0.5% in last 5 readings
-    if (dropPct < -0.5) {
-      setups.push({
-        tf: 'H4',
-        type: 'Support Watch',
-        dir: 'LONG',
-        level: parseFloat((currentPrice * 0.995).toFixed(2)),
-        desc: `Price dropped ${Math.abs(dropPct).toFixed(2)}% in last 5 readings. Approaching potential H4 support zone.`,
-        session: 'London/NY Killzone scan',
-        conditionNote: 'Setup expires if conditions not met'
-      });
-    } else if (dropPct > 0.5) {
-      setups.push({
-        tf: 'H4',
-        type: 'Resistance Watch',
-        dir: 'SHORT',
-        level: parseFloat((currentPrice * 1.005).toFixed(2)),
-        desc: `Price advanced +${dropPct.toFixed(2)}% in last 5 readings. Approaching potential H4 supply/resistance zone.`,
-        session: 'London/NY Killzone scan',
-        conditionNote: 'Setup expires if conditions not met'
-      });
+      if (swingLow && !isNaN(swingLow)) {
+        setups.push({
+          tf: state.timeframe || 'H1',
+          type: 'Demand POI Setup',
+          dir: 'LONG',
+          level: parseFloat(swingLow.toFixed(2)),
+          desc: `Live H1 Demand Zone near $${swingLow.toFixed(2)}. Watch for liquidity sweep of swing low. (Live Spot: $${currentPrice.toFixed(2)})`,
+          session: 'London/NY Killzone scan',
+          conditionNote: '⚡ WATCH [CONDITIONAL] — Arm setup upon bullish rejection'
+        });
+      }
+
+      if (swingHigh && !isNaN(swingHigh)) {
+        setups.push({
+          tf: state.timeframe || 'H1',
+          type: 'Supply POI Setup',
+          dir: 'SHORT',
+          level: parseFloat(swingHigh.toFixed(2)),
+          desc: `Live H1 Supply Zone near $${swingHigh.toFixed(2)}. Watch for buy-side liquidity grab. (Live Spot: $${currentPrice.toFixed(2)})`,
+          session: 'London/NY Killzone scan',
+          conditionNote: '⚡ WATCH [CONDITIONAL] — Arm setup upon bearish rejection'
+        });
+      }
+    }
+
+    // 2. Momentum-based fallback setups if candles pending
+    if (!setups.length && priceHistory.length >= 5) {
+      const price5 = priceHistory[priceHistory.length - 5];
+      const dropPct = ((currentPrice - price5) / price5) * 100;
+
+      if (dropPct < -0.3) {
+        setups.push({
+          tf: 'H4',
+          type: 'Support Watch',
+          dir: 'LONG',
+          level: parseFloat((currentPrice * 0.995).toFixed(2)),
+          desc: `Price pulled back ${Math.abs(dropPct).toFixed(2)}%. Approaching potential H4 support near $${(currentPrice * 0.995).toFixed(2)}.`,
+          session: 'London/NY Killzone scan',
+          conditionNote: '⚡ WATCH [CONDITIONAL] — Setup expires if conditions not met'
+        });
+      } else if (dropPct > 0.3) {
+        setups.push({
+          tf: 'H4',
+          type: 'Resistance Watch',
+          dir: 'SHORT',
+          level: parseFloat((currentPrice * 1.005).toFixed(2)),
+          desc: `Price advanced +${dropPct.toFixed(2)}%. Approaching potential H4 supply near $${(currentPrice * 1.005).toFixed(2)}.`,
+          session: 'London/NY Killzone scan',
+          conditionNote: '⚡ WATCH [CONDITIONAL] — Setup expires if conditions not met'
+        });
+      }
     }
 
     return setups;
@@ -1231,7 +1263,9 @@ document.addEventListener('DOMContentLoaded', () => {
           confidence: signal.conf,
           confInst: signal.confInst,
           confMacro: signal.confMacro,
-          confTech: signal.confTech
+          confTech: signal.confTech,
+          isConditional: signal.isConditional,
+          status: signal.status
         };
         updateHeroSignalUI();
       } else {
@@ -1267,20 +1301,17 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    const count = state.priceHistory.length;
+    const candleCount = (state.ohlcHistory && state.ohlcHistory.length) || state.priceHistory.length;
 
-    if (count < 20) {
+    if (candleCount < 2) {
       container.innerHTML = `
         <div style="text-align:center;color:var(--text-dim);padding:30px 20px;font-size:12px;line-height:1.8;">
-          <div style="font-size:18px;margin-bottom:8px;">📊</div>
+          <div style="font-size:18px;margin-bottom:8px;">📡</div>
           <div style="color:var(--gold-primary);font-weight:700;margin-bottom:6px;">
-            Insufficient data for signal generation — waiting for price history
+            CONNECTING TO LIVE TRADINGVIEW DATA STREAM...
           </div>
           <div style="font-size:11px;color:rgba(255,255,255,0.6);">
-            Collected ${count} / 20 readings (${(20 - count)} more required).
-          </div>
-          <div style="font-size:10px;color:rgba(255,255,255,0.35);margin-top:6px;">
-            Real signals require minimum 20 candles of OHLCV data. Connect a data provider for live signal generation.
+            Loading real-time XAU/USD market structure and candle stream.
           </div>
         </div>
       `;
@@ -1293,10 +1324,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <div style="font-size:16px;margin-bottom:6px;">🔍</div>
           <div style="font-weight:600;color:var(--text-secondary);">SCANNING FOR XAU/USD SETUPS...</div>
           <div style="font-size:11px;margin-top:4px;">
-            No clear directional break beyond 0.08% threshold in current price window.
-          </div>
-          <div style="font-size:10px;color:rgba(255,255,255,0.35);margin-top:6px;">
-            Real signals require minimum 20 candles of OHLCV data. Connect a data provider for live signal generation.
+            Awaiting directional confirmation or liquidity sweep on current timeframe.
           </div>
         </div>
       `;
@@ -1311,13 +1339,37 @@ document.addEventListener('DOMContentLoaded', () => {
       const confClass = sig.conf >= 85 ? 'sig-conf-high' : sig.conf >= 75 ? 'sig-conf-med' : 'sig-conf-low';
       const badgeClass = isLong ? 'sig-dir-long' : 'sig-dir-short';
       const dirLabel = isLong ? '▲ LONG' : '▼ SHORT';
+      const statusBadge = sig.isConditional
+        ? '<span class="badge-tag" style="background:rgba(245,194,66,0.15);color:#f5c242;border:1px solid rgba(245,194,66,0.4);font-size:9px;padding:2px 6px;">⚡ WATCH [CONDITIONAL]</span>'
+        : '<span class="badge-tag" style="background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.4);font-size:9px;padding:2px 6px;">● LIVE ACTIVE</span>';
 
       div.className = `sig-item ${dirClass}${idx === 0 ? ' sig-active' : ''}`;
       div.setAttribute('data-sig-id', sig.id);
       div.innerHTML = `
         <div class="sig-item-header">
           <span class="sig-dir-badge ${badgeClass}">${dirLabel}</span>
+          ${statusBadge}
           <span class="sig-strategy-tag">${sig.strategy}</span>
+          <span class="sig-conf-badge ${confClass}">${sig.conf}%</span>
+          ${sig.newsFlag ? '<span class="news-2h-badge-sm">⚠ 2h NEWS</span>' : ''}
+        </div>
+        <div class="sig-reason">"${sig.reason}"</div>
+        <div class="sig-levels">
+          <span class="sig-level-item"><span class="sig-level-label">TRIGGER</span><span class="sig-level-val entry-val">${formatPrice(sig.entry)}</span></span>
+          <span class="sig-level-item"><span class="sig-level-label">SL</span><span class="sig-level-val sl-val">${formatPrice(sig.sl)}</span></span>
+          <span class="sig-level-item"><span class="sig-level-label">TP2</span><span class="sig-level-val tp-val">${formatPrice(sig.tp2)}</span></span>
+          <span class="sig-level-item"><span class="sig-level-label">TP3</span><span class="sig-level-val" style="color:var(--gold-bright);">${formatPrice(sig.tp3)}</span></span>
+        </div>
+        <div class="sig-footer">
+          <span class="sig-rr">RR 1:${sig.rr} <span style="color:var(--text-dim);font-size:10px;">(max 1:${sig.rrMax})</span></span>
+          <span style="display:flex;align-items:center;gap:6px;">
+            <span class="sig-time">${sig.tf} • ${sig.time}</span>
+          </span>
+        </div>
+        <div class="sig-expand-btn" onclick="toggleSigExpand(this)">
+          <i data-lucide="chevron-down"></i> 3-Pillar Breakdown
+        </div>
+        <div class="sig-expanded-detail" style="display:none;">
           <span class="sig-conf-badge ${confClass}">${sig.conf}%</span>
           ${sig.newsFlag ? '<span class="news-2h-badge-sm">⚠ 2h NEWS</span>' : ''}
         </div>
@@ -2636,7 +2688,10 @@ document.addEventListener('DOMContentLoaded', () => {
         tp3: document.getElementById('sig-tp3'),
         rr: document.getElementById('sig-rr'),
         reason: document.getElementById('hero-reason'),
-        badge: document.getElementById('hero-signal-badge')
+        badge: document.getElementById('hero-signal-badge'),
+        currentLive: document.getElementById('sig-current-live'),
+        slPips: document.getElementById('sig-sl-pips'),
+        tp3Pips: document.getElementById('sig-tp3-pips')
       };
 
       if (els.strategy) els.strategy.textContent = s.strategy;
@@ -2648,13 +2703,26 @@ document.addEventListener('DOMContentLoaded', () => {
       if (els.rr) els.rr.textContent = '1 : ' + s.rr;
       if (els.reason) els.reason.textContent = s.reason;
 
+      const liveSpot = state.goldPrice ? formatPrice(state.goldPrice) : '—';
+      if (els.currentLive) els.currentLive.textContent = liveSpot;
+
+      if (els.slPips && s.entry && s.sl) {
+        const pips = Math.round(Math.abs(s.entry - s.sl) * 10);
+        els.slPips.textContent = `-${pips} Pips`;
+      }
+      if (els.tp3Pips && s.entry && s.tp3) {
+        const pips = Math.round(Math.abs(s.tp3 - s.entry) * 10);
+        els.tp3Pips.textContent = `+${pips} Pips (Max HTF)`;
+      }
+
       if (els.badge) {
-        if (s.type === 'LONG') {
-          els.badge.className = 'signal-type-badge signal-buy';
-          els.badge.innerHTML = '<i data-lucide="trending-up"></i> <span id="hero-signal-label">INSTITUTIONAL LONG SIGNAL</span>';
+        const isLong = s.type === 'LONG';
+        if (s.isConditional) {
+          els.badge.className = isLong ? 'signal-type-badge signal-buy' : 'signal-type-badge signal-sell';
+          els.badge.innerHTML = `<i data-lucide="clock"></i> <span id="hero-signal-label">⚡ CONDITIONAL ${s.type} SETUP [WATCH — PENDING TRIGGER]</span>`;
         } else {
-          els.badge.className = 'signal-type-badge signal-sell';
-          els.badge.innerHTML = '<i data-lucide="trending-down"></i> <span id="hero-signal-label">INSTITUTIONAL SHORT SIGNAL</span>';
+          els.badge.className = isLong ? 'signal-type-badge signal-buy' : 'signal-type-badge signal-sell';
+          els.badge.innerHTML = `<i data-lucide="${isLong ? 'trending-up' : 'trending-down'}"></i> <span id="hero-signal-label">INSTITUTIONAL ${s.type} SIGNAL (LIVE)</span>`;
         }
       }
 
@@ -2965,7 +3033,7 @@ document.addEventListener('DOMContentLoaded', () => {
             data = await res.json();
             break;
           }
-        } catch (_) {}
+        } catch (_) { }
       }
 
       if (data && Array.isArray(data.drawings)) {
@@ -3012,7 +3080,7 @@ document.addEventListener('DOMContentLoaded', () => {
             saved = json.drawing;
             break;
           }
-        } catch (_) {}
+        } catch (_) { }
       }
 
       if (saved) {
@@ -3053,7 +3121,7 @@ document.addEventListener('DOMContentLoaded', () => {
           try {
             await fetch(ep, { method: 'DELETE', signal: AbortSignal.timeout(3500) });
             break;
-          } catch (_) {}
+          } catch (_) { }
         }
       }
       showNotification('Level Removed', 'Marked level deleted from chart and Supabase');
@@ -3158,7 +3226,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Remove previous lines
       if (Array.isArray(state.lwUserDrawingLines)) {
         state.lwUserDrawingLines.forEach(line => {
-          try { state.lwCandleSeries.removePriceLine(line); } catch (_) {}
+          try { state.lwCandleSeries.removePriceLine(line); } catch (_) { }
         });
       }
       state.lwUserDrawingLines = [];

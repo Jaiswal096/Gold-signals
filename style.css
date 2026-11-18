@@ -3694,7 +3694,11 @@ body {
 }
 
 /* ── Touch Optimization ── */
-button, input, select, .nav-tab, .btn-tf {
+button,
+input,
+select,
+.nav-tab,
+.btn-tf {
   touch-action: manipulation;
 }
 
@@ -4013,4 +4017,3 @@ button, input, select, .nav-tab, .btn-tf {
     height: 280px;
   }
 }
-
