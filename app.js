@@ -152,6 +152,9 @@ document.addEventListener('DOMContentLoaded', () => {
     priceHistory: [],          // array of float prices from polling
     ohlcBuffer: [],
     ohlcHistory: [],           // full OHLCV candle series from backend (Yahoo GC=F / gold-history API)
+    userDrawings: [],          // array of user-marked levels from Supabase
+    lwUserDrawingLines: [],    // references to LW price lines for user drawings
+    detectedIpKey: null,       // auto-detected IP device key from Netlify function
 
     // Hero signal — deterministic based on verified price or static fallback
     signal: null,
@@ -307,6 +310,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initSignalEngine();
   initLiveDataFeed();
   initSupabaseSync();
+  initUserDrawingsUI();
 
   /* ========================================================================
      1. PERSISTENCE ENGINE
@@ -677,6 +681,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (state.lwCandleSeries) updateLWChartPrice(price);
+
+    // Update live price reference in drawing buttons & chip distances
+    const liveRefs = document.querySelectorAll('.live-price-ref');
+    liveRefs.forEach(el => el.textContent = formatted);
+    if (typeof updateDrawingsDistances === 'function') {
+      updateDrawingsDistances(price);
+    }
   }
 
   function updateStatus(status, source) {
@@ -685,10 +696,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const time = state.lastFetchTime ? state.lastFetchTime.toLocaleTimeString() : '';
     const map = {
       connecting: { text: 'CONNECTING TO DATA PROVIDER...', color: '#f5c242' },
-      live:        { text: `LIVE • ${source} • ${time}`, color: '#10b981' },
-      fallback:    { text: `FALLBACK • ${source} • ${time}`, color: '#f5c242' },
-      stale:       { text: `STALE • ${source} • Retrying...`, color: '#ef4444' },
-      disconnected:{ text: 'DISCONNECTED — Feed Unreachable', color: '#ef4444' },
+      live: { text: `LIVE • ${source} • ${time}`, color: '#10b981' },
+      fallback: { text: `FALLBACK • ${source} • ${time}`, color: '#f5c242' },
+      stale: { text: `STALE • ${source} • Retrying...`, color: '#ef4444' },
+      disconnected: { text: 'DISCONNECTED — Feed Unreachable', color: '#ef4444' },
       not_configured: { text: '⚠ DATA PROVIDER NOT CONFIGURED', color: '#ef4444' }
     };
     const entry = map[status] || map.disconnected;
@@ -764,7 +775,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Sync TradingView widget to the same timeframe
       if (window.updateTVInterval) {
-        try { window.updateTVInterval(tf); } catch (_) {}
+        try { window.updateTVInterval(tf); } catch (_) { }
       }
       // Update TV active-TF badge
       const tvBadge = document.getElementById('tv-active-tf');
@@ -919,7 +930,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let swingHighIdx = 0, swingLowIdx = 0;
     slice.forEach((c, i) => {
       if (c.high > swingHigh) { swingHigh = c.high; swingHighIdx = i; }
-      if (c.low < swingLow)  { swingLow = c.low;  swingLowIdx = i;  }
+      if (c.low < swingLow) { swingLow = c.low; swingLowIdx = i; }
     });
     return { swingHigh, swingLow, swingHighIdx, swingLowIdx };
   }
@@ -1048,8 +1059,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const slDist = parseFloat((atr * 1.5).toFixed(2));
     const entry = currentPrice;
-    const sl  = isLong ? parseFloat((entry - slDist).toFixed(2)) : parseFloat((entry + slDist).toFixed(2));
-    const tp1 = isLong ? parseFloat((entry + slDist * 2).toFixed(2))   : parseFloat((entry - slDist * 2).toFixed(2));
+    const sl = isLong ? parseFloat((entry - slDist).toFixed(2)) : parseFloat((entry + slDist).toFixed(2));
+    const tp1 = isLong ? parseFloat((entry + slDist * 2).toFixed(2)) : parseFloat((entry - slDist * 2).toFixed(2));
     const tp2 = isLong ? parseFloat((entry + slDist * 3.5).toFixed(2)) : parseFloat((entry - slDist * 3.5).toFixed(2));
     const tp3 = isLong ? parseFloat((entry + slDist * 6.0).toFixed(2)) : parseFloat((entry - slDist * 6.0).toFixed(2));
 
@@ -1133,8 +1144,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const slDist = parseFloat((atr * 1.5).toFixed(2));
     const isLong = dir === 'LONG';
     const entry = currentPrice;
-    const sl  = isLong ? parseFloat((entry - slDist).toFixed(2)) : parseFloat((entry + slDist).toFixed(2));
-    const tp1 = isLong ? parseFloat((entry + slDist * 2).toFixed(2))   : parseFloat((entry - slDist * 2).toFixed(2));
+    const sl = isLong ? parseFloat((entry - slDist).toFixed(2)) : parseFloat((entry + slDist).toFixed(2));
+    const tp1 = isLong ? parseFloat((entry + slDist * 2).toFixed(2)) : parseFloat((entry - slDist * 2).toFixed(2));
     const tp2 = isLong ? parseFloat((entry + slDist * 3.5).toFixed(2)) : parseFloat((entry - slDist * 3.5).toFixed(2));
     const tp3 = isLong ? parseFloat((entry + slDist * 6.0).toFixed(2)) : parseFloat((entry - slDist * 6.0).toFixed(2));
 
@@ -1353,7 +1364,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.lucide) window.lucide.createIcons();
   }
 
-  window.toggleSigExpand = function(btn) {
+  window.toggleSigExpand = function (btn) {
     try {
       const detail = btn.nextElementSibling;
       const icon = btn.querySelector('i');
@@ -1436,14 +1447,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const now = timeToSeconds(h, m, s);
 
       const sessions = {
-        asia:   { start: 0,     end: 28800 },
+        asia: { start: 0, end: 28800 },
         london: { start: 28800, end: 39600 },
-        ny:     { start: 46800, end: 57600 }
+        ny: { start: 46800, end: 57600 }
       };
 
-      const londEl   = document.getElementById('kz-london');
-      const nyEl     = document.getElementById('kz-ny');
-      const londonChip  = document.getElementById('kz-london-chip');
+      const londEl = document.getElementById('kz-london');
+      const nyEl = document.getElementById('kz-ny');
+      const londonChip = document.getElementById('kz-london-chip');
       const londonCount = document.getElementById('kz-london-countdown');
       const londonLabel = document.getElementById('kz-london-label');
 
@@ -1466,7 +1477,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (londEl) londEl.classList.remove('kz-active');
       }
 
-      const nyChip  = document.getElementById('kz-ny-chip');
+      const nyChip = document.getElementById('kz-ny-chip');
       const nyCount = document.getElementById('kz-ny-countdown');
       const nyLabel = document.getElementById('kz-ny-label');
 
@@ -1598,7 +1609,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function updateSilverBulletTicker(h, m) {
     const sb = getSBStatus(h, m);
     const sbStatusEl = document.getElementById('ticker-sb-status');
-    const sbCountEl  = document.getElementById('ticker-sb-countdown');
+    const sbCountEl = document.getElementById('ticker-sb-countdown');
     if (!sbStatusEl) return;
 
     if (sb.active) {
@@ -1711,23 +1722,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function updateNewsWidget(event) {
     try {
-      const nameEl  = document.getElementById('news-next-event-name');
-      const timeEl  = document.getElementById('news-next-event-time');
-      const volEl   = document.getElementById('news-vol');
-      const biasEl  = document.getElementById('news-bias');
-      const inflEl  = document.getElementById('news-influence');
+      const nameEl = document.getElementById('news-next-event-name');
+      const timeEl = document.getElementById('news-next-event-time');
+      const volEl = document.getElementById('news-vol');
+      const biasEl = document.getElementById('news-bias');
+      const inflEl = document.getElementById('news-influence');
       const meterEl = document.getElementById('news-meter-fill');
-      const confEl  = document.getElementById('news-conf-chip');
-      const histEl  = document.getElementById('news-hist-conf');
+      const confEl = document.getElementById('news-conf-chip');
+      const histEl = document.getElementById('news-hist-conf');
 
-      if (nameEl)  nameEl.textContent  = event.name;
-      if (timeEl)  timeEl.textContent  = `In ${event.hoursUntil.toFixed(1)}h • ${event.time.split(' ')[1]} UTC`;
-      if (volEl)   volEl.textContent   = `${event.volPips} pips`;
-      if (biasEl)  biasEl.textContent  = event.bias;
-      if (inflEl)  inflEl.textContent  = `${event.impactPct}%`;
+      if (nameEl) nameEl.textContent = event.name;
+      if (timeEl) timeEl.textContent = `In ${event.hoursUntil.toFixed(1)}h • ${event.time.split(' ')[1]} UTC`;
+      if (volEl) volEl.textContent = `${event.volPips} pips`;
+      if (biasEl) biasEl.textContent = event.bias;
+      if (inflEl) inflEl.textContent = `${event.impactPct}%`;
       if (meterEl) meterEl.style.width = `${event.impactPct}%`;
-      if (confEl)  { confEl.textContent = `${event.conf} IMPACT`; confEl.className = `news-confidence-chip ${event.confClass}`; }
-      if (histEl)  histEl.textContent  = event.histConf || '—';
+      if (confEl) { confEl.textContent = `${event.conf} IMPACT`; confEl.className = `news-confidence-chip ${event.confClass}`; }
+      if (histEl) histEl.textContent = event.histConf || '—';
     } catch (err) {
       console.error('[MANUS MAX]', 'updateNewsWidget error', err);
       showError('updateNewsWidget', err.message);
@@ -1739,14 +1750,14 @@ document.addEventListener('DOMContentLoaded', () => {
      ======================================================================== */
   function updateConfidenceDynamically() {
     try {
-      const gauge    = document.getElementById('gauge-circle');
-      const scoreEl  = document.getElementById('gauge-score-num');
-      const instEl   = document.getElementById('conf-val-inst');
-      const macroEl  = document.getElementById('conf-val-macro');
-      const techEl   = document.getElementById('conf-val-tech');
-      const barInst  = document.getElementById('conf-bar-inst');
+      const gauge = document.getElementById('gauge-circle');
+      const scoreEl = document.getElementById('gauge-score-num');
+      const instEl = document.getElementById('conf-val-inst');
+      const macroEl = document.getElementById('conf-val-macro');
+      const techEl = document.getElementById('conf-val-tech');
+      const barInst = document.getElementById('conf-bar-inst');
       const barMacro = document.getElementById('conf-bar-macro');
-      const barTech  = document.getElementById('conf-bar-tech');
+      const barTech = document.getElementById('conf-bar-tech');
 
       if (!state.signal) {
         if (scoreEl) scoreEl.textContent = '—';
@@ -1757,14 +1768,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const total = Math.min(98, Math.round(inst * 0.50 + macro * 0.30 + tech * 0.20));
 
       if (scoreEl) scoreEl.textContent = `${total}%`;
-      if (instEl)  instEl.textContent  = `${inst}%`;
+      if (instEl) instEl.textContent = `${inst}%`;
       if (macroEl) macroEl.textContent = `${macro}%`;
-      if (techEl)  techEl.textContent  = `${tech}%`;
+      if (techEl) techEl.textContent = `${tech}%`;
 
       const totalContrib = inst * 0.50 + macro * 0.30 + tech * 0.20;
-      if (barInst)  barInst.style.width  = `${(inst  * 0.50 / (totalContrib || 1)) * 92}%`;
+      if (barInst) barInst.style.width = `${(inst * 0.50 / (totalContrib || 1)) * 92}%`;
       if (barMacro) barMacro.style.width = `${(macro * 0.30 / (totalContrib || 1)) * 92}%`;
-      if (barTech)  barTech.style.width  = `${(tech  * 0.20 / (totalContrib || 1)) * 92}%`;
+      if (barTech) barTech.style.width = `${(tech * 0.20 / (totalContrib || 1)) * 92}%`;
 
       if (gauge) gauge.style.strokeDashoffset = (314 * (1 - total / 100)).toFixed(1);
     } catch (err) {
@@ -1865,7 +1876,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  window.showTradeDetail = function(id) {
+  window.showTradeDetail = function (id) {
     try {
       const row = document.getElementById(`detail-${id}`);
       if (row) {
@@ -1953,12 +1964,12 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       const candleSeries = chart.addCandlestickSeries({
-        upColor:         '#10b981',
-        downColor:       '#ef4444',
-        borderUpColor:   '#10b981',
+        upColor: '#10b981',
+        downColor: '#ef4444',
+        borderUpColor: '#10b981',
         borderDownColor: '#ef4444',
-        wickUpColor:     '#10b981',
-        wickDownColor:   '#ef4444',
+        wickUpColor: '#10b981',
+        wickDownColor: '#ef4444',
       });
 
       state.lwChart = chart;
@@ -1967,7 +1978,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const resizeObs = new ResizeObserver(() => {
         try {
           chart.applyOptions({
-            width:  container.clientWidth,
+            width: container.clientWidth,
             height: container.clientHeight,
           });
         } catch (err) {
@@ -2024,6 +2035,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state.signal && state.goldPrice) {
           drawSMCOverlays(state.lwChart, state.lwCandleSeries, state.goldPrice);
         }
+        renderUserDrawingsOnChart();
       } else {
         hideChartLoadingState();
       }
@@ -2072,8 +2084,8 @@ document.addEventListener('DOMContentLoaded', () => {
         lwCurrentMinute = barTime;
         lwCurrentBar = { time: barTime, open: price, high: price, low: price, close: price };
       } else if (lwCurrentBar) {
-        lwCurrentBar.high  = Math.max(lwCurrentBar.high, price);
-        lwCurrentBar.low   = Math.min(lwCurrentBar.low, price);
+        lwCurrentBar.high = Math.max(lwCurrentBar.high, price);
+        lwCurrentBar.low = Math.min(lwCurrentBar.low, price);
         lwCurrentBar.close = price;
       }
 
@@ -2097,7 +2109,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       if (!state.lwChart || !state.lwCandleSeries) return;
       lwCurrentMinute = null;
-      lwCurrentBar    = null;
+      lwCurrentBar = null;
 
       if (state.goldPrice && state.priceHistory.length > 0) {
         const barInterval = getBarIntervalSeconds(state.timeframe);
@@ -2110,8 +2122,8 @@ document.addEventListener('DOMContentLoaded', () => {
           const barTime = Math.floor((now - ageSeconds) / barInterval) * barInterval;
           const existing = bars.find(b => b.time === barTime);
           if (existing) {
-            existing.high  = Math.max(existing.high, price);
-            existing.low   = Math.min(existing.low, price);
+            existing.high = Math.max(existing.high, price);
+            existing.low = Math.min(existing.low, price);
             existing.close = price;
           } else {
             bars.push({ time: barTime, open: price, high: price, low: price, close: price });
@@ -2124,6 +2136,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state.signal) {
           drawSMCOverlays(state.lwChart, state.lwCandleSeries, state.goldPrice);
         }
+        renderUserDrawingsOnChart();
         state.lwChart.timeScale().fitContent();
       }
     } catch (err) {
@@ -2139,7 +2152,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const keys = ['entryLine', 'slLine', 'tp1Line', 'tp2Line', 'tp3Line', 'obLine', 'fvgLine', 'liqLine', 'chochLine'];
       keys.forEach(k => {
         if (state.lwSeries[k]) {
-          try { series.removePriceLine(state.lwSeries[k]); } catch (_) {}
+          try { series.removePriceLine(state.lwSeries[k]); } catch (_) { }
           state.lwSeries[k] = null;
         }
       });
@@ -2208,19 +2221,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const choch = detectCHoCH(candles, sig.type);
 
         // Liquidity level = relevant swing high/low
-        liqPrice   = isLong ? parseFloat(swingLow.toFixed(2))  : parseFloat(swingHigh.toFixed(2));
+        liqPrice = isLong ? parseFloat(swingLow.toFixed(2)) : parseFloat(swingHigh.toFixed(2));
         // CHoCH level
         chochPrice = choch.breakLevel || (isLong ? parseFloat((currentPrice * 0.992).toFixed(2)) : parseFloat((currentPrice * 1.008).toFixed(2)));
         // Order Block
-        obPrice    = ob ? (isLong ? parseFloat(ob.obLow.toFixed(2)) : parseFloat(ob.obHigh.toFixed(2)))
-                        : parseFloat((currentPrice * (isLong ? 0.997 : 1.003)).toFixed(2));
+        obPrice = ob ? (isLong ? parseFloat(ob.obLow.toFixed(2)) : parseFloat(ob.obHigh.toFixed(2)))
+          : parseFloat((currentPrice * (isLong ? 0.997 : 1.003)).toFixed(2));
         // FVG
-        fvgPrice   = fvgLevel !== null ? fvgLevel : parseFloat((currentPrice * (isLong ? 0.9985 : 1.0015)).toFixed(2));
+        fvgPrice = fvgLevel !== null ? fvgLevel : parseFloat((currentPrice * (isLong ? 0.9985 : 1.0015)).toFixed(2));
       } else {
         // Fallback: percentage offsets when no candle data
-        obPrice    = parseFloat((currentPrice * (isLong ? 0.997 : 1.003)).toFixed(2));
-        fvgPrice   = parseFloat((currentPrice * (isLong ? 0.9985 : 1.0015)).toFixed(2));
-        liqPrice   = parseFloat((currentPrice * (isLong ? 0.995 : 1.005)).toFixed(2));
+        obPrice = parseFloat((currentPrice * (isLong ? 0.997 : 1.003)).toFixed(2));
+        fvgPrice = parseFloat((currentPrice * (isLong ? 0.9985 : 1.0015)).toFixed(2));
+        liqPrice = parseFloat((currentPrice * (isLong ? 0.995 : 1.005)).toFixed(2));
         chochPrice = parseFloat((currentPrice * (isLong ? 0.992 : 1.008)).toFixed(2));
       }
 
@@ -2272,21 +2285,21 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const inputs = {
         realYield: document.getElementById('sim-input-realyield'),
-        dxy:       document.getElementById('sim-input-dxy'),
-        ema:       document.getElementById('sim-input-ema'),
-        bb:        document.getElementById('sim-input-bb'),
-        smc:       document.getElementById('sim-input-smc'),
-        gpr:       document.getElementById('sim-input-gpr')
+        dxy: document.getElementById('sim-input-dxy'),
+        ema: document.getElementById('sim-input-ema'),
+        bb: document.getElementById('sim-input-bb'),
+        smc: document.getElementById('sim-input-smc'),
+        gpr: document.getElementById('sim-input-gpr')
       };
       if (!inputs.realYield) return;
 
       const vals = {
         realYield: document.getElementById('sim-val-realyield'),
-        dxy:       document.getElementById('sim-val-dxy'),
-        ema:       document.getElementById('sim-val-ema'),
-        bb:        document.getElementById('sim-val-bb'),
-        smc:       document.getElementById('sim-val-smc'),
-        gpr:       document.getElementById('sim-val-gpr')
+        dxy: document.getElementById('sim-val-dxy'),
+        ema: document.getElementById('sim-val-ema'),
+        bb: document.getElementById('sim-val-bb'),
+        smc: document.getElementById('sim-val-smc'),
+        gpr: document.getElementById('sim-val-gpr')
       };
 
       function calc() {
@@ -2318,22 +2331,22 @@ document.addEventListener('DOMContentLoaded', () => {
         if (vals.bb) vals.bb.textContent = { breakout_up: 'Squeeze + Upper Break', squeeze: 'Squeeze Phase', breakout_down: 'Squeeze + Lower Break', normal: 'Normal Vol' }[bbVal];
         if (bbVal === 'breakout_up') techScore += 18; else if (bbVal === 'squeeze') techScore += 8; else if (bbVal === 'breakout_down') techScore -= 18;
 
-        const instC  = Math.min(98, Math.max(20, instScore));
+        const instC = Math.min(98, Math.max(20, instScore));
         const macroC = Math.min(98, Math.max(20, macroScore));
-        const techC  = Math.min(98, Math.max(20, techScore));
-        const total  = Math.min(98, Math.max(15, Math.round(instC * 0.50 + macroC * 0.30 + techC * 0.20)));
+        const techC = Math.min(98, Math.max(20, techScore));
+        const total = Math.min(98, Math.max(15, Math.round(instC * 0.50 + macroC * 0.30 + techC * 0.20)));
 
         const scoreEl = document.getElementById('sim-result-score');
         const badgeEl = document.getElementById('sim-result-badge');
-        const textEl  = document.getElementById('sim-result-text');
+        const textEl = document.getElementById('sim-result-text');
 
         if (scoreEl) scoreEl.textContent = `${total}%`;
 
         if (state.signal && document.getElementById('tab-engine')?.classList.contains('active')) {
           state.signal.confidence = total;
-          state.signal.confInst   = instC;
-          state.signal.confMacro  = macroC;
-          state.signal.confTech   = techC;
+          state.signal.confInst = instC;
+          state.signal.confMacro = macroC;
+          state.signal.confTech = techC;
           updateConfidenceDynamically();
         }
 
@@ -2373,44 +2386,44 @@ document.addEventListener('DOMContentLoaded', () => {
   function initCalculator() {
     try {
       const fields = {
-        balance:   document.getElementById('calc-balance'),
-        riskPct:   document.getElementById('calc-risk-pct'),
-        entry:     document.getElementById('calc-entry'),
-        sl:        document.getElementById('calc-sl'),
-        rrTarget:  document.getElementById('calc-rr-target')
+        balance: document.getElementById('calc-balance'),
+        riskPct: document.getElementById('calc-risk-pct'),
+        entry: document.getElementById('calc-entry'),
+        sl: document.getElementById('calc-sl'),
+        rrTarget: document.getElementById('calc-rr-target')
       };
       const outs = {
         riskAmount: document.getElementById('calc-risk-amount'),
-        lots:       document.getElementById('out-lots'),
-        pips:       document.getElementById('out-pips'),
-        tp1:        document.getElementById('out-tp1'),
-        tp2:        document.getElementById('out-tp2'),
-        tp3:        document.getElementById('out-tp3')
+        lots: document.getElementById('out-lots'),
+        pips: document.getElementById('out-pips'),
+        tp1: document.getElementById('out-tp1'),
+        tp2: document.getElementById('out-tp2'),
+        tp3: document.getElementById('out-tp3')
       };
       if (!fields.balance) return;
 
       function calc() {
-        const balance   = parseFloat(fields.balance.value)   || 10000;
-        const riskPct   = parseFloat(fields.riskPct.value)   || 1.0;
-        const entry     = parseFloat(fields.entry.value)     || (state.goldPrice || 4055.00);
-        const sl        = parseFloat(fields.sl.value)        || (state.goldPrice ? state.goldPrice - 11.5 : 4043.50);
-        const rrTarget  = parseInt(fields.rrTarget ? fields.rrTarget.value : '4') || 4;
+        const balance = parseFloat(fields.balance.value) || 10000;
+        const riskPct = parseFloat(fields.riskPct.value) || 1.0;
+        const entry = parseFloat(fields.entry.value) || (state.goldPrice || 4055.00);
+        const sl = parseFloat(fields.sl.value) || (state.goldPrice ? state.goldPrice - 11.5 : 4043.50);
+        const rrTarget = parseInt(fields.rrTarget ? fields.rrTarget.value : '4') || 4;
 
         const riskAmount = balance * (riskPct / 100);
-        const priceDist  = Math.abs(entry - sl);
-        const pipsDist   = priceDist * 10;
-        const lotSize    = priceDist > 0 ? riskAmount / (priceDist * 100) : 0;
-        const isBuy      = entry > sl;
-        const tp1Price   = isBuy ? entry + priceDist * 2 : entry - priceDist * 2;
-        const tp2Price   = isBuy ? entry + priceDist * rrTarget : entry - priceDist * rrTarget;
-        const tp3RR      = Math.min(10, rrTarget * 2);
-        const tp3Price   = isBuy ? entry + priceDist * tp3RR : entry - priceDist * tp3RR;
+        const priceDist = Math.abs(entry - sl);
+        const pipsDist = priceDist * 10;
+        const lotSize = priceDist > 0 ? riskAmount / (priceDist * 100) : 0;
+        const isBuy = entry > sl;
+        const tp1Price = isBuy ? entry + priceDist * 2 : entry - priceDist * 2;
+        const tp2Price = isBuy ? entry + priceDist * rrTarget : entry - priceDist * rrTarget;
+        const tp3RR = Math.min(10, rrTarget * 2);
+        const tp3Price = isBuy ? entry + priceDist * tp3RR : entry - priceDist * tp3RR;
 
         if (outs.riskAmount) outs.riskAmount.textContent = `$${riskAmount.toFixed(2)}`;
-        if (outs.lots)       outs.lots.textContent       = `${lotSize.toFixed(2)} Lots`;
-        if (outs.pips)       outs.pips.textContent       = `${pipsDist.toFixed(1)} Pips`;
-        if (outs.tp1)        outs.tp1.textContent        = formatPrice(tp1Price);
-        if (outs.tp2)        outs.tp2.textContent        = formatPrice(tp2Price);
+        if (outs.lots) outs.lots.textContent = `${lotSize.toFixed(2)} Lots`;
+        if (outs.pips) outs.pips.textContent = `${pipsDist.toFixed(1)} Pips`;
+        if (outs.tp1) outs.tp1.textContent = formatPrice(tp1Price);
+        if (outs.tp2) outs.tp2.textContent = formatPrice(tp2Price);
         if (outs.tp3) {
           outs.tp3.textContent = formatPrice(tp3Price);
           const tp3Label = document.querySelector('#out-tp3 + .sub') || outs.tp3.parentElement?.querySelector('.sub');
@@ -2616,24 +2629,24 @@ document.addEventListener('DOMContentLoaded', () => {
       const s = state.signal;
       const els = {
         strategy: document.getElementById('hero-strategy'),
-        entry:    document.getElementById('sig-entry'),
-        sl:       document.getElementById('sig-sl'),
-        tp1:      document.getElementById('sig-tp1'),
-        tp2:      document.getElementById('sig-tp2'),
-        tp3:      document.getElementById('sig-tp3'),
-        rr:       document.getElementById('sig-rr'),
-        reason:   document.getElementById('hero-reason'),
-        badge:    document.getElementById('hero-signal-badge')
+        entry: document.getElementById('sig-entry'),
+        sl: document.getElementById('sig-sl'),
+        tp1: document.getElementById('sig-tp1'),
+        tp2: document.getElementById('sig-tp2'),
+        tp3: document.getElementById('sig-tp3'),
+        rr: document.getElementById('sig-rr'),
+        reason: document.getElementById('hero-reason'),
+        badge: document.getElementById('hero-signal-badge')
       };
 
       if (els.strategy) els.strategy.textContent = s.strategy;
-      if (els.entry)    els.entry.textContent    = formatPrice(s.entry);
-      if (els.sl)       els.sl.textContent       = formatPrice(s.sl);
-      if (els.tp1)      els.tp1.textContent      = formatPrice(s.tp1);
-      if (els.tp2)      els.tp2.textContent      = formatPrice(s.tp2);
-      if (els.tp3 && s.tp3) els.tp3.textContent  = formatPrice(s.tp3);
-      if (els.rr)       els.rr.textContent       = '1 : ' + s.rr;
-      if (els.reason)   els.reason.textContent   = s.reason;
+      if (els.entry) els.entry.textContent = formatPrice(s.entry);
+      if (els.sl) els.sl.textContent = formatPrice(s.sl);
+      if (els.tp1) els.tp1.textContent = formatPrice(s.tp1);
+      if (els.tp2) els.tp2.textContent = formatPrice(s.tp2);
+      if (els.tp3 && s.tp3) els.tp3.textContent = formatPrice(s.tp3);
+      if (els.rr) els.rr.textContent = '1 : ' + s.rr;
+      if (els.reason) els.reason.textContent = s.reason;
 
       if (els.badge) {
         if (s.type === 'LONG') {
@@ -2863,29 +2876,326 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  /* ========================================================================
+     USER MARKED LEVELS & DRAWINGS (Supabase 48h Sync via Device IP)
+     ======================================================================== */
+
+  function initUserDrawingsUI() {
+    const btnSupport = document.getElementById('btn-quick-support');
+    const btnResistance = document.getElementById('btn-quick-resistance');
+    const btnSave = document.getElementById('btn-save-level');
+    const inputPrice = document.getElementById('input-draw-price');
+    const selectType = document.getElementById('select-draw-type');
+    const inputLabel = document.getElementById('input-draw-label');
+
+    if (btnSupport) {
+      btnSupport.addEventListener('click', () => {
+        const p = state.goldPrice || 3785.00;
+        saveUserDrawing({
+          price: p,
+          type: 'support',
+          label: 'Support Level',
+          color: '#10b981'
+        });
+      });
+    }
+
+    if (btnResistance) {
+      btnResistance.addEventListener('click', () => {
+        const p = state.goldPrice || 3785.00;
+        saveUserDrawing({
+          price: p,
+          type: 'resistance',
+          label: 'Resistance Level',
+          color: '#ef4444'
+        });
+      });
+    }
+
+    if (btnSave && inputPrice && selectType) {
+      const handleCustomSave = () => {
+        const rawP = parseFloat(inputPrice.value);
+        if (isNaN(rawP) || rawP <= 0) {
+          showNotification('Invalid Price', 'Please enter a valid price for the level.');
+          return;
+        }
+        const type = selectType.value || 'level';
+        const label = (inputLabel ? inputLabel.value.trim() : '') || `${type.replace('_', ' ').toUpperCase()} Zone`;
+        const colorMap = {
+          support: '#10b981',
+          resistance: '#ef4444',
+          order_block: '#8b5cf6',
+          fvg: '#06b6d4',
+          target: '#ffd700',
+          key_level: '#f5c242'
+        };
+        saveUserDrawing({
+          price: rawP,
+          type: type,
+          label: label,
+          color: colorMap[type] || '#f5c242'
+        });
+        inputPrice.value = '';
+        if (inputLabel) inputLabel.value = '';
+      };
+
+      btnSave.addEventListener('click', handleCustomSave);
+      inputPrice.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') handleCustomSave();
+      });
+      if (inputLabel) {
+        inputLabel.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') handleCustomSave();
+        });
+      }
+    }
+  }
+
   async function loadDrawingsFromSupabase() {
     try {
-      const deviceKey = state.persistKey || 'default-device';
-      let drawings = null;
       const endpoints = [
-        `/.netlify/functions/drawings?device_key=${encodeURIComponent(deviceKey)}`,
-        `/api/drawings?device_key=${encodeURIComponent(deviceKey)}`,
+        '/.netlify/functions/drawings',
+        '/api/drawings'
       ];
+      let data = null;
       for (const endpoint of endpoints) {
         try {
-          const res = await fetch(endpoint, { signal: AbortSignal.timeout(3500) });
+          const res = await fetch(endpoint, { signal: AbortSignal.timeout(4500) });
           if (res.ok) {
-            drawings = await res.json();
+            data = await res.json();
             break;
           }
-        } catch (e) { /* try next */ }
+        } catch (_) {}
       }
 
-      if (Array.isArray(drawings) && drawings.length > 0) {
-        console.log(`[MANUS MAX] Loaded ${drawings.length} drawings from backend.`);
+      if (data && Array.isArray(data.drawings)) {
+        state.userDrawings = data.drawings;
+        if (data.device_key) {
+          state.detectedIpKey = data.device_key;
+          const badge = document.getElementById('drawings-ip-badge');
+          if (badge) {
+            badge.textContent = `Auto-detected Device (${data.device_key.slice(0, 10)}...) • 48h Retention`;
+            badge.title = `Device identified via IP hash: ${data.device_key}`;
+          }
+        }
+        renderUserDrawingsList();
+        renderUserDrawingsOnChart();
+        console.log(`[MANUS MAX] Loaded ${data.drawings.length} user marked levels from Supabase (48h window).`);
       }
     } catch (err) {
       console.error('[MANUS MAX]', 'loadDrawingsFromSupabase error', err);
+    }
+  }
+
+  async function saveUserDrawing(levelData) {
+    try {
+      showNotification('Saving Level...', `Saving ${levelData.type} at $${levelData.price.toFixed(2)}`);
+      const endpoints = ['/.netlify/functions/drawings', '/api/drawings'];
+      let saved = null;
+
+      for (const ep of endpoints) {
+        try {
+          const res = await fetch(ep, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              price_from: levelData.price,
+              drawing_type: levelData.type,
+              label: levelData.label,
+              color: levelData.color,
+              timeframe: state.timeframe
+            }),
+            signal: AbortSignal.timeout(4500)
+          });
+          if (res.ok) {
+            const json = await res.json();
+            saved = json.drawing;
+            break;
+          }
+        } catch (_) {}
+      }
+
+      if (saved) {
+        state.userDrawings.unshift(saved);
+        renderUserDrawingsList();
+        renderUserDrawingsOnChart();
+        showNotification('Level Marked & Saved', `${levelData.type.toUpperCase()} at $${levelData.price.toFixed(2)} (Synced via Device IP)`);
+      } else {
+        // Fallback local save if network fails
+        const localDrawing = {
+          id: 'local_' + Date.now(),
+          price_from: levelData.price,
+          drawing_type: levelData.type,
+          label: levelData.label,
+          color: levelData.color,
+          created_at: new Date().toISOString()
+        };
+        state.userDrawings.unshift(localDrawing);
+        renderUserDrawingsList();
+        renderUserDrawingsOnChart();
+        showNotification('Level Marked (Offline)', `$${levelData.price.toFixed(2)} cached locally`);
+      }
+    } catch (err) {
+      console.error('[MANUS MAX]', 'saveUserDrawing error', err);
+      showError('saveUserDrawing', err.message);
+    }
+  }
+
+  async function deleteUserDrawing(id) {
+    try {
+      state.userDrawings = state.userDrawings.filter(d => d.id !== id);
+      renderUserDrawingsList();
+      renderUserDrawingsOnChart();
+
+      if (!String(id).startsWith('local_')) {
+        const endpoints = [`/.netlify/functions/drawings?id=${encodeURIComponent(id)}`, `/api/drawings?id=${encodeURIComponent(id)}`];
+        for (const ep of endpoints) {
+          try {
+            await fetch(ep, { method: 'DELETE', signal: AbortSignal.timeout(3500) });
+            break;
+          } catch (_) {}
+        }
+      }
+      showNotification('Level Removed', 'Marked level deleted from chart and Supabase');
+    } catch (err) {
+      console.error('[MANUS MAX]', 'deleteUserDrawing error', err);
+    }
+  }
+
+  function renderUserDrawingsList() {
+    const container = document.getElementById('marked-levels-list');
+    if (!container) return;
+
+    if (!state.userDrawings || state.userDrawings.length === 0) {
+      container.innerHTML = `
+        <div class="empty-levels-msg" style="color:var(--text-dim);font-size:11px;padding:8px 0;">
+          No custom levels marked in the last 48 hours. Add a level above or click "+ Support / Resistance" to persist it to your device IP.
+        </div>
+      `;
+      return;
+    }
+
+    const curP = state.goldPrice;
+    let html = '';
+
+    state.userDrawings.forEach(d => {
+      const p = Number(d.price_from || d.price || 0);
+      const type = (d.drawing_type || 'level').toLowerCase();
+      const label = d.label || `${type.toUpperCase()}`;
+      let distStr = '';
+      if (curP) {
+        const diff = p - curP;
+        const sign = diff >= 0 ? '+' : '';
+        distStr = `(${sign}${diff.toFixed(1)} pts)`;
+      }
+
+      // Format time age
+      let ageStr = '';
+      if (d.created_at) {
+        const diffMs = Date.now() - new Date(d.created_at).getTime();
+        const mins = Math.floor(diffMs / 60000);
+        if (mins < 60) ageStr = `${mins}m ago`;
+        else {
+          const hours = Math.floor(mins / 60);
+          if (hours < 24) ageStr = `${hours}h ago`;
+          else ageStr = `${Math.floor(hours / 24)}d ago`;
+        }
+      }
+
+      const typeDisplay = {
+        support: 'SUPP',
+        resistance: 'RES',
+        order_block: 'OB',
+        fvg: 'FVG',
+        target: 'TARGET',
+        key_level: 'KEY'
+      }[type] || type.toUpperCase();
+
+      html += `
+        <div class="level-chip ${type}" id="chip-level-${d.id}">
+          <span class="level-chip-type">${typeDisplay}</span>
+          <span class="level-chip-price">$${formatPrice(p).replace('$', '')}</span>
+          ${distStr ? `<span class="level-chip-dist">${distStr}</span>` : ''}
+          ${label ? `<span class="level-chip-label">${label}</span>` : ''}
+          ${ageStr ? `<span style="font-size:9px;color:rgba(255,255,255,0.4);">${ageStr}</span>` : ''}
+          <span class="level-chip-del" data-del-id="${d.id}" title="Delete Level">✕</span>
+        </div>
+      `;
+    });
+
+    container.innerHTML = html;
+
+    // Attach delete listeners
+    const delBtns = container.querySelectorAll('.level-chip-del');
+    delBtns.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.getAttribute('data-del-id');
+        if (id) deleteUserDrawing(id);
+      });
+    });
+  }
+
+  function updateDrawingsDistances(currentPrice) {
+    if (!state.userDrawings || state.userDrawings.length === 0) return;
+    state.userDrawings.forEach(d => {
+      const chip = document.getElementById(`chip-level-${d.id}`);
+      if (chip) {
+        const distEl = chip.querySelector('.level-chip-dist');
+        const p = Number(d.price_from || d.price || 0);
+        const diff = p - currentPrice;
+        const sign = diff >= 0 ? '+' : '';
+        if (distEl) {
+          distEl.textContent = `(${sign}${diff.toFixed(1)} pts)`;
+        }
+      }
+    });
+  }
+
+  function renderUserDrawingsOnChart() {
+    if (!state.lwCandleSeries || !window.LightweightCharts) return;
+    try {
+      // Remove previous lines
+      if (Array.isArray(state.lwUserDrawingLines)) {
+        state.lwUserDrawingLines.forEach(line => {
+          try { state.lwCandleSeries.removePriceLine(line); } catch (_) {}
+        });
+      }
+      state.lwUserDrawingLines = [];
+
+      if (!state.userDrawings || state.userDrawings.length === 0) return;
+
+      const styleMap = {
+        support: window.LightweightCharts.LineStyle.Dashed,
+        resistance: window.LightweightCharts.LineStyle.Dashed,
+        order_block: window.LightweightCharts.LineStyle.Solid,
+        fvg: window.LightweightCharts.LineStyle.Dotted,
+        target: window.LightweightCharts.LineStyle.LargeDashed,
+        key_level: window.LightweightCharts.LineStyle.Solid
+      };
+
+      state.userDrawings.forEach(d => {
+        const p = Number(d.price_from || d.price);
+        if (!p || isNaN(p)) return;
+
+        const type = (d.drawing_type || 'level').toLowerCase();
+        const color = d.color || '#f5c242';
+        const lineStyle = styleMap[type] || window.LightweightCharts.LineStyle.Dashed;
+        const titleText = `[User ${type.toUpperCase()}] ${formatPrice(p)} ${d.label ? `(${d.label})` : ''}`;
+
+        const priceLine = state.lwCandleSeries.createPriceLine({
+          price: p,
+          color: color,
+          lineWidth: 1.5,
+          lineStyle: lineStyle,
+          axisLabelVisible: true,
+          title: titleText
+        });
+
+        state.lwUserDrawingLines.push(priceLine);
+      });
+    } catch (err) {
+      console.warn('[MANUS MAX] renderUserDrawingsOnChart error', err);
     }
   }
 

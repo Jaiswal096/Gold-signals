@@ -93,6 +93,18 @@ All changes are listed under the single repair milestone. This project did not h
 
 ---
 
+## [1.4.0] — 2026-11-18 — Persistent Chart Drawings & Marked Levels (IP Auto-Detection • 48h Window)
+
+### Added
+- **User Marked Levels & Drawings Panel** — Integrated an interactive toolbar directly beneath the TradingView live chart card allowing users to quickly mark Support, Resistance, Order Blocks, FVGs, Targets, or Key Levels at custom or live market prices.
+- **Privacy-Preserving IP Auto-Detection** — Serverless function `/.netlify/functions/drawings` automatically resolves the user's IP address into a salted SHA-256 device key (`ip_<hash>`). Users don't need to log in or configure accounts; their marked levels are automatically recognized by their device IP.
+- **48-Hour Historical Retention Window** — Queries Supabase `chart_drawings` filtering for records within the last 2 days (`created_at >= NOW() - 48 hours`). When returning to the site, all levels marked over the last 48 hours are automatically restored.
+- **Lightweight Charts Visual Price Lines** — All user-marked levels from Supabase are rendered directly on the primary interactive chart as labeled, color-coded price lines (Support in emerald dashed, Resistance in ruby dashed, Order Blocks in purple, FVGs in cyan, Targets in gold).
+- **Dynamic Distance Tracking & Deletion** — Each marked level tag displays real-time point/pip distance from the current gold tick (e.g. `+4.2 pts`), age (`2h ago`), and offers one-click deletion from Supabase.
+- **Offline / Local Fallback** — Automatic client caching if offline or if backend is unreachable.
+
+---
+
 ### Architecture Notes
 
 The repair follows an in-place fix strategy — the single-page app structure, five-tab layout, Vite build, and existing CSS design language are preserved. Only the data layer, signal logic, and missing UI handlers were changed. No external framework was introduced.

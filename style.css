@@ -1779,6 +1779,182 @@ input[type="range"] {
   }
 }
 
+/* ==========================================================================
+   MARKED LEVELS & DRAWINGS STYLES (Supabase 48h Auto-Sync)
+   ========================================================================== */
+
+.marked-levels-panel {
+  padding: 14px 18px;
+  background: rgba(10, 15, 26, 0.95);
+  border-top: 1px solid rgba(245, 194, 66, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.marked-levels-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.marked-levels-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.marked-levels-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.marked-levels-actions .btn-xs {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-family: var(--font-mono, monospace);
+  border-radius: 6px;
+}
+
+.marked-levels-form {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+.form-row-inline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.input-inline-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.input-inline-group label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.input-inline-group .input-sm,
+.input-inline-group .select-sm {
+  background: rgba(6, 9, 16, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  color: #fff;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-family: var(--font-mono, monospace);
+  outline: none;
+}
+
+.input-inline-group .input-sm:focus,
+.input-inline-group .select-sm:focus {
+  border-color: var(--gold-primary);
+}
+
+.marked-levels-chips-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 36px;
+  align-items: center;
+}
+
+.level-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-family: var(--font-mono, monospace);
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transition: all 0.2s ease;
+}
+
+.level-chip:hover {
+  transform: translateY(-1px);
+  border-color: rgba(245, 194, 66, 0.4);
+}
+
+.level-chip.support {
+  border-left: 3px solid #10b981;
+}
+
+.level-chip.resistance {
+  border-left: 3px solid #ef4444;
+}
+
+.level-chip.order_block {
+  border-left: 3px solid #8b5cf6;
+}
+
+.level-chip.fvg {
+  border-left: 3px solid #06b6d4;
+}
+
+.level-chip.target {
+  border-left: 3px solid #ffd700;
+}
+
+.level-chip.key_level {
+  border-left: 3px solid #f5c242;
+}
+
+.level-chip-type {
+  font-weight: 700;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.level-chip-price {
+  font-weight: 800;
+  color: #fff;
+}
+
+.level-chip-dist {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.level-chip-label {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.7);
+  font-style: italic;
+}
+
+.level-chip-del {
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.4);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: bold;
+  line-height: 1;
+}
+
+.level-chip-del:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.2);
+}
+
 /* Price Flash Animation */
 @keyframes priceFlash {
   0% {

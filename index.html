@@ -381,6 +381,60 @@
             }
           </script>
         </div>
+
+        <!-- MARKED LEVELS & DRAWINGS BAR (Auto-synced via IP with Supabase - Last 48 Hours) -->
+        <div class="marked-levels-panel" id="user-drawings-panel">
+          <div class="marked-levels-header">
+            <div class="marked-levels-title">
+              <i data-lucide="layers" class="text-gold"></i>
+              <span>Marked Levels & Drawings</span>
+              <span class="badge-tag" id="drawings-ip-badge">Auto-detected via Device IP • 48h Retention</span>
+            </div>
+            <div class="marked-levels-actions">
+              <button class="btn btn-outline btn-xs" id="btn-quick-support" title="Mark Support at Current Price">
+                <i data-lucide="plus-circle" class="text-emerald"></i> + Support (<span class="live-price-ref">$—</span>)
+              </button>
+              <button class="btn btn-outline btn-xs" id="btn-quick-resistance" title="Mark Resistance at Current Price">
+                <i data-lucide="plus-circle" class="text-ruby"></i> + Resistance (<span class="live-price-ref">$—</span>)
+              </button>
+            </div>
+          </div>
+
+          <!-- Custom Level Input Row -->
+          <div class="marked-levels-form">
+            <div class="form-row-inline">
+              <div class="input-inline-group">
+                <label for="input-draw-price">Price ($):</label>
+                <input type="number" id="input-draw-price" step="0.1" placeholder="e.g. 3785.50" class="input-sm" />
+              </div>
+              <div class="input-inline-group">
+                <label for="select-draw-type">Type:</label>
+                <select id="select-draw-type" class="select-sm">
+                  <option value="support">Support Level</option>
+                  <option value="resistance">Resistance Level</option>
+                  <option value="order_block">Order Block Zone</option>
+                  <option value="fvg">FVG / Imbalance</option>
+                  <option value="target">Target / Take Profit</option>
+                  <option value="key_level">Key S/R Level</option>
+                </select>
+              </div>
+              <div class="input-inline-group">
+                <label for="input-draw-label">Label (optional):</label>
+                <input type="text" id="input-draw-label" placeholder="e.g. H4 Demand / Liquidity" class="input-sm" />
+              </div>
+              <button class="btn btn-gold btn-sm" id="btn-save-level">
+                <i data-lucide="bookmark-plus"></i> Save to Chart
+              </button>
+            </div>
+          </div>
+
+          <!-- Active Marked Levels Tag Pills / List -->
+          <div class="marked-levels-chips-container" id="marked-levels-list">
+            <div class="empty-levels-msg" style="color:var(--text-dim);font-size:11px;padding:8px 0;">
+              No custom levels marked in the last 48 hours. Add a level above or click "+ Support / Resistance" to persist it to your device IP.
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- AI CANVAS CHART (SMC Overlay) + DATA FEEDS -->
