@@ -761,10 +761,16 @@ export function scanMultiTimeframe(ohlcvByTf, macroSnapshot = null, primaryTf = 
 }
 
 /**
- * Resolve any previously persisted LIVE SMC_ENGINE signals against the latest candle.
+ * Resolve any previously persisted LIVE SMC_ENGINE signals chronologically
+ * against M5 candles completed after `opened_at` and current spot price.
  */
-export function resolveOpenSmcSignals(openSignals, latestCandle) {
-  if (!Array.isArray(openSignals) || !latestCandle) return [];
+export function resolveOpenSmcSignals(openSignals, candlesOrCandle, currentSpot = null) {
+  if (!Array.isArray(openSignals)) return [];
+  const candles = Array.isArray(candlesOrCandle)
+    ? candlesOrCandle
+    : (candlesOrCandle ? [candlesOrCandle] : []);
+  if (candles.length === 0 && currentSpot == null) return [];
+
   const updates = [];
   const nowIso = new Date().toISOString();
 
@@ -776,37 +782,52 @@ export function resolveOpenSmcSignals(openSignals, latestCandle) {
     const tp1 = Number(sig.tp1);
     const tp2 = sig.tp2 ? Number(sig.tp2) : null;
     const tp3 = sig.tp3 ? Number(sig.tp3) : null;
+    const openedSec = Math.floor(new Date(sig.opened_at).getTime() / 1000);
+
+    // Check candles from signal open onward, plus synthetic current spot bar
+    const barsToCheck = candles.filter((c) => Number.isFinite(openedSec) ? c.time >= openedSec : true);
+    if (Number.isFinite(currentSpot) && currentSpot > 0) {
+      barsToCheck.push({ high: currentSpot, low: currentSpot, close: currentSpot, time: Math.floor(Date.now() / 1000) });
+    }
 
     let newStatus = null;
     let closePrice = null;
+    let closedAtIso = nowIso;
 
-    if (isLong) {
-      if (latestCandle.low <= sl) {
-        newStatus = 'HIT_SL';
-        closePrice = sl;
-      } else if (tp3 && latestCandle.high >= tp3) {
-        newStatus = 'HIT_TP3';
-        closePrice = tp3;
-      } else if (tp2 && latestCandle.high >= tp2) {
-        newStatus = 'HIT_TP2';
-        closePrice = tp2;
-      } else if (latestCandle.high >= tp1) {
-        newStatus = 'HIT_TP1';
-        closePrice = tp1;
+    for (const bar of barsToCheck) {
+      if (isLong) {
+        if (bar.low <= sl) {
+          newStatus = 'HIT_SL';
+          closePrice = sl;
+        } else if (tp3 && bar.high >= tp3) {
+          newStatus = 'HIT_TP3';
+          closePrice = tp3;
+        } else if (tp2 && bar.high >= tp2) {
+          newStatus = 'HIT_TP2';
+          closePrice = tp2;
+        } else if (bar.high >= tp1) {
+          newStatus = 'HIT_TP1';
+          closePrice = tp1;
+        }
+      } else {
+        if (bar.high >= sl) {
+          newStatus = 'HIT_SL';
+          closePrice = sl;
+        } else if (tp3 && bar.low <= tp3) {
+          newStatus = 'HIT_TP3';
+          closePrice = tp3;
+        } else if (tp2 && bar.low <= tp2) {
+          newStatus = 'HIT_TP2';
+          closePrice = tp2;
+        } else if (bar.low <= tp1) {
+          newStatus = 'HIT_TP1';
+          closePrice = tp1;
+        }
       }
-    } else {
-      if (latestCandle.high >= sl) {
-        newStatus = 'HIT_SL';
-        closePrice = sl;
-      } else if (tp3 && latestCandle.low <= tp3) {
-        newStatus = 'HIT_TP3';
-        closePrice = tp3;
-      } else if (tp2 && latestCandle.low <= tp2) {
-        newStatus = 'HIT_TP2';
-        closePrice = tp2;
-      } else if (latestCandle.low <= tp1) {
-        newStatus = 'HIT_TP1';
-        closePrice = tp1;
+
+      if (newStatus) {
+        if (bar.time) closedAtIso = new Date(bar.time * 1000).toISOString();
+        break;
       }
     }
 
@@ -817,7 +838,7 @@ export function resolveOpenSmcSignals(openSignals, latestCandle) {
         status: newStatus,
         close_price: Number(closePrice.toFixed(2)),
         pips_result: Number(pips.toFixed(1)),
-        closed_at: nowIso,
+        closed_at: closedAtIso,
         updated_at: nowIso,
       });
     }

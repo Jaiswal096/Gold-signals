@@ -854,13 +854,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /* ========================================================================
-     7. BOTTOM HOMEPAGE: SIGNAL HISTORY (BOT_PROVIDER ONLY)
+     7. BOTTOM HOMEPAGE: SIGNAL HISTORY (SMC_ENGINE Resolved Trades / BOT_PROVIDER)
      ======================================================================== */
   async function fetchBotHistory() {
     if (!historyBody) return;
     const banner = document.getElementById('history-status-banner');
+    const sourceBadge = document.getElementById('history-source-badge');
     try {
-      const res = await fetch('/api/signals/history?source=BOT_PROVIDER', { signal: AbortSignal.timeout(8000) });
+      const res = await fetch('/api/signals/history?source=AUTO', { signal: AbortSignal.timeout(8000) });
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
@@ -875,6 +876,13 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
+      const activeSource = data.active_source || data.source || 'SMC_ENGINE';
+      if (sourceBadge) {
+        sourceBadge.textContent = activeSource === 'BOT_PROVIDER'
+          ? 'Source: BOT_PROVIDER (/api/signals/history)'
+          : `Source: SMC_ENGINE • Built-in Resolved Trades${data.open_live_count ? ` (${data.open_live_count} LIVE tracking)` : ''}`;
+      }
+
       state.botHistory = Array.isArray(data.history) ? data.history : [];
       state.botMetrics = data.metrics || null;
       updateHistoryKPIs(state.botMetrics);
@@ -884,15 +892,15 @@ document.addEventListener('DOMContentLoaded', () => {
           banner.style.display = 'block';
           banner.innerHTML = `
             <div class="bot-history-notice">
-              <strong>BOT_PROVIDER Signal History Ready</strong> — ${escapeHtml(data.message || 'No historical bot signals recorded yet.')}
-              <br><span style="font-size:11px;color:var(--text-dim);">Configure <code>SIGNAL_BOT_URL</code> (or push trades to <code>POST /api/bot-webhook</code>) and <code>SUPABASE_URL</code> / <code>SUPABASE_SERVICE_ROLE_KEY</code> in Netlify to populate historical bot trades. Zero demo trades shown.</span>
+              <strong>${escapeHtml(activeSource)} Signal History Ready</strong> — ${escapeHtml(data.message || 'No closed signals recorded yet.')}
+              ${!data.supabase_configured ? '<br><span style="font-size:11px;color:var(--text-dim);">Set <code>SUPABASE_URL</code> and <code>SUPABASE_SERVICE_ROLE_KEY</code> in Netlify Environment Variables to track &amp; resolve live SMC_ENGINE trades automatically.</span>' : ''}
             </div>
           `;
         }
         historyBody.innerHTML = `
           <tr>
             <td colspan="14" style="text-align:center;color:var(--text-dim);padding:20px;">
-              0 BOT_PROVIDER historical records in Supabase.
+              0 closed ${escapeHtml(activeSource)} trades in Supabase yet.
             </td>
           </tr>
         `;
@@ -905,7 +913,7 @@ document.addEventListener('DOMContentLoaded', () => {
       updateHistoryKPIs(null);
       if (banner) {
         banner.style.display = 'block';
-        banner.innerHTML = `<div class="http-error-banner"><span>⚠ Bot History Request Error: ${escapeHtml(err.message)}</span></div>`;
+        banner.innerHTML = `<div class="http-error-banner"><span>⚠ Signal History Request Error: ${escapeHtml(err.message)}</span></div>`;
       }
       showHttpErrorBanner('/api/signals/history', err.message);
     }
@@ -982,7 +990,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <td colspan="14">
           <div class="trade-detail-panel">
             <div class="trade-detail-header">
-              <span><i data-lucide="trending-${isLong ? 'up' : 'down'}"></i> ${escapeHtml(item.id)} — BOT_PROVIDER Execution</span>
+              <span><i data-lucide="trending-${isLong ? 'up' : 'down'}"></i> ${escapeHtml(item.id)} — ${escapeHtml(item.source || 'SMC_ENGINE')} Execution</span>
               <span class="trade-pnl-badge" style="color:${pnlColor};background:${(pipsNum ?? 0) >= 0 ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)'};border:1px solid ${(pipsNum ?? 0) >= 0 ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'};">${pipsLabel} Pips (${escapeHtml(status)})</span>
             </div>
             <div class="trade-markers">

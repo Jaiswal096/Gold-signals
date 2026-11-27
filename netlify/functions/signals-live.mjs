@@ -1,13 +1,13 @@
 /**
  * Netlify Function v2: GET /api/signals/live
  * Returns active LIVE signals and upcoming FUTURE_SETUP predictions from Supabase
- * (`source = 'SMC_ENGINE'`), or computes directly from live multi-TF OHLCV feeds
- * when Supabase is unconfigured or stale (>4m).
+ * (`source = 'SMC_ENGINE'`), resolving any breached TP/SL trades along the way.
  */
 
 import { fetchMultiTfOhlcv, getOhlcvForTimeframe, normalizeTimeframe } from './lib/market-data.mjs';
 import { scanMultiTimeframe, analyzeTimeframe } from './lib/smc-engine.mjs';
-import { getSupabaseConfig, querySignals, upsertSignals } from './lib/supabase.mjs';
+import { syncSmcLifecycle } from './lib/smc-persistence.mjs';
+import { getSupabaseConfig, querySignals } from './lib/supabase.mjs';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -56,51 +56,51 @@ export default async (req) => {
     const tf = normalizeTimeframe(url.searchParams.get('tf') || 'M15');
     const forceScan = url.searchParams.get('refresh') === '1';
 
-    // Always pull fresh spot & primary TF bundle (30s cached) so spot_price and indicators are live
     const primaryBundle = await getOhlcvForTimeframe(tf, { limit: 200 });
     const sb = getSupabaseConfig();
 
     let liveRows = [];
     let futureRows = [];
-    let persistenceMode = sb.configured ? 'SUPABASE_SMC_ENGINE' : 'STATELESS_LIVE_OHLCV';
+    const persistenceMode = sb.configured ? 'SUPABASE_SMC_ENGINE' : 'STATELESS_LIVE_OHLCV';
     let summaries = {};
 
     if (sb.configured && !forceScan) {
       const dbRes = await querySignals(
-        "source=eq.SMC_ENGINE&status=in.(LIVE,FUTURE_SETUP)&order=opened_at.desc&limit=20"
+        'source=eq.SMC_ENGINE&status=in.(LIVE,FUTURE_SETUP)&order=opened_at.desc&limit=25'
       );
       if (dbRes.ok && Array.isArray(dbRes.data) && dbRes.data.length > 0) {
-        const newestMs = Math.max(...dbRes.data.map((r) => new Date(r.updated_at || r.opened_at).getTime()));
-        if (Date.now() - newestMs < STALE_MS) {
+        const futureDb = dbRes.data.filter((r) => r.status === 'FUTURE_SETUP');
+        const newestMs = futureDb.length > 0
+          ? Math.max(...futureDb.map((r) => new Date(r.updated_at || r.opened_at).getTime()))
+          : 0;
+        if (newestMs > 0 && Date.now() - newestMs < STALE_MS) {
           liveRows = dbRes.data.filter((r) => r.status === 'LIVE');
-          futureRows = dbRes.data.filter((r) => r.status === 'FUTURE_SETUP');
+          futureRows = futureDb;
         }
       }
     }
 
-    // Compute fresh multi-TF scan when DB is unconfigured, empty, or stale
     if (liveRows.length === 0 && futureRows.length === 0) {
       const multiTf = await fetchMultiTfOhlcv(['M5', 'M15', 'H1', 'H4']);
       if (!multiTf[tf]) multiTf[tf] = primaryBundle;
 
       const scan = scanMultiTimeframe(multiTf, primaryBundle.macro, tf);
-      liveRows = scan.live_signals;
-      futureRows = scan.future_setups;
       summaries = scan.summaries;
 
-      if (sb.configured) {
-        const toUpsert = [...liveRows, ...futureRows];
-        if (toUpsert.length > 0) {
-          upsertSignals(toUpsert).catch(() => {});
-        }
-      }
+      const m5Candles = multiTf.M5?.candles || primaryBundle.candles;
+      const synced = await syncSmcLifecycle({
+        scanResult: scan,
+        m5Candles,
+        spot: primaryBundle.spot,
+      });
+
+      liveRows = synced.activeLive;
+      futureRows = synced.futureSetups;
     } else {
-      // Populate live indicator summary for requested TF from primaryBundle
       const tfAnalysis = analyzeTimeframe(tf, primaryBundle.candles, primaryBundle.spot, primaryBundle.macro);
       summaries[tf] = tfAnalysis.summary;
     }
 
-    // Recompute live distance_pips relative to current spot
     const liveFormatted = liveRows.map((r) => {
       const f = formatSignalForClient(r);
       f.distance_pips = Number((Math.abs(f.entry_price - primaryBundle.spot) * 10).toFixed(1));
@@ -148,10 +148,7 @@ export default async (req) => {
     );
   } catch (err) {
     return Response.json(
-      {
-        error: 'LIVE_SIGNALS_ERROR',
-        detail: err.message || 'Failed to compute live signals',
-      },
+      { error: 'LIVE_SIGNALS_ERROR', detail: err.message || 'Failed to compute live signals' },
       { status: err.statusCode || 502, headers: CORS_HEADERS }
     );
   }

@@ -281,90 +281,117 @@ export function computeBotMetrics(rows) {
 }
 
 /**
- * Load BOT_PROVIDER history from Supabase (or directly from SIGNAL_BOT_URL if DB unconfigured).
+ * Load historical closed trades:
+ *   1. Uses BOT_PROVIDER records (or SIGNAL_BOT_URL) when configured/present.
+ *   2. Automatically falls back to built-in SMC_ENGINE settled closed trades
+ *      (HIT_TP1, HIT_TP2, HIT_TP3, HIT_SL, CLOSED) in Supabase when no external bot exists.
  */
-export async function loadBotHistory() {
+export async function loadBotHistory(requestedSource = 'AUTO') {
   const sb = getSupabaseConfig();
   const hasBotUrl = Boolean((process.env.SIGNAL_BOT_URL || '').trim());
+  const wantBotOnly = requestedSource === 'BOT_PROVIDER' && hasBotUrl;
 
   if (sb.configured) {
-    const res = await querySignals('source=eq.BOT_PROVIDER&order=closed_at.desc.nullslast,opened_at.desc&limit=100');
-    if (res.ok && Array.isArray(res.data)) {
-      if (res.data.length > 0) {
+    // 1. Check external BOT_PROVIDER rows if requested or configured
+    if (requestedSource === 'BOT_PROVIDER' || requestedSource === 'AUTO') {
+      const botRes = await querySignals('source=eq.BOT_PROVIDER&order=closed_at.desc.nullslast,opened_at.desc&limit=100');
+      if (botRes.ok && Array.isArray(botRes.data) && botRes.data.length > 0) {
         return {
           ok: true,
+          active_source: 'BOT_PROVIDER',
           configured: true,
           supabase_configured: true,
           bot_configured: hasBotUrl,
-          history: res.data,
-          metrics: computeBotMetrics(res.data),
+          open_live_count: 0,
+          history: botRes.data,
+          metrics: computeBotMetrics(botRes.data),
           message: null,
         };
       }
 
-      // If DB has no bot rows yet and SIGNAL_BOT_URL is configured, sync immediately
       if (hasBotUrl) {
         const synced = await syncBotHistoryToSupabase();
         if (synced.records.length > 0) {
           return {
             ok: true,
+            active_source: 'BOT_PROVIDER',
             configured: true,
             supabase_configured: true,
             bot_configured: true,
+            open_live_count: 0,
             history: synced.records,
             metrics: computeBotMetrics(synced.records),
             message: null,
           };
         }
-        if (synced.error) {
+        if (synced.error && wantBotOnly) {
           return {
             ok: false,
             status: 502,
+            active_source: 'BOT_PROVIDER',
             configured: true,
             supabase_configured: true,
             bot_configured: true,
+            open_live_count: 0,
             history: [],
             metrics: computeBotMetrics([]),
             error: synced.error,
           };
         }
       }
+    }
 
+    // 2. Built-in SMC_ENGINE settled closed trades in Supabase
+    const [closedRes, openRes] = await Promise.all([
+      querySignals('source=eq.SMC_ENGINE&status=in.(HIT_TP1,HIT_TP2,HIT_TP3,HIT_SL,CLOSED)&order=closed_at.desc.nullslast,opened_at.desc&limit=100'),
+      querySignals('source=eq.SMC_ENGINE&status=eq.LIVE&select=id&limit=50'),
+    ]);
+
+    if (!closedRes.ok) {
       return {
-        ok: true,
-        configured: hasBotUrl,
+        ok: false,
+        status: closedRes.status || 502,
+        active_source: 'SMC_ENGINE',
+        configured: true,
         supabase_configured: true,
         bot_configured: hasBotUrl,
+        open_live_count: 0,
         history: [],
         metrics: computeBotMetrics([]),
-        message: hasBotUrl
-          ? 'Connected to Supabase and Signal Bot; no closed bot signals recorded yet.'
-          : 'Supabase connected. Set SIGNAL_BOT_URL or POST trades to /api/bot-webhook to populate historical bot signals.',
+        error: closedRes.error || 'SUPABASE_QUERY_FAILED',
       };
     }
 
+    const rows = Array.isArray(closedRes.data) ? closedRes.data : [];
+    const openLiveCount = openRes.ok && Array.isArray(openRes.data) ? openRes.data.length : 0;
+
     return {
-      ok: false,
-      status: res.status || 502,
+      ok: true,
+      active_source: 'SMC_ENGINE',
       configured: true,
       supabase_configured: true,
       bot_configured: hasBotUrl,
-      history: [],
-      metrics: computeBotMetrics([]),
-      error: res.error || 'SUPABASE_QUERY_FAILED',
+      open_live_count: openLiveCount,
+      history: rows,
+      metrics: computeBotMetrics(rows),
+      message: rows.length === 0
+        ? `Supabase connected (SMC_ENGINE). Monitoring ${openLiveCount} open LIVE signal(s) — resolved trades (HIT_TP1/TP2/TP3/HIT_SL) appear here automatically.`
+        : null,
     };
   }
 
-  // Fallback: Supabase not configured yet, check if SIGNAL_BOT_URL is configured directly
+  // Direct SIGNAL_BOT_URL fallback if Supabase is unconfigured
   if (hasBotUrl) {
     const pulled = await fetchFromSignalBot();
     if (!pulled.ok) {
       return {
         ok: false,
         status: pulled.status || 502,
+        active_source: 'BOT_PROVIDER',
         configured: true,
         supabase_configured: false,
         bot_configured: true,
+        open_live_count: 0,
         history: [],
         metrics: computeBotMetrics([]),
         error: pulled.error,
@@ -372,22 +399,26 @@ export async function loadBotHistory() {
     }
     return {
       ok: true,
+      active_source: 'BOT_PROVIDER',
       configured: true,
       supabase_configured: false,
       bot_configured: true,
+      open_live_count: 0,
       history: pulled.records,
       metrics: computeBotMetrics(pulled.records),
-      message: 'Loaded directly from SIGNAL_BOT_URL (configure SUPABASE_URL & SUPABASE_SERVICE_ROLE_KEY for persistence).',
+      message: null,
     };
   }
 
   return {
     ok: true,
+    active_source: 'SMC_ENGINE',
     configured: false,
     supabase_configured: false,
     bot_configured: false,
+    open_live_count: 0,
     history: [],
     metrics: computeBotMetrics([]),
-    message: 'Signal Provider Bot not configured. Set SIGNAL_BOT_URL (or use POST /api/bot-webhook) and SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY in Netlify environment variables.',
+    message: 'Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Netlify Environment Variables to start logging & resolving built-in SMC_ENGINE trades automatically.',
   };
 }
