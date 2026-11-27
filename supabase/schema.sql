@@ -1,5 +1,6 @@
 -- =====================================================================
 -- MANUS MAX AI 6.0 — XAU/USD Live Signal Engine Schema
+-- Safe to run on BOTH fresh databases and existing Phase 1 schemas.
 -- Run in Supabase SQL Editor: https://supabase.com/dashboard/project/_/sql
 -- =====================================================================
 
@@ -17,10 +18,64 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- ---------------------------------------------------------------------
--- 2. Unified Signals Table (SMC Engine LIVE/FUTURE + BOT_PROVIDER History)
+-- 2. Upgrade Legacy Phase 1 `signals` Table (if present without `source`)
+-- ---------------------------------------------------------------------
+DO $$
+DECLARE
+  fk_rec RECORD;
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'signals'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'signals' AND column_name = 'source'
+  ) THEN
+    -- Drop any foreign key constraints on chart_drawings referencing legacy signals
+    IF EXISTS (
+      SELECT 1 FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name = 'chart_drawings'
+    ) THEN
+      FOR fk_rec IN
+        SELECT conname
+        FROM pg_constraint
+        WHERE conrelid = 'public.chart_drawings'::regclass
+          AND contype = 'f'
+          AND confrelid = 'public.signals'::regclass
+      LOOP
+        EXECUTE format('ALTER TABLE public.chart_drawings DROP CONSTRAINT IF EXISTS %I', fk_rec.conname);
+      END LOOP;
+
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'chart_drawings'
+          AND column_name = 'signal_id' AND data_type = 'uuid'
+      ) THEN
+        ALTER TABLE public.chart_drawings
+          ALTER COLUMN signal_id TYPE TEXT USING signal_id::text;
+      END IF;
+    END IF;
+
+    -- Preserve legacy Phase 1 rows under signals_legacy_v1 (avoiding name collision)
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name = 'signals_legacy_v1'
+    ) THEN
+      ALTER TABLE public.signals RENAME TO signals_legacy_v1;
+    ELSE
+      EXECUTE format(
+        'ALTER TABLE public.signals RENAME TO %I',
+        'signals_legacy_' || to_char(clock_timestamp(), 'YYYYMMDDHH24MISSMS')
+      );
+    END IF;
+  END IF;
+END $$;
+
+-- ---------------------------------------------------------------------
+-- 3. Unified Signals Table (SMC Engine LIVE/FUTURE + BOT_PROVIDER History)
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.signals (
-  id TEXT PRIMARY KEY,                      -- e.g. 'BOT-9843' or 'SMC-M15-20261126-1430'
+  id TEXT PRIMARY KEY,                      -- e.g. 'BOT-9843' or 'SMC-M15-LONG-1795750500'
   source TEXT NOT NULL CHECK (source IN ('BOT_PROVIDER', 'SMC_ENGINE')),
   status TEXT NOT NULL CHECK (
     status IN ('FUTURE_SETUP', 'LIVE', 'HIT_TP1', 'HIT_TP2', 'HIT_TP3', 'HIT_SL', 'CLOSED', 'EXPIRED')
@@ -63,10 +118,10 @@ CREATE TRIGGER trg_signals_updated_at
   EXECUTE FUNCTION public.set_updated_at_column();
 
 -- ---------------------------------------------------------------------
--- 3. Multi-Timeframe OHLCV Candle Cache (Protects API Rate Limits)
+-- 4. Multi-Timeframe OHLCV Candle Cache (Protects API Rate Limits)
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.ohlcv_cache (
-  cache_key TEXT PRIMARY KEY,                -- e.g. 'XAUUSD_M15' or 'MACRO_SNAPSHOT'
+  cache_key TEXT PRIMARY KEY,                -- e.g. 'XAUUSD_M15'
   spot_price NUMERIC(10, 2) NOT NULL,
   provider TEXT,
   candles_json JSONB NOT NULL,               -- Array of { time, open, high, low, close }
@@ -75,7 +130,7 @@ CREATE TABLE IF NOT EXISTS public.ohlcv_cache (
 );
 
 -- ---------------------------------------------------------------------
--- 4. Persistent User Chart Drawings (48h IP-hashed retention)
+-- 5. Persistent User Chart Drawings (48h IP-hashed retention)
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.chart_drawings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -105,7 +160,7 @@ CREATE TRIGGER trg_chart_drawings_updated_at
   EXECUTE FUNCTION public.set_updated_at_column();
 
 -- ---------------------------------------------------------------------
--- 5. Market Status Heartbeat
+-- 6. Market Status Heartbeat
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.market_status (
   id SERIAL PRIMARY KEY,
@@ -119,7 +174,7 @@ CREATE TABLE IF NOT EXISTS public.market_status (
 );
 
 -- ---------------------------------------------------------------------
--- 6. Row-Level Security (Public Read-Only, Service-Role Full Write)
+-- 7. Row-Level Security (Public Read-Only, Service-Role Full Write)
 -- ---------------------------------------------------------------------
 ALTER TABLE public.signals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ohlcv_cache ENABLE ROW LEVEL SECURITY;

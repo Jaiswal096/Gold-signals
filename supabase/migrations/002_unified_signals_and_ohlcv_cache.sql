@@ -8,6 +8,8 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- If legacy Phase 1 signals table exists without `source`, migrate cleanly
 DO $$
+DECLARE
+  fk_rec RECORD;
 BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.tables
@@ -16,13 +18,40 @@ BEGIN
     SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'signals' AND column_name = 'source'
   ) THEN
-    ALTER TABLE public.signals RENAME TO signals_legacy_v1;
     IF EXISTS (
       SELECT 1 FROM information_schema.tables
       WHERE table_schema = 'public' AND table_name = 'chart_drawings'
     ) THEN
-      ALTER TABLE public.chart_drawings DROP CONSTRAINT IF EXISTS chart_drawings_signal_id_fkey;
-      ALTER TABLE public.chart_drawings ALTER COLUMN signal_id TYPE TEXT USING signal_id::text;
+      FOR fk_rec IN
+        SELECT conname
+        FROM pg_constraint
+        WHERE conrelid = 'public.chart_drawings'::regclass
+          AND contype = 'f'
+          AND confrelid = 'public.signals'::regclass
+      LOOP
+        EXECUTE format('ALTER TABLE public.chart_drawings DROP CONSTRAINT IF EXISTS %I', fk_rec.conname);
+      END LOOP;
+
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'chart_drawings'
+          AND column_name = 'signal_id' AND data_type = 'uuid'
+      ) THEN
+        ALTER TABLE public.chart_drawings
+          ALTER COLUMN signal_id TYPE TEXT USING signal_id::text;
+      END IF;
+    END IF;
+
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name = 'signals_legacy_v1'
+    ) THEN
+      ALTER TABLE public.signals RENAME TO signals_legacy_v1;
+    ELSE
+      EXECUTE format(
+        'ALTER TABLE public.signals RENAME TO %I',
+        'signals_legacy_' || to_char(clock_timestamp(), 'YYYYMMDDHH24MISSMS')
+      );
     END IF;
   END IF;
 END $$;
@@ -60,6 +89,9 @@ CREATE TABLE IF NOT EXISTS public.signals (
 
 CREATE INDEX IF NOT EXISTS idx_signals_source_status
   ON public.signals (source, status, opened_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_signals_closed_at
+  ON public.signals (source, closed_at DESC);
 
 CREATE TABLE IF NOT EXISTS public.ohlcv_cache (
   cache_key TEXT PRIMARY KEY,
