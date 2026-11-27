@@ -5,12 +5,12 @@ on:
     branches:
       - main
     paths:
-      - 'supabase/migrations/**'
+      - 'supabase/**'
   workflow_dispatch:
 
 jobs:
   deploy-migrations:
-    name: Sync Migrations to Supabase
+    name: Verify Supabase Connectivity & Schema
     runs-on: ubuntu-latest
 
     steps:
@@ -20,40 +20,28 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
 
-      - name: Run Supabase Migrations via API
+      - name: Verify Supabase REST Connectivity
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://nrdwfhllmahtakfvtruo.supabase.co' }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || 'sb_secret_KC0syGG3accWzFE_Htmn8A_zFXgFGPA' }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
-          echo "Starting migration check for Supabase project..."
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY secret not set — skipping live check."
+            exit 0
+          fi
           node -e "
-            const https = require('https');
-            const fs = require('fs');
-            const path = require('path');
-
-            const url = process.env.SUPABASE_URL;
-            const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-            console.log('Target Supabase instance:', url);
-            
-            // Health check to verify Supabase instance connectivity
-            const req = https.request(url + '/rest/v1/', {
-              method: 'GET',
+            fetch(process.env.SUPABASE_URL + '/rest/v1/signals?limit=1', {
               headers: {
-                'apikey': key,
-                'Authorization': 'Bearer ' + key,
-                'User-Agent': 'Supabase-Server/1.0'
+                apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+                Authorization: 'Bearer ' + process.env.SUPABASE_SERVICE_ROLE_KEY
               }
-            }, (res) => {
-              console.log('Supabase REST status:', res.statusCode);
-              if (res.statusCode === 200) {
-                console.log('✓ Successfully connected to Supabase.');
-              } else {
-                console.warn('Warning: status code ' + res.statusCode);
-              }
+            }).then(r => {
+              console.log('Supabase REST status:', r.status);
+              if (!r.ok) process.exitCode = 1;
+            }).catch(err => {
+              console.error('Supabase check failed:', err.message);
+              process.exitCode = 1;
             });
-            req.on('error', (err) => console.error('Connection error:', err));
-            req.end();
           "

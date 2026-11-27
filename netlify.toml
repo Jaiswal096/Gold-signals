@@ -4,9 +4,20 @@
   functions = "netlify/functions"
 
 [build.environment]
-  NODE_VERSION = "18"
+  NODE_VERSION = "20"
 
-# ── Function & API redirects ──────────────────────────────────────────────────
+# ── Multi-segment /api/* routes (must precede /api/* splat) ──────────────────
+[[redirects]]
+  from   = "/api/signals/live"
+  to     = "/.netlify/functions/signals-live"
+  status = 200
+
+[[redirects]]
+  from   = "/api/signals/history"
+  to     = "/.netlify/functions/signals-history"
+  status = 200
+
+# ── General /api/* -> /.netlify/functions/* ─────────────────────────────────
 [[redirects]]
   from   = "/api/*"
   to     = "/.netlify/functions/:splat"
@@ -38,9 +49,9 @@
 [[headers]]
   for = "/style.css"
   [headers.values]
-    Cache-Control = "public, max-age=3600, stale-while-revalidate=86400"
+    Cache-Control = "public, max-age=300, stale-while-revalidate=3600"
 
 [[headers]]
   for = "/app.js"
   [headers.values]
-    Cache-Control = "public, max-age=3600, stale-while-revalidate=86400"
+    Cache-Control = "public, max-age=300, stale-while-revalidate=3600"

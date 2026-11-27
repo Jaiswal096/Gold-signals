@@ -1,289 +1,56 @@
 /* ==========================================================================
-   MANUS MAX AI 6.0 — XAU/USD Institutional Signal Engine (REPAIRED)
-   SMC • ICT A-M-D • Raja Banks • Ali Vidollar • Silver Bullet
-   Lightweight Charts Overlay • Quantitative News Engine • Killzone Timer
-   Dynamic RR (TP3 up to 1:10) • 3-Pillar Weighted Confidence v6.0
-   Inst 50% / Macro 30% / Tech 20% | LocalStorage Persistence
-   ─────────────────────────────────────────────────────────────────────────
-   REPAIR SPECIFICATION COMPLIANCE:
-   1. Data Provider:
-      - Binance WebSocket PAXG/USDT completely removed (PAXG != spot gold)
-      - Netlify Function (/.netlify/functions/gold-price) polled every 60s
-      - Fallback 1: metals.live (https://api.metals.live/v1/spot/gold)
-      - Fallback 2: frankfurter.app (https://api.frankfurter.app/latest?from=XAU&to=USD)
-      - Prominent "DATA PROVIDER NOT CONFIGURED" state if providers fail
-      - Source label: "GoldAPI.io/XAU/USD" or "metals.live (FALLBACK)" or "frankfurter.app (FALLBACK)"
-      - Freshness age: live seconds counter since last update
-      - Connection states: LIVE | FALLBACK | STALE | DISCONNECTED | NOT_CONFIGURED
-   2. Zero Random-Walk / Simulated Data:
-      - All Math.random() removed from signal generation & confidence calculation
-      - Deterministic heuristic signal engine driven exclusively by real prices
-      - Threshold: minimum 20 price readings required for full signal generation
-      - Under 20 readings: shows "Insufficient data for signal generation — waiting for price history"
-   3. Signal Feed & Predictive Setups:
-      - Feed: "SCANNING FOR XAU/USD SETUPS..." with note on OHLCV data requirements
-      - Predictive: "⚡ WATCH [CONDITIONAL — NOT TRIGGERED]" only if price dropped > 0.5% in last 5 readings
-        Otherwise shows "No qualified HTF POI setups detected."
-   4. History Table:
-      - Explicit "⚠ DEMO DATA" disclaimer banner
-      - All status badges prefixed with "DEMO " (e.g. DEMO WIN, DEMO STOPPED)
-      - Performance metrics clearly marked as DEMO, no fabricated live claim
-   5. Educational & Algorithmic Disclaimers:
-      - Prominent disclaimer injected at top of Signal Terminal
-      - Confidence score header updated to "ALGORITHMIC CONFIDENCE SCORE (Heuristic — Not Guaranteed)"
-      - Ticker bar shows "⚠ DATA PROVIDER NOT CONFIGURED" on 503/failure
-   6. Button Handlers:
-      - #btn-refresh-signal, #btn-quick-signal, #btn-copy-signal, #btn-open-calc,
-        #btn-recalc, #btn-copy-json, #btn-toggle-overlay all wired and fully functional
-   7. Lightweight Charts:
-      - Real price feed ticks (pushOHLCTick with provider prices)
-      - "Loading chart data..." and "DATA PROVIDER NOT CONFIGURED" state overlays
-      - Live data source label with freshness age in seconds
-   8. Structured Error Handling:
-      - No silent catches; logs [MANUS MAX] context and surfaces via showError()
-   9. Clean Institutional Terminology:
-      - Strictly LONG/SHORT & BUY/SELL. Zero CALL/PUT binary options terminology.
+   MANUS MAX AI 6.0 — XAU/USD Live Signal Engine
+   Strictly binds to serverless endpoints:
+     - GET /api/spot?tf=<tf>&include_candles=true
+     - GET /api/signals/live?tf=<tf>
+     - GET /api/signals/history?source=BOT_PROVIDER
+     - GET/POST/DELETE /api/drawings
+   Zero hardcoded demo trade arrays, zero fake stats, zero broken client-side
+   spot adapters, zero TradingView DOM scraping.
    ========================================================================== */
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Initialize Lucide Icons
-  if (window.lucide) {
-    try {
-      window.lucide.createIcons();
-    } catch (err) {
-      console.error('[MANUS MAX]', 'Lucide initialization error', err);
-    }
-  }
-
   /* ========================================================================
-     GLOBAL ERROR DISPLAY
+     1. TOP-LEVEL STATE & CONFIGURATION (Initialized before any function call)
      ======================================================================== */
-  function showError(context, message) {
-    console.error('[MANUS MAX]', context, message);
-    let bar = document.getElementById('error-notification-bar');
-    if (!bar) {
-      const terminal = document.getElementById('tab-terminal');
-      if (terminal) {
-        bar = document.createElement('div');
-        bar.id = 'error-notification-bar';
-        bar.style.cssText = `
-          display:none;
-          background: rgba(239, 68, 68, 0.15);
-          border: 1px solid rgba(239, 68, 68, 0.4);
-          border-radius: 6px;
-          padding: 8px 14px;
-          margin-bottom: 12px;
-          font-size: 11px;
-          color: #ef4444;
-          font-weight: 600;
-          font-family: var(--font-mono, monospace);
-        `;
-        terminal.insertBefore(bar, terminal.firstChild);
-      }
-    }
-    if (bar) {
-      bar.textContent = `⚠ [${context}] ${message}`;
-      bar.style.display = 'block';
-      setTimeout(() => {
-        if (bar) bar.style.display = 'none';
-      }, 7000);
-    }
-  }
+  const VALID_TFS = ['M5', 'M15', 'H1', 'H4', 'D1'];
 
-  /* ========================================================================
-     INJECT EDUCATIONAL DISCLAIMER BANNER
-     ======================================================================== */
-  function injectDisclaimers() {
-    try {
-      const terminal = document.getElementById('tab-terminal');
-      if (terminal && !document.getElementById('edu-disclaimer-banner')) {
-        const banner = document.createElement('div');
-        banner.id = 'edu-disclaimer-banner';
-        banner.style.cssText = `
-          background: rgba(245, 194, 66, 0.08);
-          border: 1px solid rgba(245, 194, 66, 0.35);
-          border-radius: 8px;
-          padding: 10px 16px;
-          margin-bottom: 16px;
-          font-size: 11px;
-          color: #f5c242;
-          font-weight: 600;
-          letter-spacing: 0.02em;
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          box-shadow: 0 4px 16px rgba(0,0,0,0.25);
-        `;
-        banner.innerHTML = `
-          <span style="font-size: 16px;">⚠</span>
-          <span>
-            <strong>EDUCATIONAL PLATFORM</strong> — All signals are algorithmic outputs for research only.
-            Not financial advice. Real signals require live data provider configuration and minimum 20 OHLCV candles.
-          </span>
-        `;
-        terminal.insertBefore(banner, terminal.firstChild);
-      }
-
-      // Update confidence card tag/header to comply with requirements
-      const confTag = document.querySelector('.confidence-tag');
-      if (confTag) {
-        confTag.innerHTML = '<i data-lucide="shield-alert"></i> ALGORITHMIC CONFIDENCE SCORE (Heuristic — Not Guaranteed)';
-      }
-    } catch (err) {
-      showError('injectDisclaimers', err.message);
-    }
-  }
-  injectDisclaimers();
-
-  /* ========================================================================
-     STATE MANAGEMENT
-     ======================================================================== */
   const state = {
     currentTab: 'terminal',
-    goldPrice: null,           // starts null until verified provider tick
-    goldPrevClose: null,
-    goldChangePct: 0,
-    goldChangePts: 0,
-    timeframe: 'H1',
+    timeframe: 'M15',
     showIndicators: true,
+    goldPrice: null,
+    goldChangePts: null,
+    goldChangePct: null,
+    dataProvider: null,
     lastFetchTime: null,
-    fetchStatus: 'connecting', // 'connecting' | 'live' | 'fallback' | 'stale' | 'disconnected' | 'not_configured'
-    dataSource: null,          // e.g. "GoldAPI.io/XAU/USD" or "metals.live (FALLBACK)"
-    priceHistory: [],          // array of float prices from polling
-    ohlcBuffer: [],
-    ohlcHistory: [],           // full OHLCV candle series from backend (Yahoo GC=F / gold-history API)
-    userDrawings: [],          // array of user-marked levels from Supabase
-    lwUserDrawingLines: [],    // references to LW price lines for user drawings
-    detectedIpKey: null,       // auto-detected IP device key from Netlify function
-
-    // Hero signal — deterministic based on verified price or static fallback
-    signal: null,
-
-    // Signal history — Explicitly DEMO data (prices updated to reflect current XAU/USD range ~$3,780)
-    history: [
-      {
-        id: 'XAUUSD-DEMO-9843',
-        openTs: '2026-11-14 10:25 UTC',
-        closeTs: '— (DEMO ACTIVE)',
-        dir: 'LONG',
-        strategy: 'ICT_SilverBullet',
-        entry: 3821.50, sl: 3810.00, tp2: 3867.50, tp3: 3915.50,
-        rr: '1 : 4.0', rrClass: 'rr-high',
-        pips: '+460', confidence: '92%',
-        news: 'CPI', newsClass: 'news-badge',
-        status: 'DEMO WIN (TP2)',
-        reason: 'M5 FVG Fill + London Liq Sweep + H4 OB Rejection + RSI Div M15',
-        pnl: { entryPrice: 3821.50, exitPrice: 3867.50, direction: 'LONG', pips: 460, result: 'DEMO WIN' }
-      },
-      {
-        id: 'XAUUSD-DEMO-9842',
-        openTs: '2026-11-13 08:15 UTC',
-        closeTs: '2026-11-13 13:42 UTC',
-        dir: 'LONG',
-        strategy: 'ICT_AMD',
-        entry: 3797.80, sl: 3786.00, tp2: 3833.40, tp3: 3857.40,
-        rr: '1 : 3.0', rrClass: 'rr-high',
-        pips: '+356', confidence: '89%',
-        news: null,
-        status: 'DEMO WIN (TP2)',
-        reason: 'Asia Lo Sweep (A-Phase) + London CHOCH M15 + NY Distribution Long + OB at $3,786',
-        pnl: { entryPrice: 3797.80, exitPrice: 3833.40, direction: 'LONG', pips: 356, result: 'DEMO WIN' }
-      },
-      {
-        id: 'XAUUSD-DEMO-9841',
-        openTs: '2026-11-12 14:00 UTC',
-        closeTs: '2026-11-12 17:38 UTC',
-        dir: 'SHORT',
-        strategy: 'AliVidollar_SD',
-        entry: 3815.50, sl: 3824.20, tp2: 3789.60, tp3: 3772.10,
-        rr: '1 : 3.0', rrClass: 'rr-high',
-        pips: '+258', confidence: '86%',
-        news: 'FOMC',
-        status: 'DEMO WIN (TP2)',
-        reason: 'Fresh H4 Supply Zone (Rally-Base-Drop) + Liq Grab of Swing Hi + Bearish Engulf M15 + FOMC hawkish',
-        pnl: { entryPrice: 3815.50, exitPrice: 3789.60, direction: 'SHORT', pips: 258, result: 'DEMO WIN' }
-      },
-      {
-        id: 'XAUUSD-DEMO-9840',
-        openTs: '2026-11-11 10:02 UTC',
-        closeTs: '2026-11-11 11:20 UTC',
-        dir: 'LONG',
-        strategy: 'ICT_SilverBullet',
-        entry: 3779.40, sl: 3768.00, tp2: 3824.60, tp3: 3870.00,
-        rr: '1 : 4.0', rrClass: 'rr-high',
-        pips: '+452', confidence: '94%',
-        news: null,
-        status: 'DEMO WIN (TP2)',
-        reason: 'Silver Bullet 10:00 EST window + M5 FVG 50% fill + Fresh Demand OB + Clean traffic +450 pips',
-        pnl: { entryPrice: 3779.40, exitPrice: 3824.60, direction: 'LONG', pips: 452, result: 'DEMO WIN' }
-      },
-      {
-        id: 'XAUUSD-DEMO-9839',
-        openTs: '2026-11-10 09:30 UTC',
-        closeTs: '2026-11-10 10:55 UTC',
-        dir: 'LONG',
-        strategy: 'RajaBanks_CT',
-        entry: 3765.60, sl: 3754.00, tp2: 3812.00, tp3: 3849.00,
-        rr: '1 : 4.0', rrClass: 'rr-high',
-        pips: '+464', confidence: '88%',
-        news: 'NFP',
-        status: 'DEMO WIN (TP2)',
-        reason: 'Clean Traffic Zone H4 (M30 demand) — Zero resistance to $3,812 target — NFP miss confirmed',
-        pnl: { entryPrice: 3765.60, exitPrice: 3812.00, direction: 'LONG', pips: 464, result: 'DEMO WIN' }
-      },
-      {
-        id: 'XAUUSD-DEMO-9838',
-        openTs: '2026-11-08 08:10 UTC',
-        closeTs: '2026-11-08 09:02 UTC',
-        dir: 'SHORT',
-        strategy: 'ICT_AMD',
-        entry: 3804.20, sl: 3813.00, tp2: 3777.80, tp3: 3760.30,
-        rr: '1 : 3.0', rrClass: 'rr-high',
-        pips: '-87', confidence: '72%',
-        news: null,
-        status: 'DEMO STOPPED',
-        reason: 'London Manipulation phase — SL triggered before NY distribution began — AMD failed',
-        pnl: { entryPrice: 3804.20, exitPrice: 3813.00, direction: 'SHORT', pips: -87, result: 'DEMO LOSS' }
-      },
-      {
-        id: 'XAUUSD-DEMO-9837',
-        openTs: '2026-11-07 14:05 UTC',
-        closeTs: '2026-11-07 16:48 UTC',
-        dir: 'LONG',
-        strategy: 'AliVidollar_SD',
-        entry: 3741.50, sl: 3729.00, tp2: 3791.50, tp3: 3841.50,
-        rr: '1 : 4.0', rrClass: 'rr-high',
-        pips: '+500', confidence: '91%',
-        news: 'PPI',
-        status: 'DEMO WIN (TP3)',
-        reason: 'Fresh Demand Zone (Drop-Base-Rally) + Stop Hunt of Asian Lo + Bullish Engulfing M15 + PPI miss bullish',
-        pnl: { entryPrice: 3741.50, exitPrice: 3841.50, direction: 'LONG', pips: 500, result: 'DEMO WIN' }
-      }
-    ],
-
-    // Quantitative economic calendar events
-    newsEvents: [
-      { time: '2026-11-14 13:30 UTC', name: 'US CPI (YoY)', folder: 'red', impactPct: 85, volPips: '80-120', bias: '78% Bearish', confClass: 'news-conf-high', conf: 'HIGH', hoursUntil: 1.7, histConf: 'HIGH — 84% win rate on CPI miss (last 8 events)' },
-      { time: '2026-11-14 18:00 UTC', name: 'FOMC Minutes', folder: 'red', impactPct: 92, volPips: '100-180', bias: '65% Bearish', confClass: 'news-conf-high', conf: 'HIGH', hoursUntil: 6.2, histConf: 'HIGH — 71% directional accuracy on FOMC hawkish surprises' },
-      { time: '2026-11-15 12:30 UTC', name: 'US PPI (MoM)', folder: 'orange', impactPct: 65, volPips: '40-80', bias: '55% Neutral', confClass: 'news-conf-med', conf: 'MEDIUM', hoursUntil: 24.2, histConf: 'MEDIUM — 58% accuracy, lower than CPI historically' },
-      { time: '2026-11-16 14:00 UTC', name: 'US Core PCE', folder: 'red', impactPct: 88, volPips: '70-130', bias: '70% Bearish', confClass: 'news-conf-high', conf: 'HIGH', hoursUntil: 47.8, histConf: "HIGH — Fed's preferred inflation measure, 79% accuracy" },
-      { time: '2026-11-21 12:30 UTC', name: 'US NFP', folder: 'red', impactPct: 95, volPips: '120-250', bias: '60% Bearish', confClass: 'news-conf-high', conf: 'HIGH', hoursUntil: 71.2, histConf: 'HIGH — 88% accuracy on NFP misses > 50k deviation' },
-      { time: '2026-11-25 17:00 UTC', name: 'ISM Services PMI', folder: 'yellow', impactPct: 45, volPips: '20-50', bias: '50% Neutral', confClass: 'news-conf-low', conf: 'LOW', hoursUntil: 168.3, histConf: 'LOW — Secondary indicator, 52% accuracy' }
-    ],
-
-    signalFeed: [],
-    predictiveSetups: [],
+    macro: null,
+    indicators: null,
+    smcAnalysis: null,
+    ohlcHistory: [],
+    liveSignals: [],
+    futureSetups: [],
+    allSignals: [],
+    signal: null, // currently selected signal for Hero Card & chart lines
+    botHistory: [],
+    botMetrics: null,
+    userDrawings: [],
+    lwUserDrawingLines: [],
+    detectedIpKey: null,
+    newsEvents: buildUpcomingNewsSchedule(),
     persistKey: null,
-
-    // Lightweight Charts
     lwChart: null,
     lwCandleSeries: null,
-    lwSeries: {}
+    lwSeries: {},
+    calcSeeded: false,
   };
 
-  /* ========================================================================
-     DOM ELEMENTS
-     ======================================================================== */
+  let spotPollTimerId = null;
+  let signalsPollTimerId = null;
+  let historyPollTimerId = null;
+  let freshnessTimerId = null;
+  let lastLivePayload = null;
+
   const navTabs = document.querySelectorAll('.nav-tab');
   const tabContents = document.querySelectorAll('.tab-content');
   const livePriceEl = document.getElementById('live-gold-price');
@@ -293,42 +60,126 @@ document.addEventListener('DOMContentLoaded', () => {
   const apiStatusText = document.getElementById('api-status-text');
 
   /* ========================================================================
-     BOOT SEQUENCE
+     2. UTILITIES & ERROR REPORTING
      ======================================================================== */
-  initPersistence();
-  initNavigation();
-  initKillzoneTimer();
-  initNewsEngine();
-  initSignalHistory();
-  initLightweightChart();
-  initSimulator();
-  initCalculator();
-  initActionButtons();
-  initSilverBulletClock();
-  initAMDPhase();
-  initPerformanceMetrics();
-  initSignalEngine();
-  initLiveDataFeed();
-  initSupabaseSync();
-  initUserDrawingsUI();
+  function escapeHtml(str) {
+    return String(str ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function formatPrice(price) {
+    if (price === null || price === undefined || Number.isNaN(Number(price))) return '—';
+    return '$' + Number(price).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+
+  function formatUtcTimestamp(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return String(iso);
+    return d.toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
+  }
+
+  function showHttpErrorBanner(context, message) {
+    console.error('[MANUS MAX]', context, message);
+    const terminal = document.getElementById('tab-terminal');
+    if (!terminal) return;
+    let bar = document.getElementById('http-error-banner');
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'http-error-banner';
+      bar.className = 'http-error-banner';
+      terminal.insertBefore(bar, terminal.firstChild);
+    }
+    bar.style.display = 'flex';
+    bar.innerHTML = `
+      <span>⚠ <strong>[${escapeHtml(context)}]</strong> ${escapeHtml(message)}</span>
+      <button class="btn btn-outline btn-xs" id="btn-dismiss-http-err" style="padding:2px 8px;font-size:10px;">Dismiss</button>
+    `;
+    const dismissBtn = document.getElementById('btn-dismiss-http-err');
+    if (dismissBtn) {
+      dismissBtn.onclick = () => { bar.style.display = 'none'; };
+    }
+  }
+
+  function clearHttpErrorBanner() {
+    const bar = document.getElementById('http-error-banner');
+    if (bar) bar.style.display = 'none';
+  }
+
+  function injectDisclaimerBanner() {
+    const terminal = document.getElementById('tab-terminal');
+    if (!terminal || document.getElementById('edu-disclaimer-banner')) return;
+    const banner = document.createElement('div');
+    banner.id = 'edu-disclaimer-banner';
+    banner.style.cssText = `
+      background: rgba(245, 194, 66, 0.08);
+      border: 1px solid rgba(245, 194, 66, 0.35);
+      border-radius: 8px;
+      padding: 10px 16px;
+      margin-bottom: 16px;
+      font-size: 11px;
+      color: #f5c242;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+    `;
+    banner.innerHTML = `
+      <span style="font-size: 16px;">⚠</span>
+      <span>
+        <strong>ALGORITHMIC QUANT ENGINE</strong> — Live &amp; Future Setups are computed server-side from real multi-timeframe OHLCV candles (M5/M15/H1/H4). Signal History below reflects external BOT_PROVIDER records only. Not financial advice.
+      </span>
+    `;
+    terminal.insertBefore(banner, terminal.firstChild);
+  }
+
+  function showNotification(message) {
+    let toast = document.getElementById('app-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'app-toast';
+      toast.style.cssText = `
+        position: fixed; bottom: 24px; right: 24px;
+        background: linear-gradient(135deg, #f5c242, #eab308);
+        color: #090d16; padding: 12px 20px; border-radius: 8px;
+        font-weight: 800; font-size: 13px;
+        box-shadow: 0 8px 24px rgba(245,194,66,0.4);
+        z-index: 9999; transition: all 0.3s ease; max-width: 420px; line-height: 1.4;
+      `;
+      document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateY(0)';
+    setTimeout(() => {
+      if (toast) {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(10px)';
+      }
+    }, 3500);
+  }
 
   /* ========================================================================
-     1. PERSISTENCE ENGINE
+     3. PERSISTENCE (User UI Preferences Only)
      ======================================================================== */
   function initPersistence() {
     try {
       const fingerprint = btoa(navigator.userAgent + screen.width + screen.height).slice(0, 16);
-      state.persistKey = `manus_max_v61_${fingerprint}`;
+      state.persistKey = `manus_max_v63_${fingerprint}`;
       const saved = localStorage.getItem(state.persistKey);
       if (saved) {
         const data = JSON.parse(saved);
-        if (data.timeframe) state.timeframe = data.timeframe;
-        if (data.showIndicators !== undefined) state.showIndicators = data.showIndicators;
-        console.log('[MANUS MAX v6.1] Preferences restored.');
+        if (data.timeframe && VALID_TFS.includes(data.timeframe)) state.timeframe = data.timeframe;
+        if (typeof data.showIndicators === 'boolean') state.showIndicators = data.showIndicators;
       }
     } catch (err) {
-      console.error('[MANUS MAX]', 'initPersistence', err);
-      showError('initPersistence', err.message);
+      console.warn('[MANUS MAX] initPersistence', err.message);
     }
   }
 
@@ -338,285 +189,167 @@ document.addEventListener('DOMContentLoaded', () => {
       localStorage.setItem(state.persistKey, JSON.stringify({
         timeframe: state.timeframe,
         showIndicators: state.showIndicators,
-        lastSaved: new Date().toISOString()
+        lastSaved: new Date().toISOString(),
       }));
     } catch (err) {
-      console.error('[MANUS MAX]', 'savePersistence', err);
-      showError('savePersistence', err.message);
+      console.warn('[MANUS MAX] savePersistence', err.message);
     }
   }
 
   /* ========================================================================
-     WAITING / NOT CONFIGURED UI STATES
+     4. LIVE SPOT + OHLCV + MACRO ENGINE (/api/spot)
      ======================================================================== */
-  function showWaitingState() {
-    if (livePriceEl) livePriceEl.textContent = 'Connecting...';
-    if (liveCurrentEl) liveCurrentEl.textContent = '—';
-    if (liveChangeEl) {
-      liveChangeEl.textContent = 'Connecting to XAU/USD data provider...';
-      liveChangeEl.className = 'ticker-change';
-    }
-    updateStatus('connecting', 'GoldAPI.io/XAU/USD');
-
-    const feedContainer = document.getElementById('signal-feed-list');
-    if (feedContainer) {
-      feedContainer.innerHTML = `
-        <div style="text-align:center;color:var(--text-dim);padding:30px 20px;font-size:12px;line-height:1.8;">
-          <div style="font-size:18px;margin-bottom:8px;">📡</div>
-          <div style="color:var(--gold-primary);font-weight:700;margin-bottom:6px;">SCANNING FOR XAU/USD SETUPS...</div>
-          <div style="font-size:11px;">Real signals require minimum 20 candles of OHLCV data.</div>
-          <div style="font-size:10px;color:rgba(255,255,255,0.35);margin-top:6px;">Connect a data provider for live signal generation.</div>
-        </div>
-      `;
-    }
-
-    const predContainer = document.getElementById('predictive-list');
-    if (predContainer) {
-      predContainer.innerHTML = `
-        <div class="predictive-item" style="color:var(--text-dim);font-size:12px;text-align:center;padding:16px;">
-          No qualified HTF POI setups detected.
-        </div>
-      `;
-    }
-  }
-
-  function showNotConfiguredState() {
-    state.fetchStatus = 'not_configured';
-    updateStatus('not_configured', '⚠ DATA PROVIDER NOT CONFIGURED');
-
-    if (livePriceEl) livePriceEl.textContent = 'N/A';
-    if (liveCurrentEl) liveCurrentEl.textContent = 'N/A';
-    if (liveChangeEl) {
-      liveChangeEl.textContent = '⚠ DATA PROVIDER NOT CONFIGURED';
-      liveChangeEl.className = 'ticker-change';
-      liveChangeEl.style.color = '#ef4444';
-    }
-
-    const feedContainer = document.getElementById('signal-feed-list');
-    if (feedContainer) {
-      feedContainer.innerHTML = `
-        <div style="text-align:center;color:var(--text-dim);padding:30px 20px;font-size:12px;line-height:1.8;">
-          <div style="font-size:22px;margin-bottom:8px;">⚠</div>
-          <div style="color:#ef4444;font-weight:700;margin-bottom:6px;">DATA PROVIDER NOT CONFIGURED</div>
-          <div style="font-size:11px;color:rgba(255,255,255,0.7);">
-            All price feed endpoints returned 503 or were unreachable.
-          </div>
-          <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:8px;">
-            Configure <code>GOLDAPI_KEY</code> on Netlify at <code>/.netlify/functions/gold-price</code>
-          </div>
-        </div>
-      `;
-    }
-
-    const predContainer = document.getElementById('predictive-list');
-    if (predContainer) {
-      predContainer.innerHTML = `
-        <div class="predictive-item" style="color:var(--text-dim);font-size:12px;text-align:center;padding:16px;">
-          No qualified HTF POI setups detected.<br>
-          <span style="font-size:10px;color:#ef4444;">Data provider required for setup detection.</span>
-        </div>
-      `;
-    }
-
-    showChartNotConfigured();
-  }
-
-  function showChartNotConfigured() {
-    const container = document.getElementById('lw-chart-container');
-    if (!container) return;
-    let msg = document.getElementById('lw-chart-overlay-msg');
-    if (!msg) {
-      msg = document.createElement('div');
-      msg.id = 'lw-chart-overlay-msg';
-      msg.style.cssText = `
-        position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-        background:rgba(6,9,16,0.92);border:1px solid rgba(239,68,68,0.4);
-        border-radius:8px;padding:16px 24px;text-align:center;
-        color:#ef4444;font-size:12px;font-weight:600;z-index:20;
-        pointer-events:none;
-      `;
-      container.style.position = 'relative';
-      container.appendChild(msg);
-    }
-    msg.innerHTML = `
-      <div style="font-size:18px;margin-bottom:6px;">⚠</div>
-      DATA PROVIDER NOT CONFIGURED<br>
-      <span style="font-size:10px;color:rgba(255,255,255,0.5);font-weight:400;">
-        Chart requires XAU/USD price feed
-      </span>
-    `;
-  }
-
-  function hideChartOverlayMsg() {
-    const msg = document.getElementById('lw-chart-overlay-msg');
-    if (msg) msg.remove();
-  }
-
-  /* ========================================================================
-     2. DATA PROVIDER ENGINE (60s Polling, No Binance PAXG)
-     ======================================================================== */
-  let pollingIntervalId = null;
-  let freshnessTimerId = null;
-  let consecutiveErrors = 0;
-  const MAX_RETRIES = 3;
-
-  async function fetchFromNetlify() {
+  async function fetchSpotAndCandles(tf = state.timeframe, { forceRefresh = false } = {}) {
+    const endpoint = `/api/spot?tf=${encodeURIComponent(tf)}&include_candles=true&limit=200${forceRefresh ? '&refresh=1' : ''}`;
     try {
-      // Try both standard Netlify function path and /api rewrite
-      const endpoints = ['/.netlify/functions/gold-price', '/api/gold-price'];
-      for (const endpoint of endpoints) {
-        try {
-          const r = await fetch(endpoint, { signal: AbortSignal.timeout(4500) });
-          if (!r.ok) continue;
-          const d = await r.json();
-          if (d && d.price) {
-            const p = parseFloat(d.price);
-            if (!isNaN(p) && p > 1000) {
-              return {
-                price: p,
-                source: d.source || 'GoldAPI.io/XAU/USD',
-                change: d.change ?? null,
-                changePercent: d.changePercent ?? null,
-                high: d.high ?? null,
-                low: d.low ?? null,
-                open: d.open ?? null
-              };
-            }
-          }
-        } catch (e) {
-          // Try next endpoint
+      const res = await fetch(endpoint, { signal: AbortSignal.timeout(10000) });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        const detail = data?.detail || data?.error || res.statusText || 'Unknown error';
+        setApiStatusError(`FEED ERROR ${res.status}`);
+        if (livePriceEl) livePriceEl.textContent = `ERR ${res.status}`;
+        if (liveChangeEl) {
+          liveChangeEl.textContent = detail;
+          liveChangeEl.className = 'ticker-change text-ruby';
         }
-      }
-      return null;
-    } catch (err) {
-      console.error('[MANUS MAX]', 'fetchFromNetlify', err);
-      return null;
-    }
-  }
-
-  async function fetchFromGoldPriceOrg() {
-    try {
-      const r = await fetch('https://data-asg.goldprice.org/dbXRates/USD', { signal: AbortSignal.timeout(4000) });
-      if (!r.ok) return null;
-      const d = await r.json();
-      const p = parseFloat(d?.items?.[0]?.xauPrice);
-      if (!isNaN(p) && p > 1000) {
-        return { price: p, source: 'GoldPrice.org (Live Spot)' };
-      }
-      return null;
-    } catch (err) {
-      return null;
-    }
-  }
-
-  async function fetchFromGoldApiCom() {
-    try {
-      const r = await fetch('https://api.gold-api.com/price/XAU', { signal: AbortSignal.timeout(4000) });
-      if (!r.ok) return null;
-      const d = await r.json();
-      const p = parseFloat(d?.price);
-      if (!isNaN(p) && p > 1000) {
-        return { price: p, source: 'Gold-API.com (Spot)' };
-      }
-      return null;
-    } catch (err) {
-      return null;
-    }
-  }
-
-  async function fetchFromMetalsLive() {
-    try {
-      const r = await fetch('https://api.metals.live/v1/spot/gold', { signal: AbortSignal.timeout(4000) });
-      if (!r.ok) return null;
-      const d = await r.json();
-      if (Array.isArray(d) && d.length > 0) {
-        const p = parseFloat(d[d.length - 1].price);
-        if (!isNaN(p) && p > 1000) {
-          return { price: p, source: 'metals.live (FALLBACK)' };
-        }
-      }
-      return null;
-    } catch (err) {
-      return null;
-    }
-  }
-
-  async function fetchLiveGoldPrice() {
-    try {
-      // 1. Primary: Netlify backend function pipeline
-      let res = await fetchFromNetlify();
-
-      // 2. Fallback: GoldPrice.org live spot feed
-      if (!res) {
-        res = await fetchFromGoldPriceOrg();
+        showHttpErrorBanner(`/api/spot HTTP ${res.status}`, detail);
+        showChartErrorOverlay(`HTTP ${res.status}: ${detail}`);
+        return null;
       }
 
-      // 3. Fallback: Gold-API.com
-      if (!res) {
-        res = await fetchFromGoldApiCom();
+      if (!data || typeof data.spot !== 'number' || !Array.isArray(data.candles)) {
+        throw new Error('Malformed /api/spot payload');
       }
 
-      // 4. Fallback: metals.live
-      if (!res) {
-        res = await fetchFromMetalsLive();
-      }
-
-      if (res && res.price) {
-        consecutiveErrors = 0;
-        const dir = state.goldPrice !== null
-          ? (res.price > state.goldPrice ? 'up' : res.price < state.goldPrice ? 'down' : null)
-          : null;
-        processTick(res.price, dir, res.source, res);
-        return true;
-      } else {
-        consecutiveErrors++;
-        if (consecutiveErrors >= MAX_RETRIES) {
-          showNotConfiguredState();
-        } else {
-          updateStatus('stale', state.dataSource || 'Polling Retry');
-        }
-        return false;
-      }
-    } catch (err) {
-      console.error('[MANUS MAX]', 'fetchLiveGoldPrice', err);
-      showError('fetchLiveGoldPrice', err.message);
-      return false;
-    }
-  }
-
-  function processTick(price, direction, source, extra = {}) {
-    try {
-      if (state.goldPrevClose === null) state.goldPrevClose = extra.open || price;
-      state.goldPrice = price;
-
-      if (extra.change !== null && extra.change !== undefined && !isNaN(extra.change)) {
-        state.goldChangePts = Number(extra.change);
-        state.goldChangePct = extra.changePercent !== null && extra.changePercent !== undefined && !isNaN(extra.changePercent)
-          ? Number(extra.changePercent)
-          : parseFloat(((state.goldChangePts / (price - state.goldChangePts || 1)) * 100).toFixed(2));
-      } else {
-        state.goldChangePts = parseFloat((price - state.goldPrevClose).toFixed(2));
-        state.goldChangePct = parseFloat(((state.goldChangePts / state.goldPrevClose) * 100).toFixed(2));
-      }
-
-      state.lastFetchTime = new Date();
-      state.dataSource = source;
-      state.fetchStatus = source.includes('FALLBACK') ? 'fallback' : 'live';
-
-      state.priceHistory.push(price);
-      if (state.priceHistory.length > 150) state.priceHistory.shift();
-
-      pushOHLCTick(price);
+      clearHttpErrorBanner();
       hideChartOverlayMsg();
-      updateChartDataLabel(source);
 
-      updateUI(direction);
-      updateStatus(state.fetchStatus, source);
-      updateSignalEngine();
+      const prevPrice = state.goldPrice;
+      const tickDir = prevPrice !== null
+        ? (data.spot > prevPrice ? 'up' : data.spot < prevPrice ? 'down' : null)
+        : null;
+
+      state.goldPrice = data.spot;
+      state.goldChangePts = data.change ?? 0;
+      state.goldChangePct = data.changePercent ?? 0;
+      state.dataProvider = data.provider || 'Server OHLCV';
+      state.lastFetchTime = new Date();
+      state.ohlcHistory = data.candles;
+      if (data.macro) state.macro = data.macro;
+
+      updateTopTickerUI(tickDir);
+      updateMacroStreamUI();
+      updateChartCandlesAndEMAs(data.candles, tf, data.provider);
       updateFreshnessTimer();
+
+      if (!state.calcSeeded) {
+        seedCalculatorFromMarket();
+      }
+
+      return data;
     } catch (err) {
-      console.error('[MANUS MAX]', 'processTick', err);
-      showError('processTick', err.message);
+      const msg = err.name === 'TimeoutError' ? 'Request timed out (10s)' : err.message;
+      setApiStatusError('SPOT FEED UNREACHABLE');
+      if (livePriceEl) livePriceEl.textContent = 'FEED ERR';
+      if (liveChangeEl) {
+        liveChangeEl.textContent = msg;
+        liveChangeEl.className = 'ticker-change text-ruby';
+      }
+      showHttpErrorBanner('/api/spot', msg);
+      showChartErrorOverlay(msg);
+      return null;
+    }
+  }
+
+  function setApiStatusLive(provider) {
+    if (!apiStatusText) return;
+    const t = state.lastFetchTime ? state.lastFetchTime.toISOString().slice(11, 19) + ' UTC' : '';
+    apiStatusText.textContent = `LIVE • ${provider} • ${t}`;
+    apiStatusText.style.color = '#10b981';
+    const dot = document.getElementById('api-status-dot');
+    if (dot) dot.style.backgroundColor = '#10b981';
+  }
+
+  function setApiStatusError(label) {
+    if (!apiStatusText) return;
+    apiStatusText.textContent = `⚠ ${label}`;
+    apiStatusText.style.color = '#ef4444';
+    const dot = document.getElementById('api-status-dot');
+    if (dot) dot.style.backgroundColor = '#ef4444';
+  }
+
+  function updateTopTickerUI(tickDir) {
+    const formatted = formatPrice(state.goldPrice);
+    if (livePriceEl) {
+      livePriceEl.textContent = formatted;
+      livePriceEl.classList.remove('tick-up', 'tick-down', 'price-flash');
+      void livePriceEl.offsetWidth;
+      if (tickDir === 'up') livePriceEl.classList.add('tick-up');
+      else if (tickDir === 'down') livePriceEl.classList.add('tick-down');
+      else livePriceEl.classList.add('price-flash');
+      setTimeout(() => livePriceEl.classList.remove('tick-up', 'tick-down', 'price-flash'), 380);
+    }
+
+    if (liveCurrentEl) liveCurrentEl.textContent = formatted;
+    if (liveChangeEl) {
+      const pts = Number(state.goldChangePts || 0);
+      const pct = Number(state.goldChangePct || 0);
+      const isPos = pts >= 0;
+      liveChangeEl.textContent = `${isPos ? '+' : ''}${pct.toFixed(2)}% (${isPos ? '+' : ''}${pts.toFixed(2)})`;
+      liveChangeEl.className = `ticker-change ${isPos ? 'text-emerald' : 'text-ruby'}`;
+    }
+
+    document.querySelectorAll('.live-price-ref').forEach((el) => {
+      el.textContent = formatted;
+    });
+    updateDrawingsDistances(state.goldPrice);
+    setApiStatusLive(state.dataProvider);
+
+    const m = state.macro || {};
+    const dxyEl = document.getElementById('ticker-dxy');
+    const dxyChgEl = document.getElementById('ticker-dxy-change');
+    if (dxyEl) dxyEl.textContent = m.dxy != null ? m.dxy.toFixed(2) : '—';
+    if (dxyChgEl) {
+      if (m.dxy_change_pct != null) {
+        const up = m.dxy_change_pct >= 0;
+        dxyChgEl.textContent = `${up ? '+' : ''}${m.dxy_change_pct.toFixed(2)}%`;
+        dxyChgEl.className = `ticker-change ${up ? 'text-emerald' : 'text-ruby'}`;
+      } else {
+        dxyChgEl.textContent = '—';
+      }
+    }
+
+    const us10yEl = document.getElementById('ticker-us10y');
+    const us10yChgEl = document.getElementById('ticker-us10y-change');
+    if (us10yEl) us10yEl.textContent = m.us10y != null ? `${m.us10y.toFixed(2)}%` : '—';
+    if (us10yChgEl) {
+      if (m.us10y_change_bps != null) {
+        const up = m.us10y_change_bps >= 0;
+        us10yChgEl.textContent = `${up ? '+' : ''}${m.us10y_change_bps} bps`;
+        us10yChgEl.className = `ticker-change ${up ? 'text-ruby' : 'text-emerald'}`;
+      } else {
+        us10yChgEl.textContent = '—';
+      }
+    }
+
+    const ryEl = document.getElementById('ticker-realyield');
+    const ryBadgeEl = document.getElementById('ticker-realyield-badge');
+    if (ryEl) {
+      ryEl.textContent = m.real_yield_est != null ? `${m.real_yield_est >= 0 ? '+' : ''}${m.real_yield_est.toFixed(2)}%` : '—';
+      ryEl.className = `ticker-val ${m.real_yield_est != null && m.real_yield_est <= 1.5 ? 'text-emerald' : 'text-gold'}`;
+    }
+    if (ryBadgeEl && m.real_yield_est != null) {
+      const bullish = m.real_yield_est <= 2.0;
+      ryBadgeEl.textContent = bullish ? 'BULLISH AU' : 'HEADWIND';
+      ryBadgeEl.className = `ticker-badge ${bullish ? 'badge-bullish' : 'badge-gold'}`;
+    }
+
+    const auAgEl = document.getElementById('ticker-auag');
+    const auAgBadgeEl = document.getElementById('ticker-auag-badge');
+    if (auAgEl) auAgEl.textContent = m.gold_silver_ratio != null ? m.gold_silver_ratio.toFixed(1) : '—';
+    if (auAgBadgeEl && m.gold_silver_ratio != null) {
+      auAgBadgeEl.textContent = m.gold_silver_ratio >= 80 ? 'ELEVATED' : 'NORMAL';
     }
   }
 
@@ -628,16 +361,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const dataLabelEl = document.getElementById('chart-data-label');
       if (dataLabelEl) {
         const timeStr = state.lastFetchTime.toISOString().slice(11, 19) + ' UTC';
-        const ageColor = age > 120 ? '#ef4444' : age > 75 ? '#f5c242' : '#10b981';
-        dataLabelEl.innerHTML = `Data: <strong>${state.dataSource || '—'}</strong> | Last update: ${timeStr} | Freshness: <span style="color:${ageColor}">${age}s</span>`;
-      }
-      if (age > 180 && state.fetchStatus !== 'not_configured') {
-        updateStatus('stale', state.dataSource || '—');
+        const ageColor = age > 90 ? '#ef4444' : age > 45 ? '#f5c242' : '#10b981';
+        dataLabelEl.innerHTML = `Data: <strong>${escapeHtml(state.dataProvider || '—')}</strong> (${state.timeframe}) | Candles: ${state.ohlcHistory.length} | Updated: ${timeStr} | Freshness: <span style="color:${ageColor}">${age}s</span>`;
       }
     }, 1000);
   }
 
-  function updateChartDataLabel(source) {
+  function updateChartDataLabel(provider) {
     let labelEl = document.getElementById('chart-data-label');
     if (!labelEl) {
       const container = document.getElementById('lw-chart-container');
@@ -645,1070 +375,299 @@ document.addEventListener('DOMContentLoaded', () => {
         labelEl = document.createElement('div');
         labelEl.id = 'chart-data-label';
         labelEl.style.cssText = `
-          font-size:10px;color:rgba(255,255,255,0.5);padding:6px 10px;
+          font-size:10px;color:rgba(255,255,255,0.6);padding:6px 10px;
           font-family:var(--font-mono, monospace);border-top:1px solid rgba(255,255,255,0.06);
-          background: rgba(6, 9, 16, 0.6);
+          background: rgba(6, 9, 16, 0.75);
         `;
         container.parentElement.appendChild(labelEl);
       }
     }
     if (labelEl && state.lastFetchTime) {
       const timeStr = state.lastFetchTime.toISOString().slice(11, 19) + ' UTC';
-      labelEl.innerHTML = `Data: <strong>${source}</strong> | Last update: ${timeStr} | Freshness: <span style="color:#10b981">0s</span>`;
-    }
-  }
-
-  function updateUI(direction) {
-    if (state.goldPrice === null) return;
-    const price = state.goldPrice;
-    const formatted = formatPrice(price);
-    const isPos = state.goldChangePts >= 0;
-
-    if (livePriceEl) {
-      livePriceEl.textContent = formatted;
-      livePriceEl.classList.remove('tick-up', 'tick-down', 'price-flash');
-      void livePriceEl.offsetWidth;
-      if (direction === 'up') livePriceEl.classList.add('tick-up');
-      else if (direction === 'down') livePriceEl.classList.add('tick-down');
-      else livePriceEl.classList.add('price-flash');
-      setTimeout(() => livePriceEl.classList.remove('tick-up', 'tick-down', 'price-flash'), 380);
-    }
-    if (liveCurrentEl) liveCurrentEl.textContent = formatted;
-    if (liveChangeEl) {
-      liveChangeEl.textContent = `${isPos ? '+' : ''}${state.goldChangePct.toFixed(2)}% (${isPos ? '+' : ''}${state.goldChangePts.toFixed(2)})`;
-      liveChangeEl.className = `ticker-change ${isPos ? 'text-emerald' : 'text-ruby'}`;
-      liveChangeEl.style.color = '';
-    }
-
-    if (state.lwCandleSeries) updateLWChartPrice(price);
-
-    // Update live price reference in drawing buttons & chip distances
-    const liveRefs = document.querySelectorAll('.live-price-ref');
-    liveRefs.forEach(el => el.textContent = formatted);
-    if (typeof updateDrawingsDistances === 'function') {
-      updateDrawingsDistances(price);
-    }
-  }
-
-  function updateStatus(status, source) {
-    state.fetchStatus = status;
-    if (!apiStatusText) return;
-    const time = state.lastFetchTime ? state.lastFetchTime.toLocaleTimeString() : '';
-    const map = {
-      connecting: { text: 'CONNECTING TO DATA PROVIDER...', color: '#f5c242' },
-      live: { text: `LIVE • ${source} • ${time}`, color: '#10b981' },
-      fallback: { text: `FALLBACK • ${source} • ${time}`, color: '#f5c242' },
-      stale: { text: `STALE • ${source} • Retrying...`, color: '#ef4444' },
-      disconnected: { text: 'DISCONNECTED — Feed Unreachable', color: '#ef4444' },
-      not_configured: { text: '⚠ DATA PROVIDER NOT CONFIGURED', color: '#ef4444' }
-    };
-    const entry = map[status] || map.disconnected;
-    apiStatusText.textContent = entry.text;
-    apiStatusText.style.color = entry.color;
-  }
-
-  function formatPrice(price) {
-    if (price === null || price === undefined || isNaN(price)) return '—';
-    return '$' + price.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  }
-
-  function initLiveDataFeed() {
-    showWaitingState();
-    fetchLiveGoldPrice();
-    // 30-second polling for fast XAU/USD price sync (backend caches 15s, so 30s is safe)
-    if (pollingIntervalId) clearInterval(pollingIntervalId);
-    pollingIntervalId = setInterval(fetchLiveGoldPrice, 30000);
-  }
-
-  /* ========================================================================
-     3. NAVIGATION, URL SYNCHRONIZATION & TAB SWITCHING
-     ======================================================================== */
-  function switchTab(target, updateUrl = true) {
-    try {
-      const tabBtn = document.querySelector(`.nav-tab[data-tab="${target}"]`);
-      const content = document.getElementById(`tab-${target}`);
-      if (!content) return;
-
-      navTabs.forEach(t => t.classList.remove('active'));
-      tabContents.forEach(c => c.classList.remove('active'));
-
-      if (tabBtn) tabBtn.classList.add('active');
-      content.classList.add('active');
-      state.currentTab = target;
-
-      if (updateUrl) {
-        const tfParam = state.timeframe ? `?tf=${state.timeframe}` : '';
-        const newHash = `#${target}${tfParam}`;
-        if (window.location.hash !== newHash) {
-          history.replaceState(null, '', newHash);
-        }
-      }
-
-      if (target === 'terminal' && state.lwChart) {
-        setTimeout(() => {
-          if (state.lwChart) {
-            const container = document.getElementById('lw-chart-container');
-            if (container) {
-              state.lwChart.applyOptions({
-                width: container.clientWidth,
-                height: container.clientHeight,
-              });
-            }
-            state.lwChart.timeScale().fitContent();
-          }
-        }, 50);
-      }
-      savePersistence();
-    } catch (err) {
-      console.error('[MANUS MAX]', 'switchTab error', err);
-      showError('switchTab', err.message);
-    }
-  }
-
-  function setTimeframe(tf, updateUrl = true) {
-    try {
-      const tfButtons = document.querySelectorAll('#chart-tf-buttons .btn-tf');
-      tfButtons.forEach(b => {
-        b.classList.toggle('active', b.getAttribute('data-tf') === tf);
-      });
-      state.timeframe = tf;
-
-      // Sync TradingView widget to the same timeframe
-      if (window.updateTVInterval) {
-        try { window.updateTVInterval(tf); } catch (_) { }
-      }
-      // Update TV active-TF badge
-      const tvBadge = document.getElementById('tv-active-tf');
-      if (tvBadge) tvBadge.textContent = tf;
-
-      // Fetch historical candles for this timeframe from backend pipeline
-      fetchHistoricalCandles(tf);
-      regenerateLWChartData();
-      savePersistence();
-
-      if (updateUrl) {
-        const curTab = state.currentTab || 'terminal';
-        const newHash = `#${curTab}?tf=${tf}`;
-        if (window.location.hash !== newHash) {
-          history.replaceState(null, '', newHash);
-        }
-      }
-    } catch (err) {
-      console.error('[MANUS MAX]', 'setTimeframe error', err);
-      showError('setTimeframe', err.message);
-    }
-  }
-
-  function syncFromUrl() {
-    try {
-      const rawHash = (window.location.hash || '').replace('#', '');
-      let tabName = null;
-      let tfVal = null;
-
-      if (rawHash) {
-        const [tabPart, queryPart] = rawHash.split('?');
-        if (tabPart && document.getElementById(`tab-${tabPart}`)) {
-          tabName = tabPart;
-        }
-        if (queryPart) {
-          const params = new URLSearchParams(queryPart);
-          tfVal = params.get('tf');
-        }
-      } else if (window.location.search) {
-        const params = new URLSearchParams(window.location.search);
-        const t = params.get('tab');
-        if (t && document.getElementById(`tab-${t}`)) tabName = t;
-        tfVal = params.get('tf');
-      }
-
-      if (tabName) {
-        switchTab(tabName, false);
-      }
-      if (tfVal && ['M5', 'M15', 'H1', 'H4', 'D1'].includes(tfVal)) {
-        setTimeframe(tfVal, false);
-      }
-    } catch (e) {
-      console.warn('[MANUS MAX] syncFromUrl error', e);
-    }
-  }
-
-  window.addEventListener('hashchange', () => syncFromUrl());
-
-  function initNavigation() {
-    navTabs.forEach(tab => {
-      tab.addEventListener('click', () => {
-        const target = tab.getAttribute('data-tab');
-        switchTab(target, true);
-      });
-    });
-
-    const tfButtons = document.querySelectorAll('#chart-tf-buttons .btn-tf');
-    tfButtons.forEach(btn => {
-      btn.addEventListener('click', () => {
-        const tf = btn.getAttribute('data-tf');
-        setTimeframe(tf, true);
-      });
-    });
-
-    const btnToggle = document.getElementById('btn-toggle-overlay');
-    if (btnToggle) {
-      btnToggle.addEventListener('click', () => {
-        try {
-          state.showIndicators = !state.showIndicators;
-          btnToggle.classList.toggle('active', state.showIndicators);
-          if (state.lwChart && state.lwCandleSeries && state.goldPrice) {
-            drawSMCOverlays(state.lwChart, state.lwCandleSeries, state.goldPrice);
-          }
-          if (state.ohlcHistory && state.ohlcHistory.length) {
-            updateEMAOverlays(state.ohlcHistory);
-          }
-          savePersistence();
-          showNotification(state.showIndicators ? 'SMC & EMA overlays enabled' : 'Overlays hidden');
-        } catch (err) {
-          console.error('[MANUS MAX]', 'btn-toggle-overlay error', err);
-          showError('btn-toggle-overlay', err.message);
-        }
-      });
-    }
-
-    // Sync active view from URL on initial load
-    syncFromUrl();
-  }
-
-  /* ========================================================================
-     4. SIGNAL ENGINE — OHLCV-BASED (Heuristic, Deterministic — No Math.random)
-        Uses real candle data from fetchHistoricalCandles() / gold-history API.
-        Falls back to priceHistory polling if candles are unavailable.
-     ======================================================================== */
-
-  /**
-   * Compute ATR from real OHLCV candles (True Range method).
-   * Falls back to polling-history estimate if no candles available.
-   */
-  function estimateATR(priceHistory) {
-    // Prefer real candle ATR when available
-    if (state.ohlcHistory && state.ohlcHistory.length >= 5) {
-      return computeATRFromCandles(state.ohlcHistory, 14);
-    }
-    if (priceHistory.length < 2) return 8.20;
-    const diffs = [];
-    for (let i = 1; i < priceHistory.length; i++) {
-      diffs.push(Math.abs(priceHistory[i] - priceHistory[i - 1]));
-    }
-    const avgDiff = diffs.reduce((a, b) => a + b, 0) / diffs.length;
-    return Math.max(6.0, Math.min(25.0, avgDiff * 15 || 8.20));
-  }
-
-  /**
-   * True-Range ATR from OHLCV candle array.
-   * @param {Array} candles - [{open, high, low, close, time}, ...]
-   * @param {number} period - ATR period (default 14)
-   */
-  function computeATRFromCandles(candles, period = 14) {
-    if (!candles || candles.length < 2) return 10.0;
-    const trs = [];
-    for (let i = 1; i < candles.length; i++) {
-      const c = candles[i];
-      const prev = candles[i - 1];
-      const tr = Math.max(
-        c.high - c.low,
-        Math.abs(c.high - prev.close),
-        Math.abs(c.low - prev.close)
-      );
-      trs.push(tr);
-    }
-    const slice = trs.slice(-period);
-    const atr = slice.reduce((a, b) => a + b, 0) / slice.length;
-    return Math.max(4.0, Math.min(50.0, atr));
-  }
-
-  /**
-   * Detect swing high/low from candle array.
-   * Returns { swingHigh, swingLow, swingHighIdx, swingLowIdx }
-   */
-  function detectSwings(candles, lookback = 10) {
-    if (!candles || candles.length < 3) return { swingHigh: null, swingLow: null };
-    const slice = candles.slice(-Math.min(lookback, candles.length));
-    let swingHigh = -Infinity, swingLow = Infinity;
-    let swingHighIdx = 0, swingLowIdx = 0;
-    slice.forEach((c, i) => {
-      if (c.high > swingHigh) { swingHigh = c.high; swingHighIdx = i; }
-      if (c.low < swingLow) { swingLow = c.low; swingLowIdx = i; }
-    });
-    return { swingHigh, swingLow, swingHighIdx, swingLowIdx };
-  }
-
-  /**
-   * Detect Order Block: last bearish candle before a bullish swing (or vice versa).
-   * Returns { obHigh, obLow, obType } or null.
-   */
-  function detectOrderBlock(candles, dir) {
-    if (!candles || candles.length < 5) return null;
-    const slice = candles.slice(-20);
-    if (dir === 'LONG') {
-      // Find last bearish candle before a bullish impulse
-      for (let i = slice.length - 2; i >= 1; i--) {
-        if (slice[i].close < slice[i].open) { // bearish candle
-          return { obHigh: slice[i].open, obLow: slice[i].low, obType: 'demand' };
-        }
-      }
-    } else {
-      // Find last bullish candle before a bearish impulse
-      for (let i = slice.length - 2; i >= 1; i--) {
-        if (slice[i].close > slice[i].open) { // bullish candle
-          return { obHigh: slice[i].high, obLow: slice[i].close, obType: 'supply' };
-        }
-      }
-    }
-    return null;
-  }
-
-  /**
-   * Detect Fair Value Gap (FVG / Imbalance):
-   * Bullish FVG: candle[i-2].high < candle[i].low  (gap above)
-   * Bearish FVG: candle[i-2].low  > candle[i].high (gap below)
-   * Returns midpoint price of most recent FVG.
-   */
-  function detectFVG(candles, dir) {
-    if (!candles || candles.length < 3) return null;
-    const slice = candles.slice(-15);
-    for (let i = slice.length - 1; i >= 2; i--) {
-      if (dir === 'LONG' && slice[i - 2].high < slice[i].low) {
-        const mid = (slice[i - 2].high + slice[i].low) / 2;
-        return parseFloat(mid.toFixed(2));
-      }
-      if (dir === 'SHORT' && slice[i - 2].low > slice[i].high) {
-        const mid = (slice[i - 2].low + slice[i].high) / 2;
-        return parseFloat(mid.toFixed(2));
-      }
-    }
-    return null;
-  }
-
-  /**
-   * Detect CHoCH (Change of Character): close breaks prior swing high (bullish CHoCH) or low (bearish CHoCH).
-   * Returns { detected, breakLevel }
-   */
-  function detectCHoCH(candles, dir) {
-    if (!candles || candles.length < 5) return { detected: false, breakLevel: null };
-    const { swingHigh, swingLow } = detectSwings(candles, 15);
-    const latest = candles[candles.length - 1];
-    if (dir === 'LONG' && latest.close > swingHigh) {
-      return { detected: true, breakLevel: parseFloat(swingHigh.toFixed(2)) };
-    }
-    if (dir === 'SHORT' && latest.close < swingLow) {
-      return { detected: true, breakLevel: parseFloat(swingLow.toFixed(2)) };
-    }
-    return { detected: false, breakLevel: dir === 'LONG' ? parseFloat(swingHigh.toFixed(2)) : parseFloat(swingLow.toFixed(2)) };
-  }
-
-  /**
-   * Detect liquidity sweep: price dips below prior swing low then recovers (bullish) or spikes above swing high then falls (bearish).
-   * Returns true/false.
-   */
-  function detectLiquiditySweep(candles, dir) {
-    if (!candles || candles.length < 6) return false;
-    const slice = candles.slice(-10);
-    const { swingHigh, swingLow } = detectSwings(candles.slice(0, -5), 20);
-    const recent = slice.slice(-5);
-    if (dir === 'LONG') {
-      // Any candle's low went below prior swing low, then closed above it
-      return recent.some(c => c.low < swingLow && c.close > swingLow);
-    } else {
-      return recent.some(c => c.high > swingHigh && c.close < swingHigh);
+      labelEl.innerHTML = `Data: <strong>${escapeHtml(provider || '—')}</strong> (${state.timeframe}) | Candles: ${state.ohlcHistory.length} | Updated: ${timeStr} | Freshness: <span style="color:#10b981">0s</span>`;
     }
   }
 
   /* ========================================================================
-     QUANT MOVING AVERAGE & PRICE ACTION ENGINES
+     5. LIVE SIGNALS & FUTURE SETUPS ENGINE (/api/signals/live)
      ======================================================================== */
-
-  function computeEMASeries(candles, period) {
-    if (!candles || candles.length < period) return [];
-    const k = 2 / (period + 1);
-    let sum = 0;
-    for (let i = 0; i < period; i++) {
-      sum += candles[i].close;
-    }
-    let prevEma = sum / period;
-    const series = [{ time: candles[period - 1].time, value: parseFloat(prevEma.toFixed(2)) }];
-
-    for (let i = period; i < candles.length; i++) {
-      const currentEma = candles[i].close * k + prevEma * (1 - k);
-      prevEma = currentEma;
-      if (candles[i].time > series[series.length - 1].time) {
-        series.push({ time: candles[i].time, value: parseFloat(currentEma.toFixed(2)) });
-      }
-    }
-    return series;
-  }
-
-  function detectEMA915(candles) {
-    if (!candles || candles.length < 15) {
-      return {
-        ema9: null,
-        ema15: null,
-        trend: 'NEUTRAL',
-        cross: null,
-        spread: 0,
-        series9: [],
-        series15: []
-      };
-    }
-
-    const series9 = computeEMASeries(candles, 9);
-    const series15 = computeEMASeries(candles, 15);
-
-    const latest9 = series9[series9.length - 1]?.value;
-    const latest15 = series15[series15.length - 1]?.value;
-    const prev9 = series9[series9.length - 2]?.value;
-    const prev15 = series15[series15.length - 2]?.value;
-
-    let cross = null;
-    if (prev9 && prev15 && latest9 && latest15) {
-      if (prev9 <= prev15 && latest9 > latest15) cross = 'BULLISH_CROSS';
-      else if (prev9 >= prev15 && latest9 < latest15) cross = 'BEARISH_CROSS';
-    }
-
-    const trend = latest9 > latest15 ? 'BULLISH' : 'BEARISH';
-    const spread = (latest9 && latest15) ? Math.abs(latest9 - latest15) : 0;
-
-    return {
-      ema9: latest9,
-      ema15: latest15,
-      trend,
-      cross,
-      spread: parseFloat(spread.toFixed(2)),
-      series9,
-      series15
-    };
-  }
-
-  function detectPriceAction(candles) {
-    if (!candles || candles.length < 3) {
-      return { pattern: 'NONE', dir: 'NEUTRAL', desc: 'Awaiting candlestick close', score: 0 };
-    }
-
-    const latest = candles[candles.length - 1];
-    const prev = candles[candles.length - 2];
-    const range = latest.high - latest.low;
-
-    if (range <= 0) return { pattern: 'NONE', dir: 'NEUTRAL', desc: 'Low volatility candle', score: 0 };
-
-    const body = Math.abs(latest.close - latest.open);
-    const upperWick = latest.high - Math.max(latest.open, latest.close);
-    const lowerWick = Math.min(latest.open, latest.close) - latest.low;
-
-    // 1. Pin Bar / Wick Rejection
-    if (lowerWick >= range * 0.55 && latest.close >= (latest.low + range * 0.40)) {
-      return {
-        pattern: 'BULLISH_PIN_BAR',
-        dir: 'LONG',
-        desc: `Bullish Pin Bar Rejection at $${latest.low.toFixed(2)} (${(lowerWick / range * 100).toFixed(0)}% lower wick absorption)`,
-        score: 30,
-        triggerLevel: latest.high,
-        invalidation: latest.low
-      };
-    }
-
-    if (upperWick >= range * 0.55 && latest.close <= (latest.high - range * 0.40)) {
-      return {
-        pattern: 'BEARISH_PIN_BAR',
-        dir: 'SHORT',
-        desc: `Bearish Pin Bar Rejection at $${latest.high.toFixed(2)} (${(upperWick / range * 100).toFixed(0)}% upper wick rejection)`,
-        score: 30,
-        triggerLevel: latest.low,
-        invalidation: latest.high
-      };
-    }
-
-    // 2. Engulfing Candle
-    if (prev.close < prev.open && latest.close > latest.open && latest.close > prev.open && latest.open <= prev.close) {
-      return {
-        pattern: 'BULLISH_ENGULFING',
-        dir: 'LONG',
-        desc: `Bullish Engulfing Bar absorbing prior supply from $${latest.open.toFixed(2)} to $${latest.close.toFixed(2)}`,
-        score: 35,
-        triggerLevel: latest.high,
-        invalidation: latest.low
-      };
-    }
-
-    if (prev.close > prev.open && latest.close < latest.open && latest.close < prev.open && latest.open >= prev.close) {
-      return {
-        pattern: 'BEARISH_ENGULFING',
-        dir: 'SHORT',
-        desc: `Bearish Engulfing Bar rejecting prior demand from $${latest.open.toFixed(2)} to $${latest.close.toFixed(2)}`,
-        score: 35,
-        triggerLevel: latest.low,
-        invalidation: latest.high
-      };
-    }
-
-    // 3. Inside Bar
-    if (prev.high > latest.high && prev.low < latest.low) {
-      return {
-        pattern: 'INSIDE_BAR_COMPRESSION',
-        dir: 'NEUTRAL',
-        desc: `Inside Bar Volatility Compression within mother bar range $${prev.low.toFixed(2)} - $${prev.high.toFixed(2)}`,
-        score: 15,
-        triggerLevel: prev.high,
-        invalidation: prev.low
-      };
-    }
-
-    // 4. Momentum Marubozu
-    if (body >= range * 0.70) {
-      const isUp = latest.close > latest.open;
-      return {
-        pattern: isUp ? 'BULLISH_MARUBOZU' : 'BEARISH_MARUBOZU',
-        dir: isUp ? 'LONG' : 'SHORT',
-        desc: `${isUp ? 'Bullish' : 'Bearish'} Marubozu Momentum Bar (${(body / range * 100).toFixed(0)}% body volume)`,
-        score: 25,
-        triggerLevel: latest.close,
-        invalidation: isUp ? latest.low : latest.high
-      };
-    }
-
-    const defaultDir = latest.close >= prev.close ? 'LONG' : 'SHORT';
-    return {
-      pattern: 'ORDER_FLOW_EXPANSION',
-      dir: defaultDir,
-      desc: `Order flow continuation ${defaultDir} on current timeframe`,
-      score: 10,
-      triggerLevel: latest.close,
-      invalidation: defaultDir === 'LONG' ? latest.low : latest.high
-    };
-  }
-
-  /**
-   * OHLCV-based signal detection. Uses state.ohlcHistory if available, else falls back to priceHistory.
-   * Returns signal object or null.
-   */
-  function detectSignalFromPrice(currentPrice, priceHistory) {
-    if (!currentPrice) return null;
-
-    // === PRIMARY PATH: OHLCV candle analysis from live TradingView stream ===
-    if (state.ohlcHistory && state.ohlcHistory.length >= 5) {
-      return detectSignalFromOHLC(state.ohlcHistory, currentPrice);
-    }
-
-    // === FALLBACK PATH: live spot price calculation ===
-    const atr = estimateATR(priceHistory);
-    const recent5 = priceHistory.slice(-5);
-    const momentum5 = priceHistory.length >= 5 ? currentPrice - priceHistory[priceHistory.length - 5] : 0;
-    const isLong = momentum5 >= 0;
-    const dir = isLong ? 'LONG' : 'SHORT';
-
-    const entry = isLong ? parseFloat((currentPrice + 1.20).toFixed(2)) : parseFloat((currentPrice - 1.20).toFixed(2));
-    const slDist = parseFloat((atr * 1.4).toFixed(2));
-    const sl = isLong ? parseFloat((entry - slDist).toFixed(2)) : parseFloat((entry + slDist).toFixed(2));
-    const tp1 = isLong ? parseFloat((entry + slDist * 2.0).toFixed(2)) : parseFloat((entry - slDist * 2.0).toFixed(2));
-    const tp2 = isLong ? parseFloat((entry + slDist * 3.5).toFixed(2)) : parseFloat((entry - slDist * 3.5).toFixed(2));
-    const tp3 = isLong ? parseFloat((entry + slDist * 6.0).toFixed(2)) : parseFloat((entry - slDist * 6.0).toFixed(2));
-
-    return {
-      dir,
-      strategy: isLong ? 'ICT_SilverBullet' : 'AliVidollar_SD',
-      tf: state.timeframe || 'H1',
-      entry, sl, tp1, tp2, tp3,
-      rr: '3.5', rrMax: '6.0',
-      conf: 81, confInst: 83, confMacro: 79, confTech: 81,
-      atr,
-      reason: `⚡ WATCH [CONDITIONAL]: Live XAU/USD data feed active • Trigger armed near $${entry.toFixed(2)} • Live Spot: $${currentPrice.toFixed(2)}`,
-      pctChange5: 0,
-      isConditional: true,
-      status: 'WATCH',
-      smcDetails: null
-    };
-  }
-
-  /**
-   * OHLCV-based signal detection using real candles from gold-history API.
-   * Multi-strategy fusion: SMC analysis + Price Action + EMA 9/15 Trend Ribbon.
-   */
-  function detectSignalFromOHLC(candles, currentPrice) {
-    if (!candles || candles.length < 5) return null;
-
-    const atr = computeATRFromCandles(candles, 14);
-    const { swingHigh, swingLow } = detectSwings(candles, 20);
-    const ema = detectEMA915(candles);
-    const pa = detectPriceAction(candles);
-
-    // Determine direction from price position relative to swings & EMA
-    const priceRange = (swingHigh && swingLow) ? (swingHigh - swingLow) : (atr * 3);
-    const pricePosition = (priceRange > 0 && swingLow) ? (currentPrice - swingLow) / priceRange : 0.5;
-
-    let dir = null;
-    if (pricePosition <= 0.40) dir = 'LONG';
-    else if (pricePosition >= 0.60) dir = 'SHORT';
-    else if (ema.trend === 'BULLISH' && pa.dir === 'LONG') dir = 'LONG';
-    else if (ema.trend === 'BEARISH' && pa.dir === 'SHORT') dir = 'SHORT';
-
-    let confluencePoints = 0;
-    const confluenceFactors = [];
-    let choch = { detected: false, breakLevel: null };
-    let liqSweep = false;
-    let ob = null;
-    let fvgLevel = null;
-
-    if (dir) {
-      choch = detectCHoCH(candles, dir);
-      liqSweep = detectLiquiditySweep(candles, dir);
-      ob = detectOrderBlock(candles, dir);
-      fvgLevel = detectFVG(candles, dir);
-
-      if (choch.detected) { confluencePoints += 30; confluenceFactors.push('CHoCH Confirmed'); }
-      else if (choch.breakLevel) { confluencePoints += 10; confluenceFactors.push('CHoCH Pending'); }
-      if (liqSweep) { confluencePoints += 25; confluenceFactors.push('Liquidity Sweep'); }
-      if (ob) { confluencePoints += 20; confluenceFactors.push(`${ob.obType === 'demand' ? 'Demand' : 'Supply'} OB`); }
-      if (fvgLevel !== null) { confluencePoints += 15; confluenceFactors.push('FVG Present'); }
-    }
-
-    // Add EMA 9/15 confluence
-    if (dir && ema.trend === (dir === 'LONG' ? 'BULLISH' : 'BEARISH')) {
-      confluencePoints += 20;
-      confluenceFactors.push(`EMA 9/15 ${ema.trend} Ribbon ($${ema.ema9} vs $${ema.ema15})`);
-    }
-    if (ema.cross) {
-      confluencePoints += 25;
-      confluenceFactors.push(`EMA 9/15 ${ema.cross.replace('_', ' ')}`);
-    }
-
-    // Add Price Action confluence
-    if (dir && pa.dir === dir && pa.score > 0) {
-      confluencePoints += pa.score;
-      confluenceFactors.push(pa.desc);
-    }
-
-    // 1. High-confluence LIVE ACTIVE SIGNAL
-    if (dir && confluencePoints >= 45) {
-      const instScore = Math.min(97, Math.round(55 + Math.min(42, confluencePoints * 0.5)));
-      const last3 = candles.slice(-3);
-      let momentumAgree = 0;
-      last3.forEach(c => {
-        if (dir === 'LONG' && c.close >= c.open) momentumAgree++;
-        if (dir === 'SHORT' && c.close <= c.open) momentumAgree++;
-      });
-      const macroScore = Math.min(95, Math.round(58 + momentumAgree * 12));
-      const atrRatio = atr / (priceRange || 20);
-      const techScore = Math.min(95, Math.round(62 + Math.max(0, (0.3 - atrRatio) * 100)));
-      const weightedConf = Math.min(97, Math.round(instScore * 0.50 + macroScore * 0.30 + techScore * 0.20));
-
-      const slDist = parseFloat((atr * 1.5).toFixed(2));
-      const isLong = dir === 'LONG';
-      const entry = currentPrice;
-      const sl  = isLong ? parseFloat((entry - slDist).toFixed(2)) : parseFloat((entry + slDist).toFixed(2));
-      const tp1 = isLong ? parseFloat((entry + slDist * 2.0).toFixed(2)) : parseFloat((entry - slDist * 2.0).toFixed(2));
-      const tp2 = isLong ? parseFloat((entry + slDist * 3.5).toFixed(2)) : parseFloat((entry - slDist * 3.5).toFixed(2));
-      const tp3 = isLong ? parseFloat((entry + slDist * 6.0).toFixed(2)) : parseFloat((entry - slDist * 6.0).toFixed(2));
-
-      const strategyMap = { LONG: 'ICT_SilverBullet', SHORT: 'AliVidollar_SD' };
-      const reason = confluenceFactors.join(' + ') +
-        ` | ATR(14): ${atr.toFixed(1)} | EMA9: $${ema.ema9 || '—'} / EMA15: $${ema.ema15 || '—'} | Live Spot $${currentPrice.toFixed(2)}`;
-
-      return {
-        dir,
-        strategy: strategyMap[dir],
-        tf: state.timeframe || 'H1',
-        entry, sl, tp1, tp2, tp3,
-        rr: '3.5', rrMax: '6.0',
-        conf: weightedConf,
-        confInst: instScore, confMacro: macroScore, confTech: techScore,
-        atr, reason, pctChange5: 0,
-        isConditional: false,
-        status: 'ACTIVE',
-        smcDetails: { choch, liqSweep, ob, fvgLevel, swingHigh, swingLow, confluencePoints },
-        emaData: ema,
-        paData: pa
-      };
-    }
-
-    // 2. Otherwise: Generate Live Future Conditional Setup (WATCH)
-    const isUptrend = (ema.trend === 'BULLISH') || (candles.length > 5 && candles[candles.length - 1].close >= candles[Math.max(0, candles.length - 15)].open);
-    const condDir = (pricePosition >= 0.50 || isUptrend) ? 'LONG' : 'SHORT';
-    const isCondLong = condDir === 'LONG';
-
-    const condEntry = isCondLong
-      ? parseFloat((Math.max(currentPrice + 1.20, swingHigh ? swingHigh + 0.40 : currentPrice + 3.0)).toFixed(2))
-      : parseFloat((Math.min(currentPrice - 1.20, swingLow ? swingLow - 0.40 : currentPrice - 3.0)).toFixed(2));
-
-    const condSlDist = parseFloat((atr * 1.4).toFixed(2));
-    const condSl  = isCondLong ? parseFloat((condEntry - condSlDist).toFixed(2)) : parseFloat((condEntry + condSlDist).toFixed(2));
-    const condTp1 = isCondLong ? parseFloat((condEntry + condSlDist * 2.0).toFixed(2)) : parseFloat((condEntry - condSlDist * 2.0).toFixed(2));
-    const condTp2 = isCondLong ? parseFloat((condEntry + condSlDist * 3.5).toFixed(2)) : parseFloat((condEntry - condSlDist * 3.5).toFixed(2));
-    const condTp3 = isCondLong ? parseFloat((condEntry + condSlDist * 6.0).toFixed(2)) : parseFloat((condEntry - condSlDist * 6.0).toFixed(2));
-
-    const condReason = isCondLong
-      ? `⚡ WATCH [CONDITIONAL]: Bullish structure on ${state.timeframe} (EMA9: $${ema.ema9 || '—'} > EMA15: $${ema.ema15 || '—'}) • Trigger armed on breakout above $${condEntry.toFixed(2)} • PA: ${pa.desc} • ATR ${atr.toFixed(1)} SL buffer.`
-      : `⚡ WATCH [CONDITIONAL]: Bearish structure on ${state.timeframe} (EMA9: $${ema.ema9 || '—'} < EMA15: $${ema.ema15 || '—'}) • Trigger armed on breakdown below $${condEntry.toFixed(2)} • PA: ${pa.desc} • ATR ${atr.toFixed(1)} SL buffer.`;
-
-    return {
-      dir: condDir,
-      strategy: isCondLong ? 'ICT_SilverBullet' : 'AliVidollar_SD',
-      tf: state.timeframe || 'H1',
-      entry: condEntry,
-      sl: condSl,
-      tp1: condTp1,
-      tp2: condTp2,
-      tp3: condTp3,
-      rr: '3.5',
-      rrMax: '6.0',
-      conf: 84,
-      confInst: 86,
-      confMacro: 82,
-      confTech: 84,
-      atr,
-      reason: condReason,
-      pctChange5: 0,
-      isConditional: true,
-      status: 'WATCH',
-      smcDetails: { choch, liqSweep, ob, fvgLevel, swingHigh, swingLow, confluencePoints },
-      emaData: ema,
-      paData: pa
-    };
-  }
-
-  /**
-   * Deterministic predictive setups — strictly based on requirements and live market structure
-   * Integrates Smart Money Concepts (SMC), Price Action wicks/patterns, and EMA 9/15 trend ribbon
-   */
-  function generatePredictiveSetups(currentPrice, priceHistory) {
-    if (!currentPrice) return [];
-    const setups = [];
-    const candles = state.ohlcHistory;
-
-    // 1. Structure-based POI Setups from live TradingView candles
-    if (candles && candles.length >= 10) {
-      const { swingHigh, swingLow } = detectSwings(candles, 25);
-
-      if (swingLow && !isNaN(swingLow)) {
-        setups.push({
-          tf: state.timeframe || 'H1',
-          type: 'SMC Demand POI Setup',
-          dir: 'LONG',
-          level: parseFloat(swingLow.toFixed(2)),
-          desc: `Live H1 Demand Zone near $${swingLow.toFixed(2)}. Watch for liquidity sweep of swing low. (Live Spot: $${currentPrice.toFixed(2)})`,
-          session: 'London/NY Killzone scan',
-          conditionNote: '⚡ WATCH [CONDITIONAL] — Arm BUY setup upon bullish rejection'
-        });
-      }
-
-      if (swingHigh && !isNaN(swingHigh)) {
-        setups.push({
-          tf: state.timeframe || 'H1',
-          type: 'SMC Supply POI Setup',
-          dir: 'SHORT',
-          level: parseFloat(swingHigh.toFixed(2)),
-          desc: `Live H1 Supply Zone near $${swingHigh.toFixed(2)}. Watch for buy-side liquidity grab. (Live Spot: $${currentPrice.toFixed(2)})`,
-          session: 'London/NY Killzone scan',
-          conditionNote: '⚡ WATCH [CONDITIONAL] — Arm SELL setup upon bearish rejection'
-        });
-      }
-
-      // 2. EMA 9/15 Trend Ribbon Dynamic Support/Resistance Retest
-      const ema = detectEMA915(candles);
-      if (ema.ema9 && ema.ema15) {
-        if (ema.trend === 'BULLISH') {
-          const emaLevel = parseFloat(ema.ema9.toFixed(2));
-          setups.push({
-            tf: state.timeframe || 'H1',
-            type: 'EMA 9/15 Dynamic Pullback',
-            dir: 'LONG',
-            level: emaLevel,
-            desc: `Bullish Trend Ribbon (EMA9: $${ema.ema9.toFixed(2)} > EMA15: $${ema.ema15.toFixed(2)}). Watch for dynamic bounce on EMA 9/15 ribbon retest. (Live Spot: $${currentPrice.toFixed(2)})`,
-            session: 'EMA Ribbon Continuation Scan',
-            conditionNote: '⚡ WATCH [CONDITIONAL] — Arm BUY upon wick rejection at EMA 9/15'
-          });
-        } else {
-          const emaLevel = parseFloat(ema.ema9.toFixed(2));
-          setups.push({
-            tf: state.timeframe || 'H1',
-            type: 'EMA 9/15 Dynamic Retest',
-            dir: 'SHORT',
-            level: emaLevel,
-            desc: `Bearish Trend Ribbon (EMA9: $${ema.ema9.toFixed(2)} < EMA15: $${ema.ema15.toFixed(2)}). Watch for dynamic resistance rejection on retest of EMA 9/15. (Live Spot: $${currentPrice.toFixed(2)})`,
-            session: 'EMA Ribbon Continuation Scan',
-            conditionNote: '⚡ WATCH [CONDITIONAL] — Arm SELL upon bearish exhaustion at EMA 9/15'
-          });
-        }
-      }
-
-      // 3. Price Action Trigger Structure
-      const pa = detectPriceAction(candles);
-      if (pa && pa.triggerLevel) {
-        const paTrigger = parseFloat(pa.triggerLevel.toFixed(2));
-        const paDir = pa.dir !== 'NEUTRAL' ? pa.dir : (ema.trend === 'BULLISH' ? 'LONG' : 'SHORT');
-        setups.push({
-          tf: state.timeframe || 'H1',
-          type: `Price Action: ${pa.pattern.replace(/_/g, ' ')}`,
-          dir: paDir,
-          level: paTrigger,
-          desc: `${pa.desc}. Watch for volume confirmation past $${paTrigger.toFixed(2)}. Invalidation at $${(pa.invalidation || currentPrice).toFixed(2)}.`,
-          session: 'Price Action Trigger Scan',
-          conditionNote: `⚡ WATCH [CONDITIONAL] — Arm ${paDir === 'LONG' ? 'BUY' : 'SELL'} on candlestick close past trigger`
-        });
-      }
-    }
-
-    // 4. Momentum-based fallback setups if candles pending
-    if (!setups.length && priceHistory.length >= 5) {
-      const price5 = priceHistory[priceHistory.length - 5];
-      const dropPct = ((currentPrice - price5) / price5) * 100;
-
-      if (dropPct < -0.3) {
-        setups.push({
-          tf: 'H4',
-          type: 'Support Watch',
-          dir: 'LONG',
-          level: parseFloat((currentPrice * 0.995).toFixed(2)),
-          desc: `Price pulled back ${Math.abs(dropPct).toFixed(2)}%. Approaching potential H4 support near $${(currentPrice * 0.995).toFixed(2)}.`,
-          session: 'London/NY Killzone scan',
-          conditionNote: '⚡ WATCH [CONDITIONAL] — Setup expires if conditions not met'
-        });
-      } else if (dropPct > 0.3) {
-        setups.push({
-          tf: 'H4',
-          type: 'Resistance Watch',
-          dir: 'SHORT',
-          level: parseFloat((currentPrice * 1.005).toFixed(2)),
-          desc: `Price advanced +${dropPct.toFixed(2)}%. Approaching potential H4 supply near $${(currentPrice * 1.005).toFixed(2)}.`,
-          session: 'London/NY Killzone scan',
-          conditionNote: '⚡ WATCH [CONDITIONAL] — Setup expires if conditions not met'
-        });
-      }
-    }
-
-    return setups;
-  }
-
-  function updateSignalEngine() {
+  async function fetchLiveSignals({ forceRefresh = false } = {}) {
+    const endpoint = `/api/signals/live?tf=${encodeURIComponent(state.timeframe)}${forceRefresh ? '&refresh=1' : ''}`;
     try {
-      if (!state.goldPrice) {
-        showWaitingState();
-        return;
+      const res = await fetch(endpoint, { signal: AbortSignal.timeout(12000) });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        const detail = data?.detail || data?.error || res.statusText || 'Live signal API error';
+        setFeedBadge(`HTTP ${res.status} ERROR`, 'error');
+        renderSignalFeedError(res.status, detail);
+        renderFutureSetupsError(res.status, detail);
+        showHttpErrorBanner(`/api/signals/live HTTP ${res.status}`, detail);
+        return null;
       }
 
-      const signal = detectSignalFromPrice(state.goldPrice, state.priceHistory);
-      state.predictiveSetups = generatePredictiveSetups(state.goldPrice, state.priceHistory);
+      lastLivePayload = data;
+      state.liveSignals = Array.isArray(data.live_signals) ? data.live_signals : [];
+      state.futureSetups = Array.isArray(data.future_setups) ? data.future_setups : [];
+      state.allSignals = [...state.liveSignals, ...state.futureSetups];
+      state.indicators = data.indicators || null;
+      state.smcAnalysis = data.smc_analysis || null;
+      if (data.macro) state.macro = data.macro;
 
-      if (signal) {
-        const pa = signal.paData || detectPriceAction(state.ohlcHistory);
-        const ema = signal.emaData || detectEMA915(state.ohlcHistory);
-        const curTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) + ' UTC';
-        const atr = signal.atr || estimateATR(state.priceHistory);
+      if (typeof data.spot_price === 'number' && !state.goldPrice) {
+        state.goldPrice = data.spot_price;
+        state.dataProvider = data.provider || 'Server OHLCV';
+        state.lastFetchTime = new Date();
+        updateTopTickerUI(null);
+      }
 
-        // 1. Master Institutional Signal (SMC + Price Action + EMA 9/15 Confluence)
-        const masterSig = {
-          id: 'XAUUSD-LIVE-01',
-          ...signal,
-          time: curTime,
-          newsFlag: hasNewsWithin2h()
-        };
-
-        // 2. Pure Price Action Signal
-        const paDir = (pa.dir && pa.dir !== 'NEUTRAL') ? pa.dir : signal.dir;
-        const isPaLong = paDir === 'LONG';
-        const paEntry = pa.triggerLevel ? parseFloat(pa.triggerLevel.toFixed(2)) : signal.entry;
-        const paSlDist = parseFloat(Math.max(atr * 1.3, 3.0).toFixed(2));
-        const paSl = pa.invalidation 
-          ? parseFloat(pa.invalidation.toFixed(2)) 
-          : (isPaLong ? parseFloat((paEntry - paSlDist).toFixed(2)) : parseFloat((paEntry + paSlDist).toFixed(2)));
-        const actualPaDist = Math.max(Math.abs(paEntry - paSl), 2.5);
-        const paTp1 = isPaLong ? parseFloat((paEntry + actualPaDist * 2.0).toFixed(2)) : parseFloat((paEntry - actualPaDist * 2.0).toFixed(2));
-        const paTp2 = isPaLong ? parseFloat((paEntry + actualPaDist * 3.5).toFixed(2)) : parseFloat((paEntry - actualPaDist * 3.5).toFixed(2));
-        const paTp3 = isPaLong ? parseFloat((paEntry + actualPaDist * 5.5).toFixed(2)) : parseFloat((paEntry - actualPaDist * 5.5).toFixed(2));
-        const paConf = Math.min(95, 78 + (pa.score || 10));
-
-        const paSig = {
-          id: 'XAUUSD-PA-01',
-          dir: paDir,
-          strategy: pa.pattern && pa.pattern !== 'NONE' ? `PA_${pa.pattern}` : 'PriceAction_Structure',
-          tf: state.timeframe || 'H1',
-          entry: paEntry,
-          sl: paSl,
-          tp1: paTp1,
-          tp2: paTp2,
-          tp3: paTp3,
-          rr: '3.5',
-          rrMax: '5.5',
-          conf: paConf,
-          confInst: 84,
-          confMacro: 80,
-          confTech: 88,
-          atr,
-          reason: `Price Action: ${pa.desc} • Key Trigger: $${paEntry.toFixed(2)} • Invalidation: $${paSl.toFixed(2)}`,
-          time: curTime,
-          isConditional: signal.isConditional,
-          status: signal.status,
-          newsFlag: false
-        };
-
-        // 3. EMA 9/15 Trend Ribbon Signal
-        const emaDir = ema.trend === 'BULLISH' ? 'LONG' : 'SHORT';
-        const isEmaLong = emaDir === 'LONG';
-        const emaEntry = signal.entry;
-        const emaSlDist = parseFloat(Math.max(atr * 1.25, 3.2).toFixed(2));
-        const emaSl = isEmaLong
-          ? parseFloat((Math.min(ema.ema15 || (emaEntry - emaSlDist), emaEntry - emaSlDist)).toFixed(2))
-          : parseFloat((Math.max(ema.ema15 || (emaEntry + emaSlDist), emaEntry + emaSlDist)).toFixed(2));
-        const actualEmaDist = Math.max(Math.abs(emaEntry - emaSl), 2.5);
-        const emaTp1 = isEmaLong ? parseFloat((emaEntry + actualEmaDist * 2.0).toFixed(2)) : parseFloat((emaEntry - actualEmaDist * 2.0).toFixed(2));
-        const emaTp2 = isEmaLong ? parseFloat((emaEntry + actualEmaDist * 3.5).toFixed(2)) : parseFloat((emaEntry - actualEmaDist * 3.5).toFixed(2));
-        const emaTp3 = isEmaLong ? parseFloat((emaEntry + actualEmaDist * 5.0).toFixed(2)) : parseFloat((emaEntry - actualEmaDist * 5.0).toFixed(2));
-        const emaConf = ema.cross ? 92 : (ema.trend === signal.dir ? 88 : 82);
-
-        const emaSig = {
-          id: 'XAUUSD-EMA-01',
-          dir: emaDir,
-          strategy: ema.cross ? 'EMA_9_15_Cross' : 'EMA_9_15_Ribbon',
-          tf: state.timeframe || 'H1',
-          entry: emaEntry,
-          sl: emaSl,
-          tp1: emaTp1,
-          tp2: emaTp2,
-          tp3: emaTp3,
-          rr: '3.0',
-          rrMax: '5.0',
-          conf: emaConf,
-          confInst: 82,
-          confMacro: 85,
-          confTech: 90,
-          atr,
-          reason: ema.cross
-            ? `⚡ Momentum Crossover: EMA 9 crossed EMA 15 ($${ema.ema9} vs $${ema.ema15}) • Directional impulse confirmed`
-            : `EMA 9/15 Ribbon: ${ema.trend} Momentum Alignment ($${ema.ema9} vs $${ema.ema15}, Spread: $${ema.spread} pts)`,
-          time: curTime,
-          isConditional: signal.isConditional,
-          status: signal.status,
-          newsFlag: false
-        };
-
-        state.signalFeed = [masterSig, paSig, emaSig];
-
-        // Retain current active selection if present in feed, else default to masterSig
-        const currentHero = (state.signal && state.signalFeed.find(s => s.id === state.signal.id)) || masterSig;
-
-        state.signal = {
-          id: currentHero.id,
-          type: currentHero.dir,
-          strategy: currentHero.strategy,
-          entry: currentHero.entry,
-          sl: currentHero.sl,
-          tp1: currentHero.tp1,
-          tp2: currentHero.tp2,
-          tp3: currentHero.tp3,
-          rr: currentHero.rr,
-          atr: currentHero.atr,
-          reason: currentHero.reason,
-          confidence: currentHero.conf,
-          confInst: currentHero.confInst,
-          confMacro: currentHero.confMacro,
-          confTech: currentHero.confTech,
-          isConditional: currentHero.isConditional,
-          status: currentHero.status
-        };
-        updateHeroSignalUI();
+      // Bind Hero Card strictly to live_signals[0] (or user-selected live signal)
+      if (state.liveSignals.length > 0) {
+        const selected = state.signal && state.allSignals.find((s) => s.id === state.signal.id);
+        state.signal = selected || state.liveSignals[0];
       } else {
-        state.signalFeed = [];
+        // Only preserve manual selection if it is still in future_setups; otherwise show Monitoring state
+        const manualFuture = state.signal && state.futureSetups.find((s) => s.id === state.signal.id);
+        state.signal = manualFuture || null;
       }
 
+      updateHeroSignalUI();
       renderSignalFeed();
-      renderPredictiveSetups();
-      updateConfidenceDynamically();
+      renderFutureSetups();
+      updateMacroStreamUI();
+      updateBlueprintJsonPreview(data);
 
-      const badge = document.getElementById('nav-badge-terminal');
-      if (badge) {
-        badge.textContent = state.signalFeed.length;
-        badge.style.display = state.signalFeed.length > 0 ? 'inline-flex' : 'none';
+      if (state.lwChart && state.lwCandleSeries) {
+        drawSMCOverlays();
       }
+
+      const navBadge = document.getElementById('nav-badge-terminal');
+      if (navBadge) {
+        const count = state.liveSignals.length || state.futureSetups.length;
+        navBadge.textContent = count;
+        navBadge.style.display = count > 0 ? 'inline-flex' : 'none';
+      }
+
+      return data;
     } catch (err) {
-      console.error('[MANUS MAX]', 'updateSignalEngine error', err);
-      showError('updateSignalEngine', err.message);
+      const msg = err.name === 'TimeoutError' ? 'Live signal scan timed out' : err.message;
+      setFeedBadge('API ERROR', 'error');
+      renderSignalFeedError('NET', msg);
+      renderFutureSetupsError('NET', msg);
+      showHttpErrorBanner('/api/signals/live', msg);
+      return null;
     }
   }
 
-  function initSignalEngine() {
-    renderSignalFeed();
-    renderPredictiveSetups();
+  function setFeedBadge(text, mode = 'live') {
+    const badge = document.getElementById('signal-feed-badge');
+    const textEl = document.getElementById('signal-feed-status-badge');
+    const dotEl = document.getElementById('signal-feed-dot');
+    const futureBadge = document.getElementById('future-setups-badge');
+    if (textEl) textEl.textContent = text;
+    if (badge) {
+      if (mode === 'error') {
+        badge.style.background = 'rgba(239,68,68,0.15)';
+        badge.style.borderColor = 'rgba(239,68,68,0.45)';
+        badge.style.color = '#ef4444';
+      } else if (mode === 'future') {
+        badge.style.background = 'rgba(245,194,66,0.15)';
+        badge.style.borderColor = 'rgba(245,194,66,0.45)';
+        badge.style.color = '#f5c242';
+      } else {
+        badge.style.background = 'rgba(16,185,129,0.12)';
+        badge.style.borderColor = 'rgba(16,185,129,0.4)';
+        badge.style.color = '#10b981';
+      }
+    }
+    if (dotEl) {
+      dotEl.style.background = mode === 'error' ? '#ef4444' : mode === 'future' ? '#f5c242' : '#10b981';
+    }
+    if (futureBadge) {
+      futureBadge.textContent = mode === 'error' ? 'ERROR' : `${state.futureSetups.length} SETUPS`;
+    }
   }
 
-  function renderSignalFeed() {
-    const container = document.getElementById('signal-feed-list');
-    if (!container) return;
+  function updateHeroSignalUI() {
+    const els = {
+      badge: document.getElementById('hero-signal-badge'),
+      tf1: document.getElementById('hero-tf1'),
+      tf2: document.getElementById('hero-tf2'),
+      strategy: document.getElementById('hero-strategy'),
+      strategySub: document.getElementById('hero-strategy-sub'),
+      entry: document.getElementById('sig-entry'),
+      spot: document.getElementById('sig-current-live'),
+      sl: document.getElementById('sig-sl'),
+      slPips: document.getElementById('sig-sl-pips'),
+      tp1: document.getElementById('sig-tp1'),
+      tp1Pips: document.getElementById('sig-tp1-pips'),
+      tp2: document.getElementById('sig-tp2'),
+      tp2Pips: document.getElementById('sig-tp2-pips'),
+      tp3: document.getElementById('sig-tp3'),
+      tp3Pips: document.getElementById('sig-tp3-pips'),
+      rr: document.getElementById('sig-rr'),
+      rrSub: document.getElementById('sig-rr-sub'),
+      reason: document.getElementById('hero-reason'),
+      score: document.getElementById('gauge-score-num'),
+      gauge: document.getElementById('gauge-circle'),
+      valInst: document.getElementById('conf-val-inst'),
+      valMacro: document.getElementById('conf-val-macro'),
+      valTech: document.getElementById('conf-val-tech'),
+      barInst: document.getElementById('conf-bar-inst'),
+      barMacro: document.getElementById('conf-bar-macro'),
+      barTech: document.getElementById('conf-bar-tech'),
+    };
 
-    if (!state.goldPrice) {
-      showWaitingState();
+    if (els.spot) els.spot.textContent = formatPrice(state.goldPrice);
+
+    const sig = state.signal;
+    if (!sig) {
+      // No LIVE signal triggered right now — explicit monitoring state (zero static 92% mock)
+      if (els.badge) {
+        els.badge.className = 'signal-type-badge';
+        els.badge.style.cssText = 'background:rgba(245,194,66,0.14);border:1px solid rgba(245,194,66,0.45);color:#f5c242;';
+        els.badge.innerHTML = `<i data-lucide="radar"></i> <span id="hero-signal-label">No Active Trigger — Monitoring Next Setup</span>`;
+      }
+      if (els.tf1) els.tf1.textContent = state.timeframe;
+      if (els.tf2) els.tf2.textContent = 'H1/H4';
+      if (els.strategy) els.strategy.textContent = 'SMC_STANDBY';
+      if (els.strategySub) els.strategySub.textContent = `${state.futureSetups.length} Future Setups Queued`;
+      if (els.entry) els.entry.textContent = '—';
+      if (els.sl) els.sl.textContent = '—';
+      if (els.slPips) els.slPips.textContent = '— Pips';
+      if (els.tp1) els.tp1.textContent = '—';
+      if (els.tp1Pips) els.tp1Pips.textContent = 'Min 1:2 RR';
+      if (els.tp2) els.tp2.textContent = '—';
+      if (els.tp2Pips) els.tp2Pips.textContent = '1:3.5 Runner';
+      if (els.tp3) els.tp3.textContent = '—';
+      if (els.tp3Pips) els.tp3Pips.textContent = '1:6 Max HTF';
+      if (els.rr) els.rr.textContent = '—';
+      if (els.rrSub) els.rrSub.textContent = 'Awaiting Zone Tap';
+
+      const nextF = state.futureSetups[0];
+      if (els.reason) {
+        els.reason.textContent = nextF
+          ? `No active trigger at current spot (${formatPrice(state.goldPrice)}). Closest upcoming zone: ${nextF.timeframe} ${nextF.direction} ${nextF.strategy} at ${formatPrice(nextF.entry_price)} (${nextF.distance_pips} pips away).`
+          : `Monitoring M5/M15/H1/H4 OHLCV structure at ${formatPrice(state.goldPrice)} — awaiting OB/FVG/EMA 9-15 confluence.`;
+      }
+      if (els.score) els.score.textContent = '—';
+      if (els.gauge) els.gauge.style.strokeDashoffset = '314';
+      if (els.valInst) els.valInst.textContent = '—';
+      if (els.valMacro) els.valMacro.textContent = '—';
+      if (els.valTech) els.valTech.textContent = '—';
+      if (els.barInst) els.barInst.style.width = '0%';
+      if (els.barMacro) els.barMacro.style.width = '0%';
+      if (els.barTech) els.barTech.style.width = '0%';
+      if (window.lucide) window.lucide.createIcons();
       return;
     }
 
-    const candleCount = (state.ohlcHistory && state.ohlcHistory.length) || state.priceHistory.length;
-
-    if (candleCount < 2) {
-      container.innerHTML = `
-        <div style="text-align:center;color:var(--text-dim);padding:30px 20px;font-size:12px;line-height:1.8;">
-          <div style="font-size:18px;margin-bottom:8px;">📡</div>
-          <div style="color:var(--gold-primary);font-weight:700;margin-bottom:6px;">
-            CONNECTING TO LIVE TRADINGVIEW DATA STREAM...
-          </div>
-          <div style="font-size:11px;color:rgba(255,255,255,0.6);">
-            Loading real-time XAU/USD market structure and candle stream.
-          </div>
-        </div>
-      `;
-      return;
+    const isLong = sig.direction === 'LONG';
+    const isFuture = sig.status === 'FUTURE_SETUP';
+    if (els.badge) {
+      els.badge.style.cssText = '';
+      if (isFuture) {
+        els.badge.className = 'signal-type-badge';
+        els.badge.style.cssText = 'background:rgba(245,194,66,0.15);border:1px solid rgba(245,194,66,0.45);color:#f5c242;';
+        els.badge.innerHTML = `<i data-lucide="clock"></i> <span id="hero-signal-label">FUTURE SETUP (${sig.direction}) • ${sig.distance_pips} PIPS AWAY</span>`;
+      } else {
+        els.badge.className = `signal-type-badge ${isLong ? 'signal-buy' : 'signal-sell'}`;
+        els.badge.innerHTML = `<i data-lucide="${isLong ? 'trending-up' : 'trending-down'}"></i> <span id="hero-signal-label">LIVE ${sig.direction} SIGNAL (${sig.timeframe})</span>`;
+      }
     }
 
-    if (!state.signalFeed.length) {
-      container.innerHTML = `
-        <div style="text-align:center;color:var(--text-dim);padding:24px 20px;font-size:12px;line-height:1.6;">
-          <div style="font-size:16px;margin-bottom:6px;">🔍</div>
-          <div style="font-weight:600;color:var(--text-secondary);">SCANNING FOR XAU/USD SETUPS...</div>
-          <div style="font-size:11px;margin-top:4px;">
-            Awaiting directional confirmation or liquidity sweep on current timeframe.
-          </div>
-        </div>
-      `;
-      return;
-    }
+    if (els.tf1) els.tf1.textContent = sig.timeframe;
+    if (els.tf2) els.tf2.textContent = state.timeframe;
+    if (els.strategy) els.strategy.textContent = sig.strategy;
+    if (els.strategySub) els.strategySub.textContent = isFuture ? `Pending Trigger (${sig.distance_pips} pips)` : 'Active Confluence Zone';
 
-    const activeId = state.signal?.id || state.signalFeed[0]?.id;
+    if (els.entry) els.entry.textContent = formatPrice(sig.entry_price);
+    if (els.sl) els.sl.textContent = formatPrice(sig.stop_loss);
+    if (els.tp1) els.tp1.textContent = formatPrice(sig.tp1);
+    if (els.tp2) els.tp2.textContent = formatPrice(sig.tp2);
+    if (els.tp3) els.tp3.textContent = formatPrice(sig.tp3);
 
-    container.innerHTML = '';
-    state.signalFeed.forEach((sig) => {
-      const div = document.createElement('div');
-      const isLong = sig.dir === 'LONG';
-      const dirClass = isLong ? 'sig-long' : 'sig-short';
-      const confClass = sig.conf >= 85 ? 'sig-conf-high' : sig.conf >= 75 ? 'sig-conf-med' : 'sig-conf-low';
-      const badgeClass = isLong ? 'sig-dir-long' : 'sig-dir-short';
-      const dirLabel = isLong ? '▲ LONG' : '▼ SHORT';
-      const isCurrentActive = sig.id === activeId;
-      const statusBadge = sig.isConditional
-        ? '<span class="badge-tag" style="background:rgba(245,194,66,0.15);color:#f5c242;border:1px solid rgba(245,194,66,0.4);font-size:9px;padding:2px 6px;">⚡ WATCH [CONDITIONAL]</span>'
-        : '<span class="badge-tag" style="background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.4);font-size:9px;padding:2px 6px;">● LIVE ACTIVE</span>';
+    const slPips = Math.round(Math.abs(sig.entry_price - sig.stop_loss) * 10);
+    const tp1Pips = Math.round(Math.abs(sig.tp1 - sig.entry_price) * 10);
+    const tp2Pips = sig.tp2 ? Math.round(Math.abs(sig.tp2 - sig.entry_price) * 10) : null;
+    const tp3Pips = sig.tp3 ? Math.round(Math.abs(sig.tp3 - sig.entry_price) * 10) : null;
 
-      div.className = `sig-item ${dirClass}${isCurrentActive ? ' sig-active' : ''}`;
-      div.setAttribute('data-sig-id', sig.id);
-      div.innerHTML = `
+    if (els.slPips) els.slPips.textContent = `-${slPips} Pips`;
+    if (els.tp1Pips) els.tp1Pips.textContent = `+${tp1Pips} Pips (Close 50%)`;
+    if (els.tp2Pips) els.tp2Pips.textContent = tp2Pips != null ? `+${tp2Pips} Pips (Runner)` : '—';
+    if (els.tp3Pips) els.tp3Pips.textContent = tp3Pips != null ? `+${tp3Pips} Pips (Max HTF)` : '—';
+    if (els.rr) els.rr.textContent = `1 : ${Number(sig.rr_ratio || 2.0).toFixed(1)}`;
+    if (els.rrSub) els.rrSub.textContent = `ATR(${sig.indicators?.atr14 ?? '14'}) Verified`;
+    if (els.reason) els.reason.textContent = sig.reason || 'Multi-TF OHLCV Confluence';
+
+    const conf = Number(sig.confidence || 0);
+    const inst = Number(sig.confidence_inst ?? conf);
+    const macro = Number(sig.confidence_macro ?? conf);
+    const tech = Number(sig.confidence_tech ?? conf);
+
+    if (els.score) els.score.textContent = `${conf}%`;
+    if (els.gauge) els.gauge.style.strokeDashoffset = (314 * (1 - conf / 100)).toFixed(1);
+    if (els.valInst) els.valInst.textContent = `${inst}%`;
+    if (els.valMacro) els.valMacro.textContent = `${macro}%`;
+    if (els.valTech) els.valTech.textContent = `${tech}%`;
+
+    const contrib = inst * 0.5 + macro * 0.3 + tech * 0.2 || 1;
+    if (els.barInst) els.barInst.style.width = `${((inst * 0.5) / contrib) * 92}%`;
+    if (els.barMacro) els.barMacro.style.width = `${((macro * 0.3) / contrib) * 92}%`;
+    if (els.barTech) els.barTech.style.width = `${((tech * 0.2) / contrib) * 92}%`;
+
+    updateNewsBadges();
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  function renderSignalCardHtml(sig, isActive) {
+    const isLong = sig.direction === 'LONG';
+    const isFuture = sig.status === 'FUTURE_SETUP';
+    const dirClass = isFuture ? 'sig-predictive' : (isLong ? 'sig-long' : 'sig-short');
+    const badgeClass = isLong ? 'sig-dir-long' : 'sig-dir-short';
+    const confClass = sig.confidence >= 85 ? 'sig-conf-high' : sig.confidence >= 70 ? 'sig-conf-med' : 'sig-conf-low';
+
+    const statusBadge = isFuture
+      ? `<span class="badge-future-amber">⏳ FUTURE SETUP</span><span class="sig-dist-pill">${sig.distance_pips} pips away</span>`
+      : `<span class="badge-live-pulse">● LIVE NOW</span>`;
+
+    const ind = sig.indicators || {};
+    const chips = [
+      ind.ema9 != null ? `<span class="ind-chip">EMA9: <strong>$${ind.ema9}</strong></span>` : '',
+      ind.ema15 != null ? `<span class="ind-chip">EMA15: <strong>$${ind.ema15}</strong></span>` : '',
+      ind.rsi14 != null ? `<span class="ind-chip">RSI(14): <strong>${ind.rsi14}</strong></span>` : '',
+      ind.atr14 != null ? `<span class="ind-chip">ATR(14): <strong>${ind.atr14}</strong></span>` : '',
+      ind.ob ? `<span class="ind-chip">OB: <strong>$${ind.ob[0]}–$${ind.ob[1]}</strong></span>` : '',
+      ind.fvg ? `<span class="ind-chip">FVG: <strong>$${ind.fvg[0]}–$${ind.fvg[1]}</strong></span>` : '',
+    ].filter(Boolean).join('');
+
+    const inst = sig.confidence_inst ?? sig.confidence;
+    const macro = sig.confidence_macro ?? sig.confidence;
+    const tech = sig.confidence_tech ?? sig.confidence;
+
+    return {
+      className: `sig-item ${dirClass}${isActive ? ' sig-active' : ''}`,
+      html: `
         <div class="sig-item-header">
-          <span class="sig-dir-badge ${badgeClass}">${dirLabel}</span>
-          ${statusBadge}
-          <span class="sig-strategy-tag">${sig.strategy}</span>
-          <span class="sig-conf-badge ${confClass}">${sig.conf}%</span>
-          ${sig.newsFlag ? '<span class="news-2h-badge-sm">⚠ 2h NEWS</span>' : ''}
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            <span class="sig-dir-badge ${badgeClass}">${isLong ? '▲ LONG' : '▼ SHORT'}</span>
+            ${statusBadge}
+            <span class="sig-strategy-tag">${escapeHtml(sig.strategy)}</span>
+          </div>
+          <span class="sig-conf-badge ${confClass}">${sig.confidence}%</span>
         </div>
-        <div class="sig-reason">"${sig.reason}"</div>
+        <div class="sig-reason">${escapeHtml(sig.reason)}</div>
+        ${chips ? `<div class="sig-indicator-chips">${chips}</div>` : ''}
         <div class="sig-levels">
-          <span class="sig-level-item"><span class="sig-level-label">TRIGGER</span><span class="sig-level-val entry-val">${formatPrice(sig.entry)}</span></span>
-          <span class="sig-level-item"><span class="sig-level-label">SL</span><span class="sig-level-val sl-val">${formatPrice(sig.sl)}</span></span>
-          <span class="sig-level-item"><span class="sig-level-label">TP2</span><span class="sig-level-val tp-val">${formatPrice(sig.tp2)}</span></span>
-          <span class="sig-level-item"><span class="sig-level-label">TP3</span><span class="sig-level-val" style="color:var(--gold-bright);">${formatPrice(sig.tp3)}</span></span>
+          <span class="sig-level-item"><span class="sig-level-label">${isFuture ? 'PROJECTED' : 'ENTRY'}</span><span class="sig-level-val entry-val">${formatPrice(sig.entry_price)}</span></span>
+          <span class="sig-level-item"><span class="sig-level-label">SL</span><span class="sig-level-val sl-val">${formatPrice(sig.stop_loss)}</span></span>
+          <span class="sig-level-item"><span class="sig-level-label">TP1</span><span class="sig-level-val tp-val">${formatPrice(sig.tp1)}</span></span>
+          ${sig.tp2 ? `<span class="sig-level-item"><span class="sig-level-label">TP2</span><span class="sig-level-val" style="color:var(--gold-primary);">${formatPrice(sig.tp2)}</span></span>` : ''}
+          ${sig.tp3 ? `<span class="sig-level-item"><span class="sig-level-label">TP3</span><span class="sig-level-val" style="color:var(--gold-bright);">${formatPrice(sig.tp3)}</span></span>` : ''}
         </div>
         <div class="sig-footer">
-          <span class="sig-rr">RR 1:${sig.rr} <span style="color:var(--text-dim);font-size:10px;">(max 1:${sig.rrMax})</span></span>
-          <span style="display:flex;align-items:center;gap:6px;">
-            <span class="sig-time">${sig.tf} • ${sig.time}</span>
-          </span>
+          <span class="sig-rr">Min RR 1:${Number(sig.rr_ratio || 2).toFixed(1)}</span>
+          <span class="sig-time">${escapeHtml(sig.timeframe)} • ${formatUtcTimestamp(sig.opened_at)}</span>
         </div>
         <div class="sig-expand-btn" onclick="toggleSigExpand(this)">
           <i data-lucide="chevron-down"></i> 3-Pillar Breakdown
@@ -1716,52 +675,66 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="sig-expanded-detail" style="display:none;">
           <div class="sig-pillar-row">
             <span class="sig-pillar-label"><span class="conf-seg-dot inst"></span> Institutional (×50%)</span>
-            <span class="sig-pillar-val text-purple">${sig.confInst}%</span>
-            <div class="sig-pillar-bar"><div class="sig-pillar-fill" style="width:${sig.confInst}%;background:var(--purple);"></div></div>
+            <span class="sig-pillar-val text-purple">${inst}%</span>
+            <div class="sig-pillar-bar"><div class="sig-pillar-fill" style="width:${inst}%;background:var(--purple);"></div></div>
           </div>
           <div class="sig-pillar-row">
             <span class="sig-pillar-label"><span class="conf-seg-dot macro"></span> Macro (×30%)</span>
-            <span class="sig-pillar-val text-gold">${sig.confMacro}%</span>
-            <div class="sig-pillar-bar"><div class="sig-pillar-fill" style="width:${sig.confMacro}%;background:var(--gold-primary);"></div></div>
+            <span class="sig-pillar-val text-gold">${macro}%</span>
+            <div class="sig-pillar-bar"><div class="sig-pillar-fill" style="width:${macro}%;background:var(--gold-primary);"></div></div>
           </div>
           <div class="sig-pillar-row">
             <span class="sig-pillar-label"><span class="conf-seg-dot tech"></span> Technical (×20%)</span>
-            <span class="sig-pillar-val text-emerald">${sig.confTech}%</span>
-            <div class="sig-pillar-bar"><div class="sig-pillar-fill" style="width:${sig.confTech}%;background:var(--emerald);"></div></div>
-          </div>
-          <div style="font-size:10px;color:var(--text-dim);margin-top:6px;font-family:var(--font-mono);">
-            Total: ${sig.confInst}×0.50 + ${sig.confMacro}×0.30 + ${sig.confTech}×0.20 = <strong style="color:var(--gold-primary);">${sig.conf}%</strong>
+            <span class="sig-pillar-val text-emerald">${tech}%</span>
+            <div class="sig-pillar-bar"><div class="sig-pillar-fill" style="width:${tech}%;background:var(--emerald);"></div></div>
           </div>
         </div>
+      `,
+    };
+  }
+
+  function renderSignalFeed() {
+    const container = document.getElementById('signal-feed-list');
+    if (!container) return;
+
+    const liveCount = state.liveSignals.length;
+    const futureCount = state.futureSetups.length;
+
+    if (liveCount > 0) {
+      setFeedBadge(`${liveCount} LIVE • ${futureCount} FUTURE`, 'live');
+    } else if (futureCount > 0) {
+      setFeedBadge(`WATCHING (${futureCount} FUTURE SETUPS)`, 'future');
+    } else {
+      setFeedBadge('NO ACTIVE SETUP', 'future');
+    }
+
+    if (state.allSignals.length === 0) {
+      container.innerHTML = `
+        <div style="text-align:center;color:var(--text-dim);padding:28px 20px;font-size:12px;line-height:1.6;">
+          No active LIVE or FUTURE_SETUP triggers detected across M5/M15/H1/H4 at ${formatPrice(state.goldPrice)}.
+        </div>
       `;
+      return;
+    }
+
+    const activeId = state.signal?.id;
+    container.innerHTML = '';
+
+    // Strictly render LIVE NOW cards first, followed by FUTURE_SETUP cards
+    state.allSignals.forEach((sig) => {
+      const { className, html } = renderSignalCardHtml(sig, sig.id === activeId);
+      const div = document.createElement('div');
+      div.className = className;
+      div.setAttribute('data-sig-id', sig.id);
+      div.innerHTML = html;
 
       div.addEventListener('click', (e) => {
         if (e.target.closest('.sig-expand-btn') || e.target.closest('.sig-expanded-detail')) return;
-        document.querySelectorAll('#signal-feed-list .sig-item').forEach(el => el.classList.remove('sig-active'));
+        document.querySelectorAll('#signal-feed-list .sig-item').forEach((el) => el.classList.remove('sig-active'));
         div.classList.add('sig-active');
-        state.signal = {
-          id: sig.id,
-          type: sig.dir,
-          strategy: sig.strategy,
-          entry: sig.entry,
-          sl: sig.sl,
-          tp1: sig.tp1,
-          tp2: sig.tp2,
-          tp3: sig.tp3,
-          rr: sig.rr,
-          atr: sig.atr,
-          reason: sig.reason,
-          confidence: sig.conf,
-          confInst: sig.confInst,
-          confMacro: sig.confMacro,
-          confTech: sig.confTech,
-          isConditional: sig.isConditional,
-          status: sig.status
-        };
+        state.signal = sig;
         updateHeroSignalUI();
-        if (state.lwChart && state.lwCandleSeries && state.goldPrice) {
-          drawSMCOverlays(state.lwChart, state.lwCandleSeries, state.goldPrice);
-        }
+        drawSMCOverlays();
       });
 
       container.appendChild(div);
@@ -1770,74 +743,653 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.lucide) window.lucide.createIcons();
   }
 
-  window.toggleSigExpand = function (btn) {
-    try {
-      const detail = btn.nextElementSibling;
-      const icon = btn.querySelector('i');
-      if (detail) {
-        const isOpen = detail.style.display !== 'none';
-        detail.style.display = isOpen ? 'none' : 'block';
-        if (icon) icon.setAttribute('data-lucide', isOpen ? 'chevron-down' : 'chevron-up');
-        if (window.lucide) window.lucide.createIcons();
-      }
-    } catch (err) {
-      console.error('[MANUS MAX]', 'toggleSigExpand error', err);
-      showError('toggleSigExpand', err.message);
-    }
-  };
+  function renderSignalFeedError(status, detail) {
+    const container = document.getElementById('signal-feed-list');
+    if (!container) return;
+    container.innerHTML = `
+      <div class="http-error-banner" style="margin:8px;">
+        <span>⚠ /api/signals/live returned HTTP ${escapeHtml(status)}: ${escapeHtml(detail)}</span>
+      </div>
+    `;
+  }
 
-  function renderPredictiveSetups() {
+  function renderFutureSetups() {
     const container = document.getElementById('predictive-list');
     if (!container) return;
-    container.innerHTML = '';
 
-    if (!state.predictiveSetups.length) {
+    if (!state.futureSetups.length) {
       container.innerHTML = `
         <div class="predictive-item" style="color:var(--text-dim);font-size:12px;text-align:center;padding:16px;">
-          No qualified HTF POI setups detected.
+          No untested OB/FVG future setups within 4.5× ATR of current spot.
         </div>
       `;
       return;
     }
 
-    state.predictiveSetups.forEach(setup => {
+    container.innerHTML = '';
+    state.futureSetups.forEach((setup) => {
       const div = document.createElement('div');
       div.className = 'predictive-item';
-      const dirColor = setup.dir === 'LONG' ? 'var(--emerald)' : 'var(--ruby)';
+      div.style.cursor = 'pointer';
+      const dirColor = setup.direction === 'LONG' ? 'var(--emerald)' : 'var(--ruby)';
       div.innerHTML = `
         <div class="pred-header">
-          <span class="pred-alert-tag"><i data-lucide="zap"></i> ⚡ WATCH [CONDITIONAL — NOT TRIGGERED]</span>
-          <span class="pred-tf">${setup.tf}</span>
+          <span class="pred-alert-tag"><i data-lucide="clock"></i> FUTURE SETUP • ${setup.distance_pips} PIPS</span>
+          <span class="pred-tf">${escapeHtml(setup.timeframe)}</span>
         </div>
-        <div class="pred-desc">${setup.desc}</div>
-        <div style="font-size:10px;color:var(--text-dim);margin-top:4px;font-style:italic;">
-          ${setup.conditionNote}. Setup expires if conditions not met.
-        </div>
+        <div class="pred-desc">${escapeHtml(setup.reason)}</div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;">
-          <span class="pred-price" style="color:${dirColor};">⚡ Potential ${setup.dir} near ${formatPrice(setup.level)}</span>
-          <span style="font-size:10px;color:var(--text-dim);">${setup.session}</span>
+          <span class="pred-price" style="color:${dirColor};">${setup.direction} @ ${formatPrice(setup.entry_price)}</span>
+          <span style="font-size:10px;color:var(--text-dim);">SL ${formatPrice(setup.stop_loss)} • TP1 ${formatPrice(setup.tp1)}</span>
         </div>
       `;
+      div.addEventListener('click', () => {
+        state.signal = setup;
+        updateHeroSignalUI();
+        drawSMCOverlays();
+      });
       container.appendChild(div);
     });
 
     if (window.lucide) window.lucide.createIcons();
   }
 
+  function renderFutureSetupsError(status, detail) {
+    const container = document.getElementById('predictive-list');
+    if (!container) return;
+    container.innerHTML = `
+      <div class="http-error-banner">
+        <span>⚠ Future Setups Error (HTTP ${escapeHtml(status)}): ${escapeHtml(detail)}</span>
+      </div>
+    `;
+  }
+
+  window.toggleSigExpand = function (btn) {
+    const detail = btn.nextElementSibling;
+    const icon = btn.querySelector('i');
+    if (detail) {
+      const isOpen = detail.style.display !== 'none';
+      detail.style.display = isOpen ? 'none' : 'block';
+      if (icon) icon.setAttribute('data-lucide', isOpen ? 'chevron-down' : 'chevron-up');
+      if (window.lucide) window.lucide.createIcons();
+    }
+  };
+
   /* ========================================================================
-     5. KILLZONE TIMER ENGINE
+     6. MULTI-LAYER DATA STREAM UI (Dynamic — Zero Static Mock Text)
      ======================================================================== */
-  function initKillzoneTimer() {
-    updateKillzoneDisplay();
-    setInterval(updateKillzoneDisplay, 1000);
+  function updateMacroStreamUI() {
+    const m = state.macro || {};
+    const ind = state.indicators || {};
+    const smc = state.smcAnalysis || {};
+
+    const macroStatus = document.getElementById('feed-macro-status');
+    const macroDetail = document.getElementById('feed-macro-detail');
+    if (macroStatus && macroDetail) {
+      if (m.dxy != null || m.us10y != null) {
+        const dxyBullish = m.dxy_change_pct != null && m.dxy_change_pct < 0;
+        macroStatus.textContent = dxyBullish ? 'DXY Weakening (Bullish Au)' : 'DXY Firm (Mixed Au)';
+        macroStatus.className = `feed-status ${dxyBullish ? 'text-emerald' : 'text-gold'}`;
+        macroDetail.innerHTML = `DXY <strong class="font-mono">${m.dxy ?? '—'}</strong> (${m.dxy_change_pct != null ? `${m.dxy_change_pct >= 0 ? '+' : ''}${m.dxy_change_pct}%` : '—'}). US 10Y <strong class="font-mono">${m.us10y != null ? `${m.us10y}%` : '—'}</strong>. Real Yield Est: <strong class="font-mono">${m.real_yield_est != null ? `${m.real_yield_est}%` : '—'}</strong>. Au/Ag Ratio: <strong class="font-mono">${m.gold_silver_ratio ?? '—'}</strong>.`;
+      }
+    }
+
+    const techStatus = document.getElementById('feed-tech-status');
+    const techDetail = document.getElementById('feed-tech-detail');
+    if (techStatus && techDetail && ind.ema9 != null) {
+      techStatus.textContent = `${ind.ema_trend || 'NEUTRAL'} (${state.timeframe})`;
+      techStatus.className = `feed-status ${ind.ema_trend === 'BULLISH' ? 'text-emerald' : 'text-ruby'}`;
+      techDetail.innerHTML = `EMA9 <strong class="font-mono">$${ind.ema9}</strong> / EMA15 <strong class="font-mono">$${ind.ema15}</strong> / EMA50 <strong class="font-mono">${ind.ema50 ? `$${ind.ema50}` : '—'}</strong>. ATR(14): <strong class="font-mono">${ind.atr14 ?? '—'}</strong>. RSI(14): <strong class="font-mono">${ind.rsi14 ?? '—'}</strong>. BB Width: <strong class="font-mono">${ind.bb_bandwidth_pct != null ? `${ind.bb_bandwidth_pct}%` : '—'}</strong>.`;
+    }
+
+    const instStatus = document.getElementById('feed-inst-status');
+    const instDetail = document.getElementById('feed-inst-detail');
+    if (instStatus && instDetail) {
+      const chochText = smc.choch ? `${smc.choch.direction} CHoCH at $${smc.choch.level}` : 'No fresh CHoCH on bar close';
+      const obText = smc.ob ? `$${smc.ob[0]}–$${smc.ob[1]}` : 'Scanning';
+      const fvgText = smc.fvg ? `$${smc.fvg[0]}–$${smc.fvg[1]}` : 'None unmitigated';
+      instStatus.textContent = smc.choch ? `CHoCH ${smc.choch.direction}` : 'Structure Mapped';
+      instDetail.textContent = `${chochText}. Active OB: ${obText}. FVG: ${fvgText}. Swing Hi/Lo: $${smc.swing_high ?? '—'} / $${smc.swing_low ?? '—'}.`;
+    }
+  }
+
+  /* ========================================================================
+     7. BOTTOM HOMEPAGE: SIGNAL HISTORY (BOT_PROVIDER ONLY)
+     ======================================================================== */
+  async function fetchBotHistory() {
+    if (!historyBody) return;
+    const banner = document.getElementById('history-status-banner');
+    try {
+      const res = await fetch('/api/signals/history?source=BOT_PROVIDER', { signal: AbortSignal.timeout(8000) });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        const detail = data?.error || data?.detail || res.statusText;
+        updateHistoryKPIs(null);
+        if (banner) {
+          banner.style.display = 'block';
+          banner.innerHTML = `<div class="http-error-banner"><span>⚠ /api/signals/history HTTP ${res.status}: ${escapeHtml(detail)}</span></div>`;
+        }
+        historyBody.innerHTML = '';
+        showHttpErrorBanner(`/api/signals/history HTTP ${res.status}`, detail);
+        return;
+      }
+
+      state.botHistory = Array.isArray(data.history) ? data.history : [];
+      state.botMetrics = data.metrics || null;
+      updateHistoryKPIs(state.botMetrics);
+
+      if (state.botHistory.length === 0) {
+        if (banner) {
+          banner.style.display = 'block';
+          banner.innerHTML = `
+            <div class="bot-history-notice">
+              <strong>BOT_PROVIDER Signal History Ready</strong> — ${escapeHtml(data.message || 'No historical bot signals recorded yet.')}
+              <br><span style="font-size:11px;color:var(--text-dim);">Configure <code>SIGNAL_BOT_URL</code> (or push trades to <code>POST /api/bot-webhook</code>) and <code>SUPABASE_URL</code> / <code>SUPABASE_SERVICE_ROLE_KEY</code> in Netlify to populate historical bot trades. Zero demo trades shown.</span>
+            </div>
+          `;
+        }
+        historyBody.innerHTML = `
+          <tr>
+            <td colspan="14" style="text-align:center;color:var(--text-dim);padding:20px;">
+              0 BOT_PROVIDER historical records in Supabase.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      if (banner) banner.style.display = 'none';
+      renderBotHistoryRows(state.botHistory);
+    } catch (err) {
+      updateHistoryKPIs(null);
+      if (banner) {
+        banner.style.display = 'block';
+        banner.innerHTML = `<div class="http-error-banner"><span>⚠ Bot History Request Error: ${escapeHtml(err.message)}</span></div>`;
+      }
+      showHttpErrorBanner('/api/signals/history', err.message);
+    }
+  }
+
+  function updateHistoryKPIs(m) {
+    const setEl = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = val;
+    };
+
+    if (!m || m.total_trades === 0) {
+      setEl('perf-winrate', '—');
+      setEl('perf-avgr', '—');
+      setEl('perf-gain', '—');
+      setEl('perf-sigday', '—');
+      setEl('perf-dd', '—');
+      setEl('perf-sharpe', '—');
+      return;
+    }
+
+    setEl('perf-winrate', m.win_rate_pct != null ? `${m.win_rate_pct.toFixed(1)}%` : '—');
+    setEl('perf-avgr', m.avg_rr != null ? `1 : ${m.avg_rr.toFixed(2)}` : '—');
+    setEl('perf-gain', m.total_pips != null ? `${m.total_pips >= 0 ? '+' : ''}${m.total_pips.toFixed(1)} Pips` : '—');
+    setEl('perf-sigday', m.signals_per_day != null ? `${m.signals_per_day}` : '—');
+    setEl('perf-dd', m.max_drawdown_pips != null ? `${m.max_drawdown_pips.toFixed(1)} Pips` : '—');
+    setEl('perf-sharpe', m.sharpe_ratio != null ? `${m.sharpe_ratio.toFixed(2)}` : '—');
+  }
+
+  function renderBotHistoryRows(rows) {
+    if (!historyBody) return;
+    historyBody.innerHTML = '';
+
+    rows.forEach((item) => {
+      const tr = document.createElement('tr');
+      const isLong = item.direction === 'LONG';
+      const status = String(item.status || 'CLOSED');
+      const pipsNum = item.pips_result != null ? Number(item.pips_result) : null;
+      const isWin = status.startsWith('HIT_TP') || (pipsNum != null && pipsNum > 0);
+      const isOpen = status === 'LIVE' || status === 'FUTURE_SETUP';
+
+      const rrNum = item.rr_ratio != null ? Number(item.rr_ratio) : null;
+      const rrClass = rrNum == null ? 'rr-badge rr-badge-min' : rrNum >= 3 ? 'rr-badge rr-badge-high' : rrNum >= 2.2 ? 'rr-badge rr-badge-good' : 'rr-badge rr-badge-min';
+
+      const pipsLabel = pipsNum != null
+        ? `${pipsNum >= 0 ? '+' : ''}${pipsNum.toFixed(1)}`
+        : (isOpen ? 'OPEN' : '—');
+
+      tr.innerHTML = `
+        <td class="font-mono" style="color:var(--text-dim);font-size:11px;">${escapeHtml(item.id)}</td>
+        <td class="font-mono ts-cell">${formatUtcTimestamp(item.opened_at)}</td>
+        <td class="font-mono ts-cell ${isOpen ? 'text-gold' : ''}">${item.closed_at ? formatUtcTimestamp(item.closed_at) : (isOpen ? 'OPEN' : '—')}</td>
+        <td><span class="status-badge ${isLong ? 'badge-win' : 'badge-gold'}">${isLong ? '▲ LONG' : '▼ SHORT'}</span></td>
+        <td><span class="sig-strategy-tag" style="font-size:10px;">${escapeHtml(item.strategy)}</span></td>
+        <td class="font-mono">${formatPrice(item.entry_price)}</td>
+        <td class="text-ruby font-mono">${formatPrice(item.stop_loss)}</td>
+        <td class="text-gold font-mono">${formatPrice(item.tp2 ?? item.tp1)}</td>
+        <td><span class="${rrClass}">${rrNum != null ? `1 : ${rrNum.toFixed(1)}` : '—'}</span></td>
+        <td class="${pipsNum == null ? '' : (pipsNum >= 0 ? 'text-emerald' : 'text-ruby')}" style="font-weight:700;">${pipsLabel}</td>
+        <td class="text-gold">${item.confidence != null ? `${item.confidence}%` : '—'}</td>
+        <td>${item.news_tag ? `<span class="news-badge">⚠ ${escapeHtml(item.news_tag)}</span>` : '<span style="color:var(--text-dim);font-size:10px;">—</span>'}</td>
+        <td><span class="status-badge ${isOpen ? 'badge-tag' : (isWin ? 'badge-win' : 'badge-ruby')}">${escapeHtml(status)}</span></td>
+        <td><button class="btn-detail" onclick="showTradeDetail('${escapeHtml(item.id)}')"><i data-lucide="eye"></i></button></td>
+      `;
+      historyBody.appendChild(tr);
+
+      const detailRow = document.createElement('tr');
+      detailRow.id = `detail-${item.id}`;
+      detailRow.className = 'trade-detail-row';
+      detailRow.style.display = 'none';
+      const pnlColor = (pipsNum ?? 0) >= 0 ? 'var(--emerald)' : 'var(--ruby)';
+      const exitPrice = item.close_price ?? item.tp1 ?? item.entry_price;
+      detailRow.innerHTML = `
+        <td colspan="14">
+          <div class="trade-detail-panel">
+            <div class="trade-detail-header">
+              <span><i data-lucide="trending-${isLong ? 'up' : 'down'}"></i> ${escapeHtml(item.id)} — BOT_PROVIDER Execution</span>
+              <span class="trade-pnl-badge" style="color:${pnlColor};background:${(pipsNum ?? 0) >= 0 ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)'};border:1px solid ${(pipsNum ?? 0) >= 0 ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'};">${pipsLabel} Pips (${escapeHtml(status)})</span>
+            </div>
+            <div class="trade-markers">
+              <div class="trade-marker marker-entry"><span class="marker-dot" style="background:var(--gold-primary);"></span><span>ENTRY: ${formatPrice(item.entry_price)}</span></div>
+              <div class="trade-arrow">→</div>
+              <div class="trade-marker marker-exit" style="color:${pnlColor};"><span class="marker-dot" style="background:${pnlColor};"></span><span>CLOSE/TARGET: ${formatPrice(exitPrice)}</span></div>
+            </div>
+            <div class="trade-reason" style="font-size:11px;color:var(--text-secondary);margin-top:6px;font-style:italic;">"${escapeHtml(item.reason || 'Signal Provider Bot Execution')}"</div>
+          </div>
+        </td>
+      `;
+      historyBody.appendChild(detailRow);
+    });
+
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  window.showTradeDetail = function (id) {
+    const row = document.getElementById(`detail-${id}`);
+    if (row) {
+      row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+    }
+  };
+
+  /* ========================================================================
+     8. LIGHTWEIGHT CHARTS SMC OVERLAY ENGINE
+     ======================================================================== */
+  function computeClientEMASeries(candles, period) {
+    if (!Array.isArray(candles) || candles.length < period) return [];
+    const k = 2 / (period + 1);
+    let sum = 0;
+    for (let i = 0; i < period; i++) sum += candles[i].close;
+    let ema = sum / period;
+    const series = [{ time: candles[period - 1].time, value: Number(ema.toFixed(2)) }];
+    for (let i = period; i < candles.length; i++) {
+      ema = candles[i].close * k + ema * (1 - k);
+      if (candles[i].time > series[series.length - 1].time) {
+        series.push({ time: candles[i].time, value: Number(ema.toFixed(2)) });
+      }
+    }
+    return series;
+  }
+
+  function initLightweightChart() {
+    const container = document.getElementById('lw-chart-container');
+    if (!container || !window.LightweightCharts) return;
+
+    showChartLoadingState(container);
+
+    const chart = window.LightweightCharts.createChart(container, {
+      layout: {
+        background: { type: 'solid', color: '#060910' },
+        textColor: 'rgba(255,255,255,0.45)',
+        fontFamily: "'JetBrains Mono', monospace",
+      },
+      grid: {
+        vertLines: { color: 'rgba(255,255,255,0.04)' },
+        horzLines: { color: 'rgba(255,255,255,0.04)' },
+      },
+      crosshair: {
+        mode: window.LightweightCharts.CrosshairMode.Normal,
+        vertLine: { color: 'rgba(245,194,66,0.5)', width: 1, style: 1 },
+        horzLine: { color: 'rgba(245,194,66,0.5)', width: 1, style: 1 },
+      },
+      timeScale: { borderColor: 'rgba(255,255,255,0.08)', timeVisible: true, secondsVisible: false },
+      rightPriceScale: { borderColor: 'rgba(255,255,255,0.08)' },
+      handleScroll: true,
+      handleScale: true,
+    });
+
+    state.lwChart = chart;
+    state.lwCandleSeries = chart.addCandlestickSeries({
+      upColor: '#10b981',
+      downColor: '#ef4444',
+      borderUpColor: '#10b981',
+      borderDownColor: '#ef4444',
+      wickUpColor: '#10b981',
+      wickDownColor: '#ef4444',
+    });
+
+    state.lwSeries.ema9 = chart.addLineSeries({ color: '#06b6d4', lineWidth: 1.5, title: 'EMA 9', priceLineVisible: false });
+    state.lwSeries.ema15 = chart.addLineSeries({ color: '#a855f7', lineWidth: 1.5, title: 'EMA 15', priceLineVisible: false });
+    state.lwSeries.ema50 = chart.addLineSeries({ color: '#10b981', lineWidth: 1, title: 'EMA 50', priceLineVisible: false });
+
+    const resizeObs = new ResizeObserver(() => {
+      chart.applyOptions({ width: container.clientWidth, height: container.clientHeight });
+    });
+    resizeObs.observe(container);
+  }
+
+  function updateChartCandlesAndEMAs(candles, tf, provider) {
+    if (!state.lwCandleSeries || !Array.isArray(candles) || candles.length === 0) return;
+    hideChartLoadingState();
+    hideChartOverlayMsg();
+    state.lwCandleSeries.setData(candles);
+
+    const show = Boolean(state.showIndicators);
+    if (state.lwSeries.ema9) {
+      state.lwSeries.ema9.applyOptions({ visible: show });
+      state.lwSeries.ema9.setData(show ? computeClientEMASeries(candles, 9) : []);
+    }
+    if (state.lwSeries.ema15) {
+      state.lwSeries.ema15.applyOptions({ visible: show });
+      state.lwSeries.ema15.setData(show ? computeClientEMASeries(candles, 15) : []);
+    }
+    if (state.lwSeries.ema50) {
+      state.lwSeries.ema50.applyOptions({ visible: show });
+      state.lwSeries.ema50.setData(show ? computeClientEMASeries(candles, 50) : []);
+    }
+
+    drawSMCOverlays();
+    renderUserDrawingsOnChart();
+    updateChartDataLabel(provider);
+    if (state.lwChart) state.lwChart.timeScale().fitContent();
+  }
+
+  function drawSMCOverlays() {
+    const series = state.lwCandleSeries;
+    if (!series || !window.LightweightCharts) return;
+
+    const lineKeys = ['entryLine', 'slLine', 'tp1Line', 'tp2Line', 'tp3Line', 'obLine', 'fvgLine', 'liqLine', 'chochLine'];
+    lineKeys.forEach((k) => {
+      if (state.lwSeries[k]) {
+        try { series.removePriceLine(state.lwSeries[k]); } catch (_) {}
+        state.lwSeries[k] = null;
+      }
+    });
+
+    if (!state.showIndicators) return;
+
+    const sig = state.signal || state.futureSetups[0];
+    if (sig) {
+      state.lwSeries.entryLine = series.createPriceLine({
+        price: sig.entry_price,
+        color: '#f5c242',
+        lineWidth: 2,
+        lineStyle: window.LightweightCharts.LineStyle.Solid,
+        axisLabelVisible: true,
+        title: `${sig.status === 'FUTURE_SETUP' ? 'FUTURE' : 'ENTRY'} ${formatPrice(sig.entry_price)}`,
+      });
+      state.lwSeries.slLine = series.createPriceLine({
+        price: sig.stop_loss,
+        color: '#ef4444',
+        lineWidth: 1.5,
+        lineStyle: window.LightweightCharts.LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: `SL ${formatPrice(sig.stop_loss)}`,
+      });
+      if (sig.tp1) {
+        state.lwSeries.tp1Line = series.createPriceLine({
+          price: sig.tp1,
+          color: '#10b981',
+          lineWidth: 1.5,
+          lineStyle: window.LightweightCharts.LineStyle.Dotted,
+          axisLabelVisible: true,
+          title: `TP1 ${formatPrice(sig.tp1)}`,
+        });
+      }
+      if (sig.tp2) {
+        state.lwSeries.tp2Line = series.createPriceLine({
+          price: sig.tp2,
+          color: '#ffd700',
+          lineWidth: 1,
+          lineStyle: window.LightweightCharts.LineStyle.Dotted,
+          axisLabelVisible: true,
+          title: `TP2 ${formatPrice(sig.tp2)}`,
+        });
+      }
+      if (sig.tp3) {
+        state.lwSeries.tp3Line = series.createPriceLine({
+          price: sig.tp3,
+          color: '#fff200',
+          lineWidth: 1,
+          lineStyle: window.LightweightCharts.LineStyle.LargeDashed,
+          axisLabelVisible: true,
+          title: `TP3 ${formatPrice(sig.tp3)}`,
+        });
+      }
+    }
+
+    const smc = sig?.indicators || state.smcAnalysis || {};
+    if (Array.isArray(smc.ob) && smc.ob.length === 2) {
+      const obPrice = Number(((smc.ob[0] + smc.ob[1]) / 2).toFixed(2));
+      state.lwSeries.obLine = series.createPriceLine({
+        price: obPrice,
+        color: 'rgba(245,194,66,0.65)',
+        lineWidth: 1,
+        lineStyle: window.LightweightCharts.LineStyle.Solid,
+        axisLabelVisible: true,
+        title: `OB ${formatPrice(obPrice)}`,
+      });
+    }
+    if (Array.isArray(smc.fvg) && smc.fvg.length === 2) {
+      const fvgPrice = Number(((smc.fvg[0] + smc.fvg[1]) / 2).toFixed(2));
+      state.lwSeries.fvgLine = series.createPriceLine({
+        price: fvgPrice,
+        color: 'rgba(139,92,246,0.7)',
+        lineWidth: 1,
+        lineStyle: window.LightweightCharts.LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: `FVG ${formatPrice(fvgPrice)}`,
+      });
+    }
+    const liqLevel = smc.swing_low || smc.swing_high;
+    if (liqLevel) {
+      state.lwSeries.liqLine = series.createPriceLine({
+        price: liqLevel,
+        color: 'rgba(6,182,212,0.75)',
+        lineWidth: 1,
+        lineStyle: window.LightweightCharts.LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: `Liq ${formatPrice(liqLevel)}`,
+      });
+    }
+    if (smc.choch?.level) {
+      state.lwSeries.chochLine = series.createPriceLine({
+        price: smc.choch.level,
+        color: 'rgba(245,194,66,0.45)',
+        lineWidth: 1,
+        lineStyle: window.LightweightCharts.LineStyle.SparseDotted,
+        axisLabelVisible: true,
+        title: `CHoCH ${formatPrice(smc.choch.level)}`,
+      });
+    }
+  }
+
+  function showChartLoadingState(container) {
+    if (!container || document.getElementById('lw-chart-loading-indicator')) return;
+    const loading = document.createElement('div');
+    loading.id = 'lw-chart-loading-indicator';
+    loading.style.cssText = `
+      position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+      color:rgba(245,194,66,0.85);font-size:12px;font-weight:600;pointer-events:none;z-index:10;
+    `;
+    loading.textContent = 'Loading OHLCV candles from /api/spot...';
+    container.style.position = 'relative';
+    container.appendChild(loading);
+  }
+
+  function hideChartLoadingState() {
+    document.getElementById('lw-chart-loading-indicator')?.remove();
+  }
+
+  function showChartErrorOverlay(message) {
+    hideChartLoadingState();
+    const container = document.getElementById('lw-chart-container');
+    if (!container) return;
+    let msg = document.getElementById('lw-chart-overlay-msg');
+    if (!msg) {
+      msg = document.createElement('div');
+      msg.id = 'lw-chart-overlay-msg';
+      msg.style.cssText = `
+        position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+        background:rgba(6,9,16,0.92);border:1px solid rgba(239,68,68,0.45);
+        border-radius:8px;padding:14px 20px;text-align:center;color:#ef4444;
+        font-size:12px;font-weight:600;z-index:20;pointer-events:none;max-width:85%;
+      `;
+      container.style.position = 'relative';
+      container.appendChild(msg);
+    }
+    msg.innerHTML = `⚠ MARKET FEED ERROR<br><span style="font-size:10px;color:rgba(255,255,255,0.65);font-weight:400;">${escapeHtml(message)}</span>`;
+  }
+
+  function hideChartOverlayMsg() {
+    document.getElementById('lw-chart-overlay-msg')?.remove();
+  }
+
+  /* ========================================================================
+     9. NAVIGATION & URL SYNC
+     ======================================================================== */
+  function switchTab(target, updateUrl = true) {
+    const tabBtn = document.querySelector(`.nav-tab[data-tab="${target}"]`);
+    const content = document.getElementById(`tab-${target}`);
+    if (!content) return;
+
+    navTabs.forEach((t) => t.classList.remove('active'));
+    tabContents.forEach((c) => c.classList.remove('active'));
+
+    if (tabBtn) tabBtn.classList.add('active');
+    content.classList.add('active');
+    state.currentTab = target;
+
+    if (updateUrl) {
+      const newHash = `#${target}?tf=${state.timeframe}`;
+      if (window.location.hash !== newHash) history.replaceState(null, '', newHash);
+    }
+
+    if (target === 'terminal' && state.lwChart) {
+      setTimeout(() => {
+        const container = document.getElementById('lw-chart-container');
+        if (container && state.lwChart) {
+          state.lwChart.applyOptions({ width: container.clientWidth, height: container.clientHeight });
+          state.lwChart.timeScale().fitContent();
+        }
+      }, 50);
+    }
+    savePersistence();
+  }
+
+  function setTimeframe(tf, updateUrl = true, fetchImmediately = true) {
+    if (!VALID_TFS.includes(tf)) return;
+    document.querySelectorAll('#chart-tf-buttons .btn-tf').forEach((b) => {
+      b.classList.toggle('active', b.getAttribute('data-tf') === tf);
+    });
+    state.timeframe = tf;
+
+    if (window.updateTVInterval) {
+      try { window.updateTVInterval(tf); } catch (_) {}
+    }
+    const tvBadge = document.getElementById('tv-active-tf');
+    if (tvBadge) tvBadge.textContent = tf;
+
+    savePersistence();
+
+    if (updateUrl) {
+      const newHash = `#${state.currentTab || 'terminal'}?tf=${tf}`;
+      if (window.location.hash !== newHash) history.replaceState(null, '', newHash);
+    }
+
+    if (fetchImmediately) {
+      fetchSpotAndCandles(tf).then(() => fetchLiveSignals());
+    }
+  }
+
+  function syncFromUrl(fetchImmediately = false) {
+    const rawHash = (window.location.hash || '').replace('#', '');
+    let tabName = null;
+    let tfVal = null;
+
+    if (rawHash) {
+      const [tabPart, queryPart] = rawHash.split('?');
+      if (tabPart && document.getElementById(`tab-${tabPart}`)) tabName = tabPart;
+      if (queryPart) tfVal = new URLSearchParams(queryPart).get('tf');
+    } else if (window.location.search) {
+      const params = new URLSearchParams(window.location.search);
+      const t = params.get('tab');
+      if (t && document.getElementById(`tab-${t}`)) tabName = t;
+      tfVal = params.get('tf');
+    }
+
+    if (tabName) switchTab(tabName, false);
+    if (tfVal && VALID_TFS.includes(tfVal.toUpperCase())) {
+      setTimeframe(tfVal.toUpperCase(), false, fetchImmediately);
+    } else {
+      setTimeframe(state.timeframe, false, fetchImmediately);
+    }
+  }
+
+  function initNavigation() {
+    navTabs.forEach((tab) => {
+      tab.addEventListener('click', () => switchTab(tab.getAttribute('data-tab'), true));
+    });
+
+    document.querySelectorAll('#chart-tf-buttons .btn-tf').forEach((btn) => {
+      btn.addEventListener('click', () => setTimeframe(btn.getAttribute('data-tf'), true, true));
+    });
+
+    const btnToggle = document.getElementById('btn-toggle-overlay');
+    if (btnToggle) {
+      btnToggle.classList.toggle('active', state.showIndicators);
+      btnToggle.addEventListener('click', () => {
+        state.showIndicators = !state.showIndicators;
+        btnToggle.classList.toggle('active', state.showIndicators);
+        if (state.ohlcHistory.length) {
+          updateChartCandlesAndEMAs(state.ohlcHistory, state.timeframe, state.dataProvider);
+        }
+        savePersistence();
+        showNotification(state.showIndicators ? 'SMC & EMA overlays enabled' : 'Overlays hidden');
+      });
+    }
+
+    window.addEventListener('hashchange', () => syncFromUrl(true));
+    syncFromUrl(false);
+  }
+
+  /* ========================================================================
+     10. KILLZONE, SILVER BULLET, AMD & NEWS CALENDAR (Live UTC Clocks)
+     ======================================================================== */
+  function buildUpcomingNewsSchedule() {
+    const now = Date.now();
+    const nextUtcHour = (targetHour, minOffsetDays = 0) => {
+      const d = new Date(now + minOffsetDays * 86_400_000);
+      d.setUTCHours(targetHour, 30, 0, 0);
+      if (d.getTime() <= now + 300_000) d.setUTCDate(d.getUTCDate() + 1);
+      return d;
+    };
+    const templates = [
+      { name: 'US Core PCE / Macro Release', folder: 'red', impactPct: 88, volPips: '70-130', bias: 'Event-Driven', confClass: 'news-conf-high', conf: 'HIGH', dt: nextUtcHour(13, 0), histConf: 'HIGH — Volatility spike expected on release' },
+      { name: 'US Initial Jobless Claims', folder: 'orange', impactPct: 68, volPips: '40-75', bias: 'Data-Dependent', confClass: 'news-conf-med', conf: 'MEDIUM', dt: nextUtcHour(13, 1), histConf: 'MEDIUM — USD reaction on surprise' },
+      { name: 'US ISM Manufacturing / Services PMI', folder: 'red', impactPct: 82, volPips: '60-110', bias: 'Data-Dependent', confClass: 'news-conf-high', conf: 'HIGH', dt: nextUtcHour(15, 2), histConf: 'HIGH — Strong correlation with DXY & 10Y yields' },
+      { name: 'US Non-Farm Payrolls (NFP Window)', folder: 'red', impactPct: 95, volPips: '120-250', bias: 'High Two-Way Vol', confClass: 'news-conf-high', conf: 'HIGH', dt: nextUtcHour(13, 4), histConf: 'HIGH — Reduce size before 13:30 UTC print' },
+      { name: 'FOMC Rate / Minutes Window', folder: 'red', impactPct: 92, volPips: '100-180', bias: 'Yield-Sensitive', confClass: 'news-conf-high', conf: 'HIGH', dt: nextUtcHour(19, 6), histConf: 'HIGH — Watch real yield & DXY reaction' },
+    ];
+    return templates
+      .map((t) => ({
+        ...t,
+        time: t.dt.toISOString().replace('T', ' ').slice(0, 16) + ' UTC',
+        targetMs: t.dt.getTime(),
+        hoursUntil: Math.max(0, (t.dt.getTime() - now) / 3_600_000),
+      }))
+      .sort((a, b) => a.targetMs - b.targetMs);
   }
 
   function getUTCTime() {
     const now = new Date();
     return { h: now.getUTCHours(), m: now.getUTCMinutes(), s: now.getUTCSeconds() };
   }
-
-  function timeToSeconds(h, m, s) { return h * 3600 + m * 60 + s; }
 
   function formatCountdown(totalSeconds) {
     if (totalSeconds <= 0) return '00:00:00';
@@ -1848,168 +1400,104 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateKillzoneDisplay() {
-    try {
-      const { h, m, s } = getUTCTime();
-      const now = timeToSeconds(h, m, s);
+    const { h, m, s } = getUTCTime();
+    const now = h * 3600 + m * 60 + s;
+    const sessions = { asia: { start: 0, end: 28800 }, london: { start: 28800, end: 39600 }, ny: { start: 46800, end: 57600 } };
 
-      const sessions = {
-        asia: { start: 0, end: 28800 },
-        london: { start: 28800, end: 39600 },
-        ny: { start: 46800, end: 57600 }
-      };
-
-      const londEl = document.getElementById('kz-london');
-      const nyEl = document.getElementById('kz-ny');
-      const londonChip = document.getElementById('kz-london-chip');
-      const londonCount = document.getElementById('kz-london-countdown');
-      const londonLabel = document.getElementById('kz-london-label');
-
-      if (now >= sessions.london.start && now < sessions.london.end) {
-        const rem = sessions.london.end - now;
-        if (londonCount) londonCount.textContent = formatCountdown(rem);
-        if (londonLabel) londonLabel.textContent = 'ACTIVE — CLOSES IN';
-        if (londonChip) { londonChip.textContent = 'ACTIVE'; londonChip.className = 'kz-status-chip kz-chip-active'; }
-        if (londEl) londEl.classList.add('kz-active');
-      } else if (now < sessions.london.start) {
-        const rem = sessions.london.start - now;
-        if (londonCount) londonCount.textContent = formatCountdown(rem);
-        if (londonLabel) londonLabel.textContent = 'OPENS IN';
-        if (londonChip) { londonChip.textContent = 'NEXT'; londonChip.className = 'kz-status-chip kz-chip-next'; }
-        if (londEl) londEl.classList.remove('kz-active');
+    const updateSess = (elId, chipId, countId, labelId, sess, activeLbl, doneLbl) => {
+      const box = document.getElementById(elId);
+      const chip = document.getElementById(chipId);
+      const count = document.getElementById(countId);
+      const label = document.getElementById(labelId);
+      if (now >= sess.start && now < sess.end) {
+        if (count) count.textContent = formatCountdown(sess.end - now);
+        if (label) label.textContent = activeLbl;
+        if (chip) { chip.textContent = 'ACTIVE'; chip.className = 'kz-status-chip kz-chip-active'; }
+        if (box) box.classList.add('kz-active');
+      } else if (now < sess.start) {
+        if (count) count.textContent = formatCountdown(sess.start - now);
+        if (label) label.textContent = 'OPENS IN';
+        if (chip) { chip.textContent = 'NEXT'; chip.className = 'kz-status-chip kz-chip-next'; }
+        if (box) box.classList.remove('kz-active');
       } else {
-        if (londonCount) londonCount.textContent = 'CLOSED';
-        if (londonLabel) londonLabel.textContent = 'MANIPULATION PHASE DONE';
-        if (londonChip) { londonChip.textContent = 'DONE'; londonChip.className = 'kz-status-chip kz-chip-done'; }
-        if (londEl) londEl.classList.remove('kz-active');
+        if (count) count.textContent = 'CLOSED';
+        if (label) label.textContent = doneLbl;
+        if (chip) { chip.textContent = 'DONE'; chip.className = 'kz-status-chip kz-chip-done'; }
+        if (box) box.classList.remove('kz-active');
       }
+    };
 
-      const nyChip = document.getElementById('kz-ny-chip');
-      const nyCount = document.getElementById('kz-ny-countdown');
-      const nyLabel = document.getElementById('kz-ny-label');
+    updateSess('kz-london', 'kz-london-chip', 'kz-london-countdown', 'kz-london-label', sessions.london, 'ACTIVE — CLOSES IN', 'MANIPULATION PHASE DONE');
+    updateSess('kz-ny', 'kz-ny-chip', 'kz-ny-countdown', 'kz-ny-label', sessions.ny, 'ACTIVE — CLOSES IN', 'DISTRIBUTION PHASE DONE');
 
-      if (now >= sessions.ny.start && now < sessions.ny.end) {
-        const rem = sessions.ny.end - now;
-        if (nyCount) nyCount.textContent = formatCountdown(rem);
-        if (nyLabel) nyLabel.textContent = 'ACTIVE — CLOSES IN';
-        if (nyChip) { nyChip.textContent = 'ACTIVE'; nyChip.className = 'kz-status-chip kz-chip-active'; }
-        if (nyEl) nyEl.classList.add('kz-active');
-      } else if (now < sessions.ny.start) {
-        const rem = sessions.ny.start - now;
-        if (nyCount) nyCount.textContent = formatCountdown(rem);
-        if (nyLabel) nyLabel.textContent = 'OPENS IN';
-        if (nyChip) { nyChip.textContent = 'NEXT'; nyChip.className = 'kz-status-chip kz-chip-next'; }
-        if (nyEl) nyEl.classList.remove('kz-active');
-      } else {
-        if (nyCount) nyCount.textContent = 'CLOSED';
-        if (nyLabel) nyLabel.textContent = 'DISTRIBUTION PHASE DONE';
-        if (nyChip) { nyChip.textContent = 'DONE'; nyChip.className = 'kz-status-chip kz-chip-done'; }
-        if (nyEl) nyEl.classList.remove('kz-active');
-      }
-
-      const tteEl = document.getElementById('tte-display');
-      const heroTTEEl = document.getElementById('hero-tte');
-      if (tteEl) {
-        let tte = 'No Killzone active — Await London/NY open';
-        if (now >= sessions.london.start && now < sessions.london.end) {
-          tte = '~15 min (London Killzone LIVE — High Volatility)';
-        } else if (now >= sessions.ny.start && now < sessions.ny.end) {
-          tte = '~20 min (NY Killzone LIVE — Distribution Phase)';
-        } else if (now < sessions.london.start) {
-          const mins = Math.round((sessions.london.start - now) / 60);
-          tte = `~${mins} min to London Open`;
-        } else if (now < sessions.ny.start) {
-          const mins = Math.round((sessions.ny.start - now) / 60);
-          tte = `~${mins} min to NY Open`;
-        }
-        tteEl.textContent = tte;
-        if (heroTTEEl) heroTTEEl.textContent = tte;
-      }
-
-      updateSilverBulletTicker(h, m);
-    } catch (err) {
-      console.error('[MANUS MAX]', 'updateKillzoneDisplay error', err);
-      showError('updateKillzoneDisplay', err.message);
+    const asiaChip = document.getElementById('kz-asia-chip');
+    if (asiaChip) {
+      const asiaActive = now >= sessions.asia.start && now < sessions.asia.end;
+      asiaChip.textContent = asiaActive ? 'ACTIVE' : 'CLOSED';
+      asiaChip.className = `kz-status-chip ${asiaActive ? 'kz-chip-active' : 'kz-chip-done'}`;
     }
-  }
 
-  /* ========================================================================
-     6. SILVER BULLET & AMD SESSION CLOCK
-     ======================================================================== */
-  function initSilverBulletClock() {
-    updateSilverBulletWindows();
-    setInterval(updateSilverBulletWindows, 10000);
-  }
-
-  function initAMDPhase() {
-    updateAMDPhase();
-    setInterval(updateAMDPhase, 30000);
-  }
-
-  function updateAMDPhase() {
-    try {
-      const { h } = getUTCTime();
-      const el = document.getElementById('amd-current-phase');
-      if (!el) return;
-      if (h >= 0 && h < 8) el.textContent = 'Phase: 📊 ACCUMULATION (Asia) — Range forming';
-      else if (h >= 8 && h < 9) el.textContent = 'Phase: ⚡ MANIPULATION — Early London sweep';
-      else if (h >= 9 && h < 11) el.textContent = 'Phase: ⚡ MANIPULATION — London sweep peak';
-      else if (h >= 13 && h < 16) el.textContent = 'Phase: 🎯 DISTRIBUTION (NY) — Trend active';
-      else el.textContent = 'Phase: ⏸ Between Sessions — Low volatility';
-    } catch (err) {
-      console.error('[MANUS MAX]', 'updateAMDPhase error', err);
-      showError('updateAMDPhase', err.message);
+    const tteEl = document.getElementById('tte-display');
+    const heroTTEEl = document.getElementById('hero-tte');
+    if (tteEl) {
+      let tte = 'Off-Killzone — Monitoring Next Session';
+      if (now >= sessions.london.start && now < sessions.london.end) tte = 'London Killzone LIVE (~15m window)';
+      else if (now >= sessions.ny.start && now < sessions.ny.end) tte = 'NY Killzone LIVE (~20m window)';
+      else if (now < sessions.london.start) tte = `~${Math.round((sessions.london.start - now) / 60)}m to London Open`;
+      else if (now < sessions.ny.start) tte = `~${Math.round((sessions.ny.start - now) / 60)}m to NY Open`;
+      else tte = `~${Math.round(((86400 - now) + sessions.london.start) / 60)}m to Next Asia/London Cycle`;
+      tteEl.textContent = tte;
+      if (heroTTEEl) heroTTEEl.textContent = tte;
     }
+
+    updateSilverBulletTicker(h, m);
+  }
+
+  function initKillzoneTimer() {
+    updateKillzoneDisplay();
+    setInterval(updateKillzoneDisplay, 1000);
   }
 
   function getSBStatus(nowH, nowM) {
-    const estH = (nowH - 4 + 24) % 24;
+    const estH = (nowH - 5 + 24) % 24;
     const timeMin = estH * 60 + nowM;
-    const w1Start = 10 * 60, w1End = 11 * 60;
-    const w2Start = 14 * 60, w2End = 15 * 60;
-
+    const w1Start = 600, w1End = 660, w2Start = 840, w2End = 900;
     if (timeMin >= w1Start && timeMin < w1End) return { window: 1, active: true, minsLeft: w1End - timeMin };
     if (timeMin >= w2Start && timeMin < w2End) return { window: 2, active: true, minsLeft: w2End - timeMin };
     if (timeMin < w1Start) return { window: 1, active: false, minsTo: w1Start - timeMin };
     if (timeMin < w2Start) return { window: 2, active: false, minsTo: w2Start - timeMin };
-    return { window: 0, active: false, minsTo: (24 * 60 - timeMin) + w1Start };
+    return { window: 0, active: false, minsTo: (1440 - timeMin) + w1Start };
   }
 
   function updateSilverBulletWindows() {
-    try {
-      const { h, m } = getUTCTime();
-      const sb = getSBStatus(h, m);
+    const { h, m } = getUTCTime();
+    const sb = getSBStatus(h, m);
+    const w1El = document.getElementById('sb-window-1');
+    const w2El = document.getElementById('sb-window-2');
+    const chip1 = document.getElementById('sb-chip-1');
+    const chip2 = document.getElementById('sb-chip-2');
+    const overallStatus = document.getElementById('sb-overall-status');
 
-      const w1El = document.getElementById('sb-window-1');
-      const w2El = document.getElementById('sb-window-2');
-      const chip1 = document.getElementById('sb-chip-1');
-      const chip2 = document.getElementById('sb-chip-2');
-      const overallStatus = document.getElementById('sb-overall-status');
-
-      if (sb.active && sb.window === 1) {
-        if (w1El) w1El.classList.add('sb-active');
-        if (w2El) w2El.classList.remove('sb-active');
-        if (chip1) { chip1.textContent = `LIVE ${sb.minsLeft}m`; chip1.className = 'sb-status sb-status-active'; }
-        if (chip2) { chip2.textContent = 'WAITING'; chip2.className = 'sb-status sb-status-waiting'; }
-        if (overallStatus) overallStatus.innerHTML = '<i data-lucide="zap"></i> WINDOW 1 ACTIVE — ENTER NOW';
-      } else if (sb.active && sb.window === 2) {
-        if (w2El) w2El.classList.add('sb-active');
-        if (w1El) w1El.classList.remove('sb-active');
-        if (chip2) { chip2.textContent = `LIVE ${sb.minsLeft}m`; chip2.className = 'sb-status sb-status-active'; }
-        if (chip1) { chip1.textContent = 'DONE'; chip1.className = 'sb-status sb-status-waiting'; }
-        if (overallStatus) overallStatus.innerHTML = '<i data-lucide="zap"></i> WINDOW 2 ACTIVE — ENTER NOW';
-      } else {
-        if (w1El) w1El.classList.remove('sb-active');
-        if (w2El) w2El.classList.remove('sb-active');
-        if (chip1) { chip1.textContent = 'WAITING'; chip1.className = 'sb-status sb-status-waiting'; }
-        if (chip2) { chip2.textContent = 'WAITING'; chip2.className = 'sb-status sb-status-waiting'; }
-        if (overallStatus) overallStatus.innerHTML = `<i data-lucide="clock"></i> Next Window in ~${sb.minsTo || '?'}m`;
-      }
-
-      if (window.lucide) window.lucide.createIcons();
-    } catch (err) {
-      console.error('[MANUS MAX]', 'updateSilverBulletWindows error', err);
-      showError('updateSilverBulletWindows', err.message);
+    if (sb.active && sb.window === 1) {
+      if (w1El) w1El.classList.add('sb-active');
+      if (w2El) w2El.classList.remove('sb-active');
+      if (chip1) { chip1.textContent = `LIVE ${sb.minsLeft}m`; chip1.className = 'sb-status sb-status-active'; }
+      if (chip2) { chip2.textContent = 'WAITING'; chip2.className = 'sb-status sb-status-waiting'; }
+      if (overallStatus) overallStatus.innerHTML = '<i data-lucide="zap"></i> WINDOW 1 ACTIVE';
+    } else if (sb.active && sb.window === 2) {
+      if (w2El) w2El.classList.add('sb-active');
+      if (w1El) w1El.classList.remove('sb-active');
+      if (chip2) { chip2.textContent = `LIVE ${sb.minsLeft}m`; chip2.className = 'sb-status sb-status-active'; }
+      if (chip1) { chip1.textContent = 'DONE'; chip1.className = 'sb-status sb-status-waiting'; }
+      if (overallStatus) overallStatus.innerHTML = '<i data-lucide="zap"></i> WINDOW 2 ACTIVE';
+    } else {
+      if (w1El) w1El.classList.remove('sb-active');
+      if (w2El) w2El.classList.remove('sb-active');
+      if (chip1) { chip1.textContent = 'WAITING'; chip1.className = 'sb-status sb-status-waiting'; }
+      if (chip2) { chip2.textContent = 'WAITING'; chip2.className = 'sb-status sb-status-waiting'; }
+      if (overallStatus) overallStatus.innerHTML = `<i data-lucide="clock"></i> Next Window in ~${sb.minsTo || '?'}m`;
     }
+    if (window.lucide) window.lucide.createIcons();
   }
 
   function updateSilverBulletTicker(h, m) {
@@ -2017,7 +1505,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const sbStatusEl = document.getElementById('ticker-sb-status');
     const sbCountEl = document.getElementById('ticker-sb-countdown');
     if (!sbStatusEl) return;
-
     if (sb.active) {
       sbStatusEl.textContent = 'ACTIVE';
       sbStatusEl.style.color = 'var(--cyan)';
@@ -2029,1656 +1516,559 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  /* ========================================================================
-     7. QUANTITATIVE NEWS ENGINE
-     ======================================================================== */
-  function initNewsEngine() {
-    renderNewsCalendar();
-    if (state.newsEvents[0]) updateNewsWidget(state.newsEvents[0]);
-    updateNewsBadges();
-    updateNewsTickerAlert();
-
-    setInterval(() => {
-      state.newsEvents.forEach(event => {
-        if (event.hoursUntil > 0) {
-          event.hoursUntil = Math.max(0, event.hoursUntil - (1 / 3600));
-        }
-      });
-      renderNewsCountdown();
-      updateNewsTickerAlert();
-    }, 1000);
-
-    setInterval(() => {
-      renderNewsCalendar();
-      if (state.newsEvents[0]) updateNewsWidget(state.newsEvents[0]);
-      updateNewsBadges();
-    }, 60000);
+  function initSilverBulletClock() {
+    updateSilverBulletWindows();
+    setInterval(updateSilverBulletWindows, 15000);
   }
 
-  function renderNewsCountdown() {
-    const nextEvent = state.newsEvents[0];
-    if (!nextEvent) return;
-    const totalSec = Math.max(0, Math.round(nextEvent.hoursUntil * 3600));
-    const h = Math.floor(totalSec / 3600);
-    const m = Math.floor((totalSec % 3600) / 60);
-    const s = totalSec % 60;
-    const el = document.getElementById('news-countdown-timer');
-    if (el) {
-      el.textContent = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-      el.style.color = nextEvent.hoursUntil <= 2 ? 'var(--ruby)' : nextEvent.hoursUntil <= 6 ? 'var(--gold-primary)' : 'var(--emerald)';
-    }
-  }
-
-  function updateNewsTickerAlert() {
-    const nextEvent = state.newsEvents[0];
-    if (!nextEvent) return;
-    const el = document.getElementById('ticker-news-alert');
-    if (!el) return;
-    const h = Math.floor(nextEvent.hoursUntil);
-    const m = Math.round((nextEvent.hoursUntil - h) * 60);
-    el.textContent = h > 0 ? `CPI in ${h}h ${m}m` : `CPI in ${m}m`;
-    el.style.color = nextEvent.hoursUntil <= 2 ? 'var(--ruby)' : 'var(--gold-primary)';
+  function initAMDPhase() {
+    const update = () => {
+      const { h } = getUTCTime();
+      const el = document.getElementById('amd-current-phase');
+      if (!el) return;
+      if (h < 8) el.textContent = 'Phase: ACCUMULATION (Asia)';
+      else if (h < 11) el.textContent = 'Phase: MANIPULATION (London Sweep)';
+      else if (h >= 13 && h < 16) el.textContent = 'Phase: DISTRIBUTION (NY Trend)';
+      else el.textContent = 'Phase: Consolidation / Inter-session';
+    };
+    update();
+    setInterval(update, 30000);
   }
 
   function hasNewsWithin2h() {
-    return state.newsEvents.some(e => e.hoursUntil <= 2 && e.folder === 'red');
+    return state.newsEvents.some((e) => e.hoursUntil <= 2 && e.folder === 'red');
   }
 
   function updateNewsBadges() {
-    const within2h = hasNewsWithin2h();
     const heroBadge = document.getElementById('hero-news-badge');
-    if (heroBadge) heroBadge.style.display = within2h ? 'flex' : 'none';
+    if (heroBadge) heroBadge.style.display = hasNewsWithin2h() ? 'flex' : 'none';
+  }
+
+  function updateNewsWidget(ev) {
+    const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+    set('news-next-event-name', ev.name);
+    set('news-next-event-time', `In ${ev.hoursUntil.toFixed(1)}h • ${ev.time}`);
+    set('news-vol', `${ev.volPips} pips`);
+    set('news-bias', ev.bias);
+    set('news-influence', `${ev.impactPct}%`);
+    set('news-hist-conf', ev.histConf || '—');
+    const meter = document.getElementById('news-meter-fill');
+    if (meter) meter.style.width = `${ev.impactPct}%`;
+    const chip = document.getElementById('news-conf-chip');
+    if (chip) { chip.textContent = `${ev.conf} IMPACT`; chip.className = `news-confidence-chip ${ev.confClass}`; }
   }
 
   function renderNewsCalendar() {
     const container = document.getElementById('news-calendar-list');
     if (!container) return;
     container.innerHTML = '';
-
-    state.newsEvents.forEach(event => {
+    state.newsEvents.forEach((ev) => {
+      const isUpcoming = ev.hoursUntil <= 2;
       const row = document.createElement('div');
-      const isUpcoming = event.hoursUntil <= 2;
       row.className = `news-event-row${isUpcoming ? ' news-upcoming' : ''}`;
-      const timeStr = event.hoursUntil < 1
-        ? Math.round(event.hoursUntil * 60) + 'm'
-        : event.hoursUntil.toFixed(1) + 'h';
+      const timeStr = ev.hoursUntil < 1 ? `${Math.round(ev.hoursUntil * 60)}m` : `${ev.hoursUntil.toFixed(1)}h`;
       row.innerHTML = `
         <div>
-          <div class="news-time">${event.time}</div>
+          <div class="news-time">${escapeHtml(ev.time)}</div>
           <div class="news-time" style="color:${isUpcoming ? 'var(--ruby)' : 'var(--text-dim)'};">In ${timeStr}</div>
         </div>
         <div>
           <div style="display:flex;align-items:center;gap:6px;">
-            <span class="news-folder-badge folder-${event.folder}"></span>
-            <span class="news-event-name">${event.name}</span>
-            ${isUpcoming ? '<span style="font-size:9px;font-weight:700;color:var(--ruby);background:rgba(239,68,68,0.12);padding:1px 5px;border-radius:3px;">⚠ &lt;2h</span>' : ''}
+            <span class="news-folder-badge folder-${ev.folder}"></span>
+            <span class="news-event-name">${escapeHtml(ev.name)}</span>
           </div>
-          <div style="font-size:10px;color:var(--text-dim);margin-top:2px;">${event.bias} • ±${event.volPips} pips</div>
+          <div style="font-size:10px;color:var(--text-dim);margin-top:2px;">${escapeHtml(ev.bias)} • ±${escapeHtml(ev.volPips)} pips</div>
         </div>
         <div class="news-impact-col">
-          <span class="news-impact-pct">${event.impactPct}%</span>
-          <div class="news-impact-bar-wrap"><div class="news-impact-bar-fill" style="width:${event.impactPct}%;"></div></div>
-          <span class="news-confidence-chip ${event.confClass}">${event.conf}</span>
+          <span class="news-impact-pct">${ev.impactPct}%</span>
+          <div class="news-impact-bar-wrap"><div class="news-impact-bar-fill" style="width:${ev.impactPct}%;"></div></div>
+          <span class="news-confidence-chip ${ev.confClass}">${ev.conf}</span>
         </div>
       `;
-      row.addEventListener('click', () => updateNewsWidget(event));
+      row.addEventListener('click', () => updateNewsWidget(ev));
       container.appendChild(row);
     });
   }
 
-  function updateNewsWidget(event) {
-    try {
-      const nameEl = document.getElementById('news-next-event-name');
-      const timeEl = document.getElementById('news-next-event-time');
-      const volEl = document.getElementById('news-vol');
-      const biasEl = document.getElementById('news-bias');
-      const inflEl = document.getElementById('news-influence');
-      const meterEl = document.getElementById('news-meter-fill');
-      const confEl = document.getElementById('news-conf-chip');
-      const histEl = document.getElementById('news-hist-conf');
+  function initNewsEngine() {
+    renderNewsCalendar();
+    if (state.newsEvents[0]) updateNewsWidget(state.newsEvents[0]);
+    updateNewsBadges();
 
-      if (nameEl) nameEl.textContent = event.name;
-      if (timeEl) timeEl.textContent = `In ${event.hoursUntil.toFixed(1)}h • ${event.time.split(' ')[1]} UTC`;
-      if (volEl) volEl.textContent = `${event.volPips} pips`;
-      if (biasEl) biasEl.textContent = event.bias;
-      if (inflEl) inflEl.textContent = `${event.impactPct}%`;
-      if (meterEl) meterEl.style.width = `${event.impactPct}%`;
-      if (confEl) { confEl.textContent = `${event.conf} IMPACT`; confEl.className = `news-confidence-chip ${event.confClass}`; }
-      if (histEl) histEl.textContent = event.histConf || '—';
-    } catch (err) {
-      console.error('[MANUS MAX]', 'updateNewsWidget error', err);
-      showError('updateNewsWidget', err.message);
-    }
+    const updateCountdowns = () => {
+      const now = Date.now();
+      state.newsEvents.forEach((ev) => {
+        ev.hoursUntil = Math.max(0, (ev.targetMs - now) / 3_600_000);
+      });
+      const next = state.newsEvents[0];
+      if (!next) return;
+      const sec = Math.max(0, Math.round(next.hoursUntil * 3600));
+      const timerEl = document.getElementById('news-countdown-timer');
+      if (timerEl) timerEl.textContent = formatCountdown(sec);
+
+      const h = Math.floor(next.hoursUntil);
+      const m = Math.round((next.hoursUntil - h) * 60);
+      const shortLbl = h > 0 ? `${next.name.split(' ')[1] || 'Macro'} in ${h}h ${m}m` : `${next.name.split(' ')[1] || 'Macro'} in ${m}m`;
+
+      const tickerEl = document.getElementById('ticker-news-alert');
+      if (tickerEl) {
+        tickerEl.textContent = shortLbl;
+        tickerEl.style.color = next.hoursUntil <= 2 ? 'var(--ruby)' : 'var(--gold-primary)';
+      }
+
+      const feedStatus = document.getElementById('feed-news-status');
+      const feedDetail = document.getElementById('feed-news-detail');
+      if (feedStatus) feedStatus.textContent = shortLbl;
+      if (feedDetail) {
+        feedDetail.textContent = `${next.name} (${next.time}) • Expected volatility: ${next.volPips} pips • ${next.histConf}`;
+      }
+    };
+
+    updateCountdowns();
+    setInterval(updateCountdowns, 1000);
+    setInterval(renderNewsCalendar, 60000);
   }
 
   /* ========================================================================
-     8. CONFIDENCE BARS & METRICS (Inst 50% / Macro 30% / Tech 20%)
-     ======================================================================== */
-  function updateConfidenceDynamically() {
-    try {
-      const gauge = document.getElementById('gauge-circle');
-      const scoreEl = document.getElementById('gauge-score-num');
-      const instEl = document.getElementById('conf-val-inst');
-      const macroEl = document.getElementById('conf-val-macro');
-      const techEl = document.getElementById('conf-val-tech');
-      const barInst = document.getElementById('conf-bar-inst');
-      const barMacro = document.getElementById('conf-bar-macro');
-      const barTech = document.getElementById('conf-bar-tech');
-
-      if (!state.signal) {
-        if (scoreEl) scoreEl.textContent = '—';
-        return;
-      }
-
-      const { confInst: inst, confMacro: macro, confTech: tech } = state.signal;
-      const total = Math.min(98, Math.round(inst * 0.50 + macro * 0.30 + tech * 0.20));
-
-      if (scoreEl) scoreEl.textContent = `${total}%`;
-      if (instEl) instEl.textContent = `${inst}%`;
-      if (macroEl) macroEl.textContent = `${macro}%`;
-      if (techEl) techEl.textContent = `${tech}%`;
-
-      const totalContrib = inst * 0.50 + macro * 0.30 + tech * 0.20;
-      if (barInst) barInst.style.width = `${(inst * 0.50 / (totalContrib || 1)) * 92}%`;
-      if (barMacro) barMacro.style.width = `${(macro * 0.30 / (totalContrib || 1)) * 92}%`;
-      if (barTech) barTech.style.width = `${(tech * 0.20 / (totalContrib || 1)) * 92}%`;
-
-      if (gauge) gauge.style.strokeDashoffset = (314 * (1 - total / 100)).toFixed(1);
-    } catch (err) {
-      console.error('[MANUS MAX]', 'updateConfidenceDynamically error', err);
-      showError('updateConfidenceDynamically', err.message);
-    }
-  }
-
-  /* ========================================================================
-     9. SIGNAL HISTORY TABLE — Explicit DEMO Data Flagging
-     ======================================================================== */
-  function initSignalHistory() {
-    if (!historyBody) return;
-    try {
-      historyBody.innerHTML = '';
-
-      // Disclaimer banner inside table
-      const discTr = document.createElement('tr');
-      discTr.innerHTML = `
-        <td colspan="14" style="background:rgba(245,194,66,0.06);border:1px dashed rgba(245,194,66,0.3);padding:10px 14px;text-align:center;color:#f5c242;font-size:11px;font-weight:600;">
-          ⚠ DEMO DATA — Historical signals shown are for demonstration. Live signal tracking requires backend integration.
-        </td>
-      `;
-      historyBody.appendChild(discTr);
-
-      state.history.forEach(item => {
-        const tr = document.createElement('tr');
-        const isWin = item.status.includes('WIN');
-        const isBuy = item.dir === 'BUY' || item.dir === 'LONG';
-        const isActive = item.status.includes('ACTIVE');
-        const rrClass = {
-          'rr-min': 'rr-badge rr-badge-min',
-          'rr-good': 'rr-badge rr-badge-good',
-          'rr-high': 'rr-badge rr-badge-high'
-        }[item.rrClass] || 'rr-badge rr-badge-high';
-
-        const pipsSign = item.pips !== 'LIVE' ? (parseFloat(item.pips) >= 0 ? '+' : '') : '';
-
-        tr.innerHTML = `
-          <td class="font-mono" style="color:var(--text-dim);font-size:11px;">${item.id}</td>
-          <td class="font-mono ts-cell">${item.openTs}</td>
-          <td class="font-mono ts-cell ${isActive ? 'text-gold' : ''}">${item.closeTs}</td>
-          <td><span class="status-badge ${isBuy ? 'badge-win' : 'badge-gold'}">${isBuy ? '▲ LONG' : '▼ SHORT'}</span></td>
-          <td><span class="sig-strategy-tag" style="font-size:10px;">${item.strategy}</span></td>
-          <td class="font-mono">$${item.entry.toFixed(2)}</td>
-          <td class="text-ruby font-mono">$${item.sl.toFixed(2)}</td>
-          <td class="text-gold font-mono">$${item.tp2.toFixed(2)}</td>
-          <td><span class="${rrClass}">${item.rr}</span></td>
-          <td class="${isWin ? 'text-emerald' : 'text-ruby'}" style="font-weight:700;">${item.pips !== 'LIVE' ? pipsSign + item.pips : '<span class="pulse-dot" style="margin-right:4px;"></span>DEMO'}</td>
-          <td class="text-gold">${item.confidence}</td>
-          <td>${item.news ? `<span class="news-badge">⚠ ${item.news}</span>` : '<span style="color:var(--text-dim);font-size:10px;">—</span>'}</td>
-          <td><span class="status-badge ${isActive ? 'badge-tag' : (isWin ? 'badge-win' : 'badge-ruby')}">${item.status}</span></td>
-          <td>${item.pnl ? `<button class="btn-detail" onclick="showTradeDetail('${item.id}')"><i data-lucide="eye"></i></button>` : '<span style="color:var(--text-dim);font-size:10px;">—</span>'}</td>
-        `;
-        historyBody.appendChild(tr);
-
-        if (item.pnl) {
-          const detailRow = document.createElement('tr');
-          detailRow.id = `detail-${item.id}`;
-          detailRow.className = 'trade-detail-row';
-          detailRow.style.display = 'none';
-          const pnl = item.pnl;
-          const pnlColor = pnl.pips >= 0 ? 'var(--emerald)' : 'var(--ruby)';
-          detailRow.innerHTML = `
-            <td colspan="14">
-              <div class="trade-detail-panel">
-                <div class="trade-detail-header">
-                  <span><i data-lucide="trending-${pnl.direction === 'LONG' || pnl.direction === 'BUY' ? 'up' : 'down'}"></i> ${item.id} — DEMO Trade Close View</span>
-                  <span class="trade-pnl-badge" style="color:${pnlColor};background:${pnl.pips >= 0 ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)'};border:1px solid ${pnl.pips >= 0 ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'};">${pnl.pips >= 0 ? '+' : ''}${pnl.pips} Pips (${pnl.result})</span>
-                </div>
-                <div class="trade-markers">
-                  <div class="trade-marker marker-entry">
-                    <span class="marker-dot" style="background:var(--gold-primary);"></span>
-                    <span>ENTRY: $${pnl.entryPrice.toFixed(2)}</span>
-                  </div>
-                  <div class="trade-arrow">→</div>
-                  <div class="trade-marker marker-exit" style="color:${pnlColor};">
-                    <span class="marker-dot" style="background:${pnlColor};"></span>
-                    <span>EXIT: $${pnl.exitPrice.toFixed(2)}</span>
-                  </div>
-                  <div class="trade-pnl-calc">
-                    <span>Δ = ${Math.abs(pnl.exitPrice - pnl.entryPrice).toFixed(2)} pts</span>
-                    <span style="color:${pnlColor};font-weight:700;">${pnl.pips >= 0 ? '+' : ''}${pnl.pips} pips (DEMO)</span>
-                  </div>
-                </div>
-                <div class="trade-reason" style="font-size:11px;color:var(--text-secondary);margin-top:6px;font-style:italic;">"${item.reason}"</div>
-              </div>
-            </td>
-          `;
-          historyBody.appendChild(detailRow);
-        }
-      });
-
-      if (window.lucide) window.lucide.createIcons();
-    } catch (err) {
-      console.error('[MANUS MAX]', 'initSignalHistory error', err);
-      showError('initSignalHistory', err.message);
-    }
-  }
-
-  window.showTradeDetail = function (id) {
-    try {
-      const row = document.getElementById(`detail-${id}`);
-      if (row) {
-        row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
-        if (window.lucide) window.lucide.createIcons();
-      }
-    } catch (err) {
-      console.error('[MANUS MAX]', 'showTradeDetail error', err);
-      showError('showTradeDetail', err.message);
-    }
-  };
-
-  /* ========================================================================
-     10. PERFORMANCE METRICS (Honest DEMO labeling)
-     ======================================================================== */
-  function initPerformanceMetrics() {
-    try {
-      const closed = state.history.filter(h => !h.status.includes('ACTIVE'));
-      const wins = closed.filter(h => h.status.includes('WIN'));
-      const winRate = closed.length > 0 ? ((wins.length / closed.length) * 100).toFixed(1) : '—';
-      const totalPips = closed.reduce((sum, h) => sum + (parseFloat(h.pips) || 0), 0);
-      const maxDD = Math.min(...closed.map(h => parseFloat(h.pips) || 0));
-      const rrVals = closed.map(h => parseFloat((h.rr || '').replace('1 : ', '')) || 0).filter(v => v > 0);
-      const avgRR = rrVals.length > 0 ? (rrVals.reduce((a, b) => a + b, 0) / rrVals.length).toFixed(1) : '—';
-
-      animateCounter('perf-winrate', `${winRate}% (DEMO)`, 1000);
-      animateCounter('perf-avgr', `1 : ${avgRR}`, 800);
-      animateCounter('perf-gain', `+${totalPips.toFixed(0)} Pips (DEMO)`, 1200);
-      animateCounter('perf-dd', `${maxDD >= 0 ? '+' : ''}${maxDD} Pips`, 600);
-      animateCounter('perf-sharpe', 'DEMO', 600);
-    } catch (err) {
-      console.error('[MANUS MAX]', 'initPerformanceMetrics error', err);
-      showError('initPerformanceMetrics', err.message);
-    }
-  }
-
-  function animateCounter(id, finalVal, duration) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.style.transition = `color ${duration}ms ease`;
-    setTimeout(() => { el.textContent = finalVal; }, duration * 0.3);
-  }
-
-  /* ========================================================================
-     11. LIGHTWEIGHT CHARTS (Real Price Feeds Only — No Random Walk)
-     ======================================================================== */
-  let lwCurrentMinute = null;
-  let lwCurrentBar = null;
-
-  function initLightweightChart() {
-    try {
-      const container = document.getElementById('lw-chart-container');
-      if (!container || !window.LightweightCharts) {
-        console.warn('[MANUS MAX v6.1] LightweightCharts library not found on page.');
-        return;
-      }
-
-      showChartLoadingState(container);
-
-      const chart = window.LightweightCharts.createChart(container, {
-        layout: {
-          background: { type: 'solid', color: '#060910' },
-          textColor: 'rgba(255,255,255,0.4)',
-          fontFamily: "'JetBrains Mono', monospace",
-        },
-        grid: {
-          vertLines: { color: 'rgba(255,255,255,0.04)' },
-          horzLines: { color: 'rgba(255,255,255,0.04)' },
-        },
-        crosshair: {
-          mode: window.LightweightCharts.CrosshairMode.Normal,
-          vertLine: { color: 'rgba(245,194,66,0.5)', width: 1, style: 1 },
-          horzLine: { color: 'rgba(245,194,66,0.5)', width: 1, style: 1 },
-        },
-        timeScale: {
-          borderColor: 'rgba(255,255,255,0.08)',
-          timeVisible: true,
-          secondsVisible: false,
-        },
-        rightPriceScale: {
-          borderColor: 'rgba(255,255,255,0.08)',
-        },
-        handleScroll: true,
-        handleScale: true,
-      });
-
-      const candleSeries = chart.addCandlestickSeries({
-        upColor: '#10b981',
-        downColor: '#ef4444',
-        borderUpColor: '#10b981',
-        borderDownColor: '#ef4444',
-        wickUpColor: '#10b981',
-        wickDownColor: '#ef4444',
-      });
-
-      state.lwChart = chart;
-      state.lwCandleSeries = candleSeries;
-
-      // EMA 9 & EMA 15 Trend Ribbon Series
-      state.lwSeries.ema9 = chart.addLineSeries({
-        color: '#06b6d4',
-        lineWidth: 1.5,
-        title: 'EMA 9',
-        priceLineVisible: false,
-        crosshairMarkerVisible: false,
-      });
-
-      state.lwSeries.ema15 = chart.addLineSeries({
-        color: '#a855f7',
-        lineWidth: 1.5,
-        title: 'EMA 15',
-        priceLineVisible: false,
-        crosshairMarkerVisible: false,
-      });
-
-      const resizeObs = new ResizeObserver(() => {
-        try {
-          chart.applyOptions({
-            width: container.clientWidth,
-            height: container.clientHeight,
-          });
-        } catch (err) {
-          console.error('[MANUS MAX]', 'chart resize error', err);
-        }
-      });
-      resizeObs.observe(container);
-
-      // Immediately fetch real historical candles from backend pipeline
-      fetchHistoricalCandles(state.timeframe);
-
-      console.log('[MANUS MAX v6.2] Lightweight Charts initialized.');
-    } catch (err) {
-      console.error('[MANUS MAX]', 'initLightweightChart error', err);
-      showError('initLightweightChart', err.message);
-    }
-  }
-
-  function updateEMAOverlays(candles) {
-    if (!state.lwChart || !candles || candles.length < 15) return;
-    try {
-      const emaData = detectEMA915(candles);
-      if (state.lwSeries.ema9) {
-        state.lwSeries.ema9.applyOptions({ visible: !!state.showIndicators });
-        if (state.showIndicators && emaData.series9.length) {
-          state.lwSeries.ema9.setData(emaData.series9);
-        } else if (!state.showIndicators) {
-          state.lwSeries.ema9.setData([]);
-        }
-      }
-      if (state.lwSeries.ema15) {
-        state.lwSeries.ema15.applyOptions({ visible: !!state.showIndicators });
-        if (state.showIndicators && emaData.series15.length) {
-          state.lwSeries.ema15.setData(emaData.series15);
-        } else if (!state.showIndicators) {
-          state.lwSeries.ema15.setData([]);
-        }
-      }
-    } catch (err) {
-      console.error('[MANUS MAX]', 'updateEMAOverlays error', err);
-    }
-  }
-
-  async function fetchHistoricalCandles(tf = state.timeframe) {
-    try {
-      const container = document.getElementById('lw-chart-container');
-      showChartLoadingState(container);
-
-      const endpoints = [
-        `/.netlify/functions/gold-history?timeframe=${tf}&limit=100`,
-        `/api/gold-history?timeframe=${tf}&limit=100`,
-      ];
-      let candles = null;
-      for (const endpoint of endpoints) {
-        try {
-          const res = await fetch(endpoint, { signal: AbortSignal.timeout(4500) });
-          if (!res.ok) continue;
-          const data = await res.json();
-          if (data && Array.isArray(data.candles) && data.candles.length > 0) {
-            candles = data.candles;
-            break;
-          }
-        } catch (e) {
-          // Proceed to next fallback
-        }
-      }
-
-      if (candles && state.lwCandleSeries) {
-        state.lwCandleSeries.setData(candles);
-        // Store OHLCV candles for the signal engine — this is the core data bridge
-        state.ohlcHistory = candles;
-        hideChartLoadingState();
-        if (state.lwChart) state.lwChart.timeScale().fitContent();
-        updateChartDataLabel(`XAU/USD (${tf}) • Real Feed`);
-        updateEMAOverlays(candles);
-        // Re-run signal engine with fresh OHLCV data
-        if (state.goldPrice) {
-          updateSignalEngine();
-        }
-        if (state.signal && state.goldPrice) {
-          drawSMCOverlays(state.lwChart, state.lwCandleSeries, state.goldPrice);
-        }
-        renderUserDrawingsOnChart();
-      } else {
-        hideChartLoadingState();
-      }
-    } catch (e) {
-      console.warn('[MANUS MAX] fetchHistoricalCandles error', e);
-      hideChartLoadingState();
-    }
-  }
-
-  function showChartLoadingState(container) {
-    if (!container) return;
-    let loading = document.getElementById('lw-chart-loading-indicator');
-    if (!loading) {
-      loading = document.createElement('div');
-      loading.id = 'lw-chart-loading-indicator';
-      loading.style.cssText = `
-        position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-        color: rgba(245, 194, 66, 0.8); font-size: 12px; font-weight: 600;
-        letter-spacing: 0.05em; pointer-events: none; z-index: 10;
-      `;
-      loading.textContent = 'Loading chart data...';
-      container.style.position = 'relative';
-      container.appendChild(loading);
-    }
-  }
-
-  function hideChartLoadingState() {
-    const loading = document.getElementById('lw-chart-loading-indicator');
-    if (loading) loading.remove();
-  }
-
-  function getBarIntervalSeconds(tf) {
-    return { M5: 300, M15: 900, H1: 3600, H4: 14400, D1: 86400 }[tf] || 3600;
-  }
-
-  function pushOHLCTick(price) {
-    try {
-      if (!state.lwCandleSeries) return;
-      hideChartLoadingState();
-
-      const now = Math.floor(Date.now() / 1000);
-      const barInterval = getBarIntervalSeconds(state.timeframe);
-      const barTime = Math.floor(now / barInterval) * barInterval;
-
-      if (lwCurrentMinute !== barTime) {
-        lwCurrentMinute = barTime;
-        lwCurrentBar = { time: barTime, open: price, high: price, low: price, close: price };
-      } else if (lwCurrentBar) {
-        lwCurrentBar.high = Math.max(lwCurrentBar.high, price);
-        lwCurrentBar.low = Math.min(lwCurrentBar.low, price);
-        lwCurrentBar.close = price;
-      }
-
-      if (lwCurrentBar) {
-        state.lwCandleSeries.update(lwCurrentBar);
-      }
-    } catch (err) {
-      console.error('[MANUS MAX]', 'pushOHLCTick error', err);
-      showError('pushOHLCTick', err.message);
-    }
-  }
-
-  function updateLWChartPrice(price) {
-    pushOHLCTick(price);
-    if (state.lwChart && state.lwCandleSeries && state.signal) {
-      drawSMCOverlays(state.lwChart, state.lwCandleSeries, price);
-    }
-  }
-
-  function regenerateLWChartData() {
-    try {
-      if (!state.lwChart || !state.lwCandleSeries) return;
-      lwCurrentMinute = null;
-      lwCurrentBar = null;
-
-      if (state.goldPrice && state.priceHistory.length > 0) {
-        const barInterval = getBarIntervalSeconds(state.timeframe);
-        const now = Math.floor(Date.now() / 1000);
-        const bars = [];
-        const histLen = state.priceHistory.length;
-
-        state.priceHistory.forEach((price, i) => {
-          const ageSeconds = (histLen - 1 - i) * 60;
-          const barTime = Math.floor((now - ageSeconds) / barInterval) * barInterval;
-          const existing = bars.find(b => b.time === barTime);
-          if (existing) {
-            existing.high = Math.max(existing.high, price);
-            existing.low = Math.min(existing.low, price);
-            existing.close = price;
-          } else {
-            bars.push({ time: barTime, open: price, high: price, low: price, close: price });
-          }
-        });
-
-        bars.sort((a, b) => a.time - b.time);
-        state.lwCandleSeries.setData(bars);
-
-        if (state.signal) {
-          drawSMCOverlays(state.lwChart, state.lwCandleSeries, state.goldPrice);
-        }
-        if (state.ohlcHistory && state.ohlcHistory.length >= 15) {
-          updateEMAOverlays(state.ohlcHistory);
-        } else if (bars.length >= 15) {
-          updateEMAOverlays(bars);
-        }
-        renderUserDrawingsOnChart();
-        state.lwChart.timeScale().fitContent();
-      }
-    } catch (err) {
-      console.error('[MANUS MAX]', 'regenerateLWChartData error', err);
-      showError('regenerateLWChartData', err.message);
-    }
-  }
-
-  function drawSMCOverlays(chart, series, currentPrice) {
-    if (!series) return;
-    try {
-      const keys = ['entryLine', 'slLine', 'tp1Line', 'tp2Line', 'tp3Line', 'obLine', 'fvgLine', 'liqLine', 'chochLine'];
-      keys.forEach(k => {
-        if (state.lwSeries[k]) {
-          try { series.removePriceLine(state.lwSeries[k]); } catch (_) { }
-          state.lwSeries[k] = null;
-        }
-      });
-
-      if (!state.showIndicators || !state.signal) return;
-      const sig = state.signal;
-
-      state.lwSeries.entryLine = series.createPriceLine({
-        price: sig.entry,
-        color: '#f5c242',
-        lineWidth: 2,
-        lineStyle: window.LightweightCharts.LineStyle.Solid,
-        axisLabelVisible: true,
-        title: `ENTRY ${formatPrice(sig.entry)}`,
-      });
-
-      state.lwSeries.slLine = series.createPriceLine({
-        price: sig.sl,
-        color: '#ef4444',
-        lineWidth: 1.5,
-        lineStyle: window.LightweightCharts.LineStyle.Dashed,
-        axisLabelVisible: true,
-        title: `SL ${formatPrice(sig.sl)}`,
-      });
-
-      if (sig.tp1) {
-        state.lwSeries.tp1Line = series.createPriceLine({
-          price: sig.tp1,
-          color: '#10b981',
-          lineWidth: 1.5,
-          lineStyle: window.LightweightCharts.LineStyle.Dotted,
-          axisLabelVisible: true,
-          title: `TP1 (1:2) ${formatPrice(sig.tp1)}`,
-        });
-      }
-
-      if (sig.tp2) {
-        state.lwSeries.tp2Line = series.createPriceLine({
-          price: sig.tp2,
-          color: '#ffd700',
-          lineWidth: 1.5,
-          lineStyle: window.LightweightCharts.LineStyle.Dotted,
-          axisLabelVisible: true,
-          title: `TP2 (1:${sig.rr}) ${formatPrice(sig.tp2)}`,
-        });
-      }
-
-      if (sig.tp3) {
-        state.lwSeries.tp3Line = series.createPriceLine({
-          price: sig.tp3,
-          color: '#fff200',
-          lineWidth: 1,
-          lineStyle: window.LightweightCharts.LineStyle.LargeDashed,
-          axisLabelVisible: true,
-          title: `TP3 HTF ${formatPrice(sig.tp3)}`,
-        });
-      }
-
-      const isLong = sig.type === 'LONG';
-
-      // Use real candle-derived SMC levels when ohlcHistory is available
-      let obPrice, fvgPrice, liqPrice, chochPrice;
-
-      if (state.ohlcHistory && state.ohlcHistory.length >= 10) {
-        const candles = state.ohlcHistory;
-        const { swingHigh, swingLow } = detectSwings(candles, 20);
-        const ob = detectOrderBlock(candles, sig.type);
-        const fvgLevel = detectFVG(candles, sig.type);
-        const choch = detectCHoCH(candles, sig.type);
-
-        // Liquidity level = relevant swing high/low
-        liqPrice = isLong ? parseFloat(swingLow.toFixed(2)) : parseFloat(swingHigh.toFixed(2));
-        // CHoCH level
-        chochPrice = choch.breakLevel || (isLong ? parseFloat((currentPrice * 0.992).toFixed(2)) : parseFloat((currentPrice * 1.008).toFixed(2)));
-        // Order Block
-        obPrice = ob ? (isLong ? parseFloat(ob.obLow.toFixed(2)) : parseFloat(ob.obHigh.toFixed(2)))
-          : parseFloat((currentPrice * (isLong ? 0.997 : 1.003)).toFixed(2));
-        // FVG
-        fvgPrice = fvgLevel !== null ? fvgLevel : parseFloat((currentPrice * (isLong ? 0.9985 : 1.0015)).toFixed(2));
-      } else {
-        // Fallback: percentage offsets when no candle data
-        obPrice = parseFloat((currentPrice * (isLong ? 0.997 : 1.003)).toFixed(2));
-        fvgPrice = parseFloat((currentPrice * (isLong ? 0.9985 : 1.0015)).toFixed(2));
-        liqPrice = parseFloat((currentPrice * (isLong ? 0.995 : 1.005)).toFixed(2));
-        chochPrice = parseFloat((currentPrice * (isLong ? 0.992 : 1.008)).toFixed(2));
-      }
-
-      state.lwSeries.obLine = series.createPriceLine({
-        price: obPrice,
-        color: 'rgba(245,194,66,0.6)',
-        lineWidth: 1,
-        lineStyle: window.LightweightCharts.LineStyle.Solid,
-        axisLabelVisible: true,
-        title: `OB ${formatPrice(obPrice)}`,
-      });
-
-      state.lwSeries.fvgLine = series.createPriceLine({
-        price: fvgPrice,
-        color: 'rgba(139,92,246,0.6)',
-        lineWidth: 1,
-        lineStyle: window.LightweightCharts.LineStyle.Dashed,
-        axisLabelVisible: true,
-        title: `FVG ${formatPrice(fvgPrice)}`,
-      });
-
-      state.lwSeries.liqLine = series.createPriceLine({
-        price: liqPrice,
-        color: 'rgba(6,182,212,0.7)',
-        lineWidth: 1,
-        lineStyle: window.LightweightCharts.LineStyle.Dashed,
-        axisLabelVisible: true,
-        title: `Liq ${formatPrice(liqPrice)}`,
-      });
-
-      state.lwSeries.chochLine = series.createPriceLine({
-        price: chochPrice,
-        color: 'rgba(245,194,66,0.4)',
-        lineWidth: 1,
-        lineStyle: window.LightweightCharts.LineStyle.SparseDotted,
-        axisLabelVisible: true,
-        title: `CHOCH ${formatPrice(chochPrice)}`,
-      });
-    } catch (err) {
-      console.error('[MANUS MAX]', 'drawSMCOverlays error', err);
-      showError('drawSMCOverlays', err.message);
-    }
-  }
-
-  /* ========================================================================
-     12. INTERACTIVE MODEL SIMULATOR (50/30/20 weights)
+     11. INFERENCE SIMULATOR & RISK CALCULATOR
      ======================================================================== */
   function initSimulator() {
-    try {
-      const inputs = {
-        realYield: document.getElementById('sim-input-realyield'),
-        dxy: document.getElementById('sim-input-dxy'),
-        ema: document.getElementById('sim-input-ema'),
-        bb: document.getElementById('sim-input-bb'),
-        smc: document.getElementById('sim-input-smc'),
-        gpr: document.getElementById('sim-input-gpr')
-      };
-      if (!inputs.realYield) return;
+    const inputs = {
+      realYield: document.getElementById('sim-input-realyield'),
+      dxy: document.getElementById('sim-input-dxy'),
+      ema: document.getElementById('sim-input-ema'),
+      bb: document.getElementById('sim-input-bb'),
+      smc: document.getElementById('sim-input-smc'),
+      gpr: document.getElementById('sim-input-gpr'),
+    };
+    if (!inputs.realYield) return;
 
-      const vals = {
-        realYield: document.getElementById('sim-val-realyield'),
-        dxy: document.getElementById('sim-val-dxy'),
-        ema: document.getElementById('sim-val-ema'),
-        bb: document.getElementById('sim-val-bb'),
-        smc: document.getElementById('sim-val-smc'),
-        gpr: document.getElementById('sim-val-gpr')
-      };
+    const vals = {
+      realYield: document.getElementById('sim-val-realyield'),
+      dxy: document.getElementById('sim-val-dxy'),
+      ema: document.getElementById('sim-val-ema'),
+      bb: document.getElementById('sim-val-bb'),
+      smc: document.getElementById('sim-val-smc'),
+      gpr: document.getElementById('sim-val-gpr'),
+    };
 
-      function calc() {
-        const smcScores = { choch_ob: 93, fvg: 80, liq_sweep: 88, none: 40 };
-        const smcVal = inputs.smc ? inputs.smc.value : 'choch_ob';
-        const instScore = smcScores[smcVal] || 50;
-        if (vals.smc) vals.smc.textContent = { choch_ob: 'CHOCH + OB', fvg: 'FVG Fill', liq_sweep: 'Liq Sweep', none: 'No Signal' }[smcVal];
+    const calc = () => {
+      const smcScores = { choch_ob: 93, fvg: 80, liq_sweep: 88, none: 40 };
+      const smcVal = inputs.smc?.value || 'choch_ob';
+      const instC = Math.min(98, Math.max(20, smcScores[smcVal] || 50));
+      if (vals.smc) vals.smc.textContent = { choch_ob: 'CHOCH + OB', fvg: 'FVG Fill', liq_sweep: 'Liq Sweep', none: 'No Signal' }[smcVal];
 
-        const ryVal = parseFloat(inputs.realYield.value);
-        if (vals.realYield) vals.realYield.textContent = `${ryVal.toFixed(2)}% (${ryVal < 0 ? 'Negative / Bullish' : 'Positive / Bearish'})`;
-        let macroScore = 50;
-        if (ryVal < 0) macroScore += Math.abs(ryVal) * 22;
-        else macroScore -= ryVal * 20;
+      const ryVal = parseFloat(inputs.realYield.value);
+      if (vals.realYield) vals.realYield.textContent = `${ryVal.toFixed(2)}% (${ryVal < 0 ? 'Negative / Bullish' : 'Positive / Bearish'})`;
+      let macroScore = 50 + (ryVal < 0 ? Math.abs(ryVal) * 22 : -ryVal * 20);
 
-        const dxyVal = inputs.dxy.value;
-        if (vals.dxy) vals.dxy.textContent = { weak: 'Weakening (Bullish Au)', flat: 'Neutral', strong: 'Strengthening (Bearish Au)' }[dxyVal];
-        if (dxyVal === 'weak') macroScore += 18; else if (dxyVal === 'strong') macroScore -= 18;
+      const dxyVal = inputs.dxy.value;
+      if (vals.dxy) vals.dxy.textContent = { weak: 'Weakening (Bullish Au)', flat: 'Neutral', strong: 'Strengthening (Bearish Au)' }[dxyVal];
+      if (dxyVal === 'weak') macroScore += 18;
+      else if (dxyVal === 'strong') macroScore -= 18;
 
-        const gprVal = parseInt(inputs.gpr.value);
-        if (vals.gpr) vals.gpr.textContent = `${gprVal} (${gprVal > 120 ? 'High Risk' : 'Normal'})`;
-        macroScore += (gprVal - 100) * 0.12;
+      const gprVal = parseInt(inputs.gpr.value, 10);
+      if (vals.gpr) vals.gpr.textContent = `${gprVal} (${gprVal > 120 ? 'High Risk' : 'Normal'})`;
+      macroScore += (gprVal - 100) * 0.12;
 
-        const emaVal = inputs.ema.value;
-        if (vals.ema) vals.ema.textContent = { bullish: 'Price > 50 > 200', neutral: 'Between EMAs', bearish: 'Price < 50 < 200' }[emaVal];
-        let techScore = 50;
-        if (emaVal === 'bullish') techScore += 22; else if (emaVal === 'bearish') techScore -= 22;
+      const emaVal = inputs.ema.value;
+      if (vals.ema) vals.ema.textContent = { bullish: 'Price > 50 > 200', neutral: 'Between EMAs', bearish: 'Price < 50 < 200' }[emaVal];
+      let techScore = 50 + (emaVal === 'bullish' ? 22 : emaVal === 'bearish' ? -22 : 0);
 
-        const bbVal = inputs.bb.value;
-        if (vals.bb) vals.bb.textContent = { breakout_up: 'Squeeze + Upper Break', squeeze: 'Squeeze Phase', breakout_down: 'Squeeze + Lower Break', normal: 'Normal Vol' }[bbVal];
-        if (bbVal === 'breakout_up') techScore += 18; else if (bbVal === 'squeeze') techScore += 8; else if (bbVal === 'breakout_down') techScore -= 18;
+      const bbVal = inputs.bb.value;
+      if (vals.bb) vals.bb.textContent = { breakout_up: 'Squeeze + Upper Break', squeeze: 'Squeeze Phase', breakout_down: 'Squeeze + Lower Break', normal: 'Normal Vol' }[bbVal];
+      if (bbVal === 'breakout_up') techScore += 18;
+      else if (bbVal === 'squeeze') techScore += 8;
+      else if (bbVal === 'breakout_down') techScore -= 18;
 
-        const instC = Math.min(98, Math.max(20, instScore));
-        const macroC = Math.min(98, Math.max(20, macroScore));
-        const techC = Math.min(98, Math.max(20, techScore));
-        const total = Math.min(98, Math.max(15, Math.round(instC * 0.50 + macroC * 0.30 + techC * 0.20)));
+      const macroC = Math.min(98, Math.max(20, Math.round(macroScore)));
+      const techC = Math.min(98, Math.max(20, Math.round(techScore)));
+      const total = Math.min(98, Math.max(15, Math.round(instC * 0.5 + macroC * 0.3 + techC * 0.2)));
 
-        const scoreEl = document.getElementById('sim-result-score');
-        const badgeEl = document.getElementById('sim-result-badge');
-        const textEl = document.getElementById('sim-result-text');
-
-        if (scoreEl) scoreEl.textContent = `${total}%`;
-
-        if (state.signal && document.getElementById('tab-engine')?.classList.contains('active')) {
-          state.signal.confidence = total;
-          state.signal.confInst = instC;
-          state.signal.confMacro = macroC;
-          state.signal.confTech = techC;
-          updateConfidenceDynamically();
+      const scoreEl = document.getElementById('sim-result-score');
+      const badgeEl = document.getElementById('sim-result-badge');
+      const textEl = document.getElementById('sim-result-text');
+      if (scoreEl) scoreEl.textContent = `${total}%`;
+      if (badgeEl && textEl) {
+        if (total >= 85) {
+          badgeEl.className = 'sim-out-signal signal-buy';
+          badgeEl.style.cssText = '';
+          badgeEl.innerHTML = '<i data-lucide="check-circle-2"></i> HIGH CONFIDENCE LONG SIGNAL';
+        } else if (total >= 70) {
+          badgeEl.className = 'sim-out-signal';
+          badgeEl.style.cssText = 'background:rgba(245,194,66,0.15);color:#f5c242;border:1px solid rgba(245,194,66,0.4);';
+          badgeEl.innerHTML = '<i data-lucide="alert-circle"></i> MEDIUM CONFIDENCE SIGNAL';
+        } else {
+          badgeEl.className = 'sim-out-signal';
+          badgeEl.style.cssText = 'background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.4);';
+          badgeEl.innerHTML = '<i data-lucide="x-circle"></i> NO TRADE — FILTERED (< 70%)';
         }
-
-        if (badgeEl && textEl) {
-          if (total >= 85) {
-            badgeEl.className = 'sim-out-signal signal-buy';
-            badgeEl.innerHTML = '<i data-lucide="check-circle-2"></i> HIGH CONFIDENCE LONG SIGNAL';
-            textEl.textContent = `Institutional ${instC}% × 50% + Macro ${macroC}% × 30% + Technical ${techC}% × 20% = ${total}% weighted.`;
-          } else if (total >= 70) {
-            badgeEl.className = 'sim-out-signal';
-            badgeEl.style.cssText = 'background:rgba(245,194,66,0.15);color:#f5c242;border:1px solid rgba(245,194,66,0.4);';
-            badgeEl.innerHTML = '<i data-lucide="alert-circle"></i> MEDIUM CONFIDENCE SIGNAL';
-            textEl.textContent = `Partial confluence. Score: ${total}%. Inst ${instC}×0.50 + Macro ${macroC}×0.30 + Tech ${techC}×0.20.`;
-          } else {
-            badgeEl.className = 'sim-out-signal';
-            badgeEl.style.cssText = 'background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.4);';
-            badgeEl.innerHTML = '<i data-lucide="x-circle"></i> NO TRADE — FILTERED (< 70%)';
-            textEl.textContent = `Confidence ${total}% is below the 70% execution threshold. Trade filtered to protect risk.`;
-          }
-          if (window.lucide) window.lucide.createIcons();
-        }
+        textEl.textContent = `Inst ${instC}% × 50% + Macro ${macroC}% × 30% + Tech ${techC}% × 20% = ${total}% weighted.`;
+        if (window.lucide) window.lucide.createIcons();
       }
+    };
 
-      Object.values(inputs).forEach(el => {
-        if (el) { el.addEventListener('input', calc); el.addEventListener('change', calc); }
-      });
-      calc();
-    } catch (err) {
-      console.error('[MANUS MAX]', 'initSimulator error', err);
-      showError('initSimulator', err.message);
-    }
+    Object.values(inputs).forEach((el) => {
+      if (el) { el.addEventListener('input', calc); el.addEventListener('change', calc); }
+    });
+    calc();
   }
 
-  /* ========================================================================
-     13. RISK CALCULATOR & POSITION SIZING
-     ======================================================================== */
+  function seedCalculatorFromMarket() {
+    const entryEl = document.getElementById('calc-entry');
+    const slEl = document.getElementById('calc-sl');
+    const atrEl = document.getElementById('calc-atr');
+    if (!entryEl || !slEl) return;
+
+    const sig = state.signal || state.futureSetups[0];
+    const atr = state.indicators?.atr14 || 8.0;
+
+    if (sig && !entryEl.value) {
+      entryEl.value = Number(sig.entry_price).toFixed(2);
+      slEl.value = Number(sig.stop_loss).toFixed(2);
+      if (atrEl) atrEl.value = Number(sig.indicators?.atr14 || atr).toFixed(2);
+      state.calcSeeded = true;
+    } else if (state.goldPrice && !entryEl.value) {
+      entryEl.value = state.goldPrice.toFixed(2);
+      slEl.value = (state.goldPrice - atr * 1.5).toFixed(2);
+      if (atrEl) atrEl.value = Number(atr).toFixed(2);
+      state.calcSeeded = true;
+    }
+    document.getElementById('btn-recalc')?.click();
+  }
+
   function initCalculator() {
-    try {
-      const fields = {
-        balance: document.getElementById('calc-balance'),
-        riskPct: document.getElementById('calc-risk-pct'),
-        entry: document.getElementById('calc-entry'),
-        sl: document.getElementById('calc-sl'),
-        rrTarget: document.getElementById('calc-rr-target')
-      };
-      const outs = {
-        riskAmount: document.getElementById('calc-risk-amount'),
-        lots: document.getElementById('out-lots'),
-        pips: document.getElementById('out-pips'),
-        tp1: document.getElementById('out-tp1'),
-        tp2: document.getElementById('out-tp2'),
-        tp3: document.getElementById('out-tp3')
-      };
-      if (!fields.balance) return;
+    const fields = {
+      balance: document.getElementById('calc-balance'),
+      riskPct: document.getElementById('calc-risk-pct'),
+      entry: document.getElementById('calc-entry'),
+      sl: document.getElementById('calc-sl'),
+      atr: document.getElementById('calc-atr'),
+      rrTarget: document.getElementById('calc-rr-target'),
+    };
+    if (!fields.balance) return;
 
-      function calc() {
-        const balance = parseFloat(fields.balance.value) || 10000;
-        const riskPct = parseFloat(fields.riskPct.value) || 1.0;
-        const entry = parseFloat(fields.entry.value) || (state.goldPrice || 4055.00);
-        const sl = parseFloat(fields.sl.value) || (state.goldPrice ? state.goldPrice - 11.5 : 4043.50);
-        const rrTarget = parseInt(fields.rrTarget ? fields.rrTarget.value : '4') || 4;
+    const calc = () => {
+      const balance = parseFloat(fields.balance.value) || 10000;
+      const riskPct = parseFloat(fields.riskPct.value) || 1.0;
+      const atr = parseFloat(fields.atr?.value) || (state.indicators?.atr14 || 8.0);
+      const entry = parseFloat(fields.entry.value) || state.goldPrice;
+      const sl = parseFloat(fields.sl.value) || (entry ? entry - atr * 1.5 : null);
+      const rrTarget = parseInt(fields.rrTarget?.value || '4', 10) || 4;
 
-        const riskAmount = balance * (riskPct / 100);
-        const priceDist = Math.abs(entry - sl);
-        const pipsDist = priceDist * 10;
-        const lotSize = priceDist > 0 ? riskAmount / (priceDist * 100) : 0;
-        const isBuy = entry > sl;
-        const tp1Price = isBuy ? entry + priceDist * 2 : entry - priceDist * 2;
-        const tp2Price = isBuy ? entry + priceDist * rrTarget : entry - priceDist * rrTarget;
-        const tp3RR = Math.min(10, rrTarget * 2);
-        const tp3Price = isBuy ? entry + priceDist * tp3RR : entry - priceDist * tp3RR;
+      const riskAmt = balance * (riskPct / 100);
+      const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+      set('calc-risk-amount', `$${riskAmt.toFixed(2)}`);
 
-        if (outs.riskAmount) outs.riskAmount.textContent = `$${riskAmount.toFixed(2)}`;
-        if (outs.lots) outs.lots.textContent = `${lotSize.toFixed(2)} Lots`;
-        if (outs.pips) outs.pips.textContent = `${pipsDist.toFixed(1)} Pips`;
-        if (outs.tp1) outs.tp1.textContent = formatPrice(tp1Price);
-        if (outs.tp2) outs.tp2.textContent = formatPrice(tp2Price);
-        if (outs.tp3) {
-          outs.tp3.textContent = formatPrice(tp3Price);
-          const tp3Label = document.querySelector('#out-tp3 + .sub') || outs.tp3.parentElement?.querySelector('.sub');
-          if (tp3Label) tp3Label.textContent = `+${(tp3RR * pipsDist).toFixed(0)} Pips (1:${tp3RR} Max HTF)`;
-        }
+      if (!entry || !sl || Math.abs(entry - sl) <= 0) {
+        ['out-lots', 'out-pips', 'out-tp1', 'out-tp2', 'out-tp3'].forEach((id) => set(id, '—'));
+        return;
       }
 
-      Object.values(fields).forEach(el => {
-        if (el) { el.addEventListener('input', calc); el.addEventListener('change', calc); }
-      });
+      const priceDist = Math.abs(entry - sl);
+      const pipsDist = priceDist * 10;
+      const lots = riskAmt / (priceDist * 100);
+      const isBuy = entry > sl;
+      const tp1 = isBuy ? entry + priceDist * 2 : entry - priceDist * 2;
+      const tp2 = isBuy ? entry + priceDist * rrTarget : entry - priceDist * rrTarget;
+      const tp3RR = Math.min(10, rrTarget * 2);
+      const tp3 = isBuy ? entry + priceDist * tp3RR : entry - priceDist * tp3RR;
 
-      const btnRecalc = document.getElementById('btn-recalc');
-      if (btnRecalc) {
-        btnRecalc.addEventListener('click', () => {
-          try {
-            calc();
-            showNotification('Position size and SL/TP recalculated.');
-          } catch (err) {
-            console.error('[MANUS MAX]', 'btn-recalc error', err);
-            showError('btn-recalc', err.message);
-          }
-        });
-      }
+      set('out-lots', `${lots.toFixed(2)} Lots`);
+      set('out-ounces', `${(lots * 100).toFixed(0)} Ounces of Gold`);
+      set('out-pips', `${pipsDist.toFixed(1)} Pips`);
+      set('out-dist-usd', `$${priceDist.toFixed(2)} Price Distance`);
+      set('out-tp1', formatPrice(tp1));
+      set('out-tp1-sub', `+${(pipsDist * 2).toFixed(0)} Pips (Close 50%)`);
+      set('out-tp2', formatPrice(tp2));
+      set('out-tp2-sub', `+${(pipsDist * rrTarget).toFixed(0)} Pips (1:${rrTarget} Runner)`);
+      set('out-tp3', formatPrice(tp3));
+      set('out-tp3-sub', `+${(pipsDist * tp3RR).toFixed(0)} Pips (1:${tp3RR} Max HTF)`);
+    };
 
-      calc();
-    } catch (err) {
-      console.error('[MANUS MAX]', 'initCalculator error', err);
-      showError('initCalculator', err.message);
-    }
+    Object.values(fields).forEach((el) => {
+      if (el) { el.addEventListener('input', calc); el.addEventListener('change', calc); }
+    });
+    document.getElementById('btn-recalc')?.addEventListener('click', calc);
+    calc();
   }
 
   /* ========================================================================
-     14. ACTION BUTTONS & CLIPBOARD
+     12. ACTION BUTTONS & BLUEPRINT JSON PREVIEW
      ======================================================================== */
+  function updateBlueprintJsonPreview(livePayload) {
+    const el = document.getElementById('json-preview-content');
+    if (!el || !livePayload) return;
+    const preview = {
+      endpoint: '/api/signals/live',
+      spot_price: livePayload.spot_price,
+      timeframe: livePayload.timeframe,
+      provider: livePayload.provider,
+      persistence_mode: livePayload.persistence_mode,
+      updated_at: livePayload.updated_at,
+      live_signals: livePayload.live_signals.slice(0, 1),
+      future_setups: livePayload.future_setups.slice(0, 1),
+      macro: livePayload.macro,
+    };
+    el.textContent = JSON.stringify(preview, null, 2);
+  }
+
   function initActionButtons() {
-    // 1. btn-refresh-signal: Re-fetch price from provider, regenerate signals, show loading
     const btnRefresh = document.getElementById('btn-refresh-signal');
     if (btnRefresh) {
       btnRefresh.addEventListener('click', async function () {
-        try {
-          const btn = this;
-          btn.innerHTML = '<i data-lucide="loader" class="spin"></i> Fetching...';
-          btn.disabled = true;
-          if (window.lucide) window.lucide.createIcons();
+        this.innerHTML = '<i data-lucide="loader" class="spin"></i> Scanning...';
+        this.disabled = true;
+        if (window.lucide) window.lucide.createIcons();
 
-          const ok = await fetchLiveGoldPrice();
+        await fetchSpotAndCandles(state.timeframe, { forceRefresh: true });
+        await fetchLiveSignals({ forceRefresh: true });
 
-          setTimeout(() => {
-            btn.innerHTML = '<i data-lucide="rotate-cw"></i> Run Inference';
-            btn.disabled = false;
-            if (window.lucide) window.lucide.createIcons();
+        this.innerHTML = '<i data-lucide="rotate-cw"></i> Run Inference';
+        this.disabled = false;
+        if (window.lucide) window.lucide.createIcons();
 
-            if (ok && state.goldPrice) {
-              updateSignalEngine();
-              if (state.lwChart && state.lwCandleSeries) {
-                drawSMCOverlays(state.lwChart, state.lwCandleSeries, state.goldPrice);
-              }
-              showNotification(`Price updated: ${formatPrice(state.goldPrice)} (${state.dataSource || 'Live'})`);
-            } else {
-              showNotification('⚠ Could not retrieve live price. Check data provider configuration.');
-            }
-          }, 600);
-        } catch (err) {
-          console.error('[MANUS MAX]', 'btn-refresh-signal error', err);
-          showError('btn-refresh-signal', err.message);
-          this.innerHTML = '<i data-lucide="rotate-cw"></i> Run Inference';
-          this.disabled = false;
+        if (state.goldPrice) {
+          showNotification(`Live scan updated at ${formatPrice(state.goldPrice)} (${state.liveSignals.length} live, ${state.futureSetups.length} future)`);
         }
       });
     }
 
-    // 2. btn-quick-signal: Scroll to signal feed list and flash it
-    const btnQuick = document.getElementById('btn-quick-signal');
-    if (btnQuick) {
-      btnQuick.addEventListener('click', () => {
-        try {
-          const termTab = document.querySelector('.nav-tab[data-tab="terminal"]');
-          if (termTab) termTab.click();
-
-          setTimeout(() => {
-            const feedEl = document.getElementById('signal-feed-list');
-            if (feedEl) {
-              feedEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              feedEl.style.transition = 'box-shadow 0.3s ease';
-              feedEl.style.boxShadow = '0 0 24px rgba(245, 194, 66, 0.6)';
-              setTimeout(() => { feedEl.style.boxShadow = ''; }, 1200);
-            }
-          }, 100);
-        } catch (err) {
-          console.error('[MANUS MAX]', 'btn-quick-signal error', err);
-          showError('btn-quick-signal', err.message);
-        }
-      });
-    }
-
-    // 3. btn-copy-signal: Copy signal JSON to clipboard with real current data
-    const btnCopySig = document.getElementById('btn-copy-signal');
-    if (btnCopySig) {
-      btnCopySig.addEventListener('click', () => {
-        try {
-          const s = state.signal;
-          if (!s) {
-            showNotification('⚠ No active signal available. Data provider must supply price history.');
-            return;
-          }
-
-          const payload = {
-            platform: 'MANUS MAX AI 6.1 — XAU/USD Institutional Signal Engine',
-            disclaimer: 'EDUCATIONAL USE ONLY — Not financial advice',
-            timestamp: new Date().toISOString(),
-            dataSource: state.dataSource || 'N/A',
-            liveSpotPrice: state.goldPrice,
-            strategy: s.strategy,
-            direction: s.type,
-            levels: {
-              entry: s.entry,
-              stopLoss: s.sl,
-              takeProfit1: s.tp1,
-              takeProfit2: s.tp2,
-              takeProfit3: s.tp3,
-              riskRewardRatio: `1:${s.rr}`
-            },
-            confidence: {
-              totalScore: `${s.confidence}%`,
-              institutionalWeight: '50%',
-              institutionalScore: `${s.confInst}%`,
-              macroWeight: '30%',
-              macroScore: `${s.confMacro}%`,
-              technicalWeight: '20%',
-              technicalScore: `${s.confTech}%`
-            },
-            setupReason: s.reason
-          };
-
-          const text = JSON.stringify(payload, null, 2);
-          navigator.clipboard.writeText(text).then(() => {
-            showNotification('Signal JSON copied to clipboard!');
-          }).catch(err => {
-            showError('clipboardWrite', err.message);
-          });
-        } catch (err) {
-          console.error('[MANUS MAX]', 'btn-copy-signal error', err);
-          showError('btn-copy-signal', err.message);
-        }
-      });
-    }
-
-    // 4. btn-open-calc: Switch to calculator tab
-    const btnOpenCalc = document.getElementById('btn-open-calc');
-    if (btnOpenCalc) {
-      btnOpenCalc.addEventListener('click', () => {
-        try {
-          const calcTab = document.querySelector('.nav-tab[data-tab="calculator"]');
-          if (calcTab) calcTab.click();
-
-          if (state.signal) {
-            const entryField = document.getElementById('calc-entry');
-            const slField = document.getElementById('calc-sl');
-            if (entryField) entryField.value = state.signal.entry.toFixed(2);
-            if (slField) slField.value = state.signal.sl.toFixed(2);
-            const recalcBtn = document.getElementById('btn-recalc');
-            if (recalcBtn) recalcBtn.click();
-          }
-        } catch (err) {
-          console.error('[MANUS MAX]', 'btn-open-calc error', err);
-          showError('btn-open-calc', err.message);
-        }
-      });
-    }
-
-    // 5. btn-copy-json: Copy the JSON preview code
-    const btnCopyJson = document.getElementById('btn-copy-json');
-    if (btnCopyJson) {
-      btnCopyJson.addEventListener('click', () => {
-        try {
-          const el = document.getElementById('json-preview-content');
-          const jsonText = el ? el.textContent : JSON.stringify({
-            status: 'LIVE',
-            pair: 'XAU/USD',
-            price: state.goldPrice,
-            source: state.dataSource
-          }, null, 2);
-
-          navigator.clipboard.writeText(jsonText).then(() => {
-            showNotification('API JSON copied to clipboard!');
-          }).catch(err => {
-            showError('btn-copy-json', err.message);
-          });
-        } catch (err) {
-          console.error('[MANUS MAX]', 'btn-copy-json error', err);
-          showError('btn-copy-json', err.message);
-        }
-      });
-    }
-  }
-
-  /* ========================================================================
-     HERO SIGNAL UI UPDATE
-     ======================================================================== */
-  function updateHeroSignalUI() {
-    if (!state.signal) return;
-    try {
-      const s = state.signal;
-      const els = {
-        strategy: document.getElementById('hero-strategy'),
-        entry: document.getElementById('sig-entry'),
-        sl: document.getElementById('sig-sl'),
-        tp1: document.getElementById('sig-tp1'),
-        tp2: document.getElementById('sig-tp2'),
-        tp3: document.getElementById('sig-tp3'),
-        rr: document.getElementById('sig-rr'),
-        reason: document.getElementById('hero-reason'),
-        badge: document.getElementById('hero-signal-badge'),
-        currentLive: document.getElementById('sig-current-live'),
-        slPips: document.getElementById('sig-sl-pips'),
-        tp3Pips: document.getElementById('sig-tp3-pips')
-      };
-
-      if (els.strategy) els.strategy.textContent = s.strategy;
-      if (els.entry) els.entry.textContent = formatPrice(s.entry);
-      if (els.sl) els.sl.textContent = formatPrice(s.sl);
-      if (els.tp1) els.tp1.textContent = formatPrice(s.tp1);
-      if (els.tp2) els.tp2.textContent = formatPrice(s.tp2);
-      if (els.tp3 && s.tp3) els.tp3.textContent = formatPrice(s.tp3);
-      if (els.rr) els.rr.textContent = '1 : ' + s.rr;
-      if (els.reason) els.reason.textContent = s.reason;
-
-      const liveSpot = state.goldPrice ? formatPrice(state.goldPrice) : '—';
-      if (els.currentLive) els.currentLive.textContent = liveSpot;
-
-      if (els.slPips && s.entry && s.sl) {
-        const pips = Math.round(Math.abs(s.entry - s.sl) * 10);
-        els.slPips.textContent = `-${pips} Pips`;
-      }
-      if (els.tp3Pips && s.entry && s.tp3) {
-        const pips = Math.round(Math.abs(s.tp3 - s.entry) * 10);
-        els.tp3Pips.textContent = `+${pips} Pips (Max HTF)`;
-      }
-
-      if (els.badge) {
-        const isLong = s.type === 'LONG';
-        if (s.isConditional) {
-          els.badge.className = isLong ? 'signal-type-badge signal-buy' : 'signal-type-badge signal-sell';
-          els.badge.innerHTML = `<i data-lucide="clock"></i> <span id="hero-signal-label">⚡ CONDITIONAL ${s.type} SETUP [WATCH — PENDING TRIGGER]</span>`;
-        } else {
-          els.badge.className = isLong ? 'signal-type-badge signal-buy' : 'signal-type-badge signal-sell';
-          els.badge.innerHTML = `<i data-lucide="${isLong ? 'trending-up' : 'trending-down'}"></i> <span id="hero-signal-label">INSTITUTIONAL ${s.type} SIGNAL (LIVE)</span>`;
-        }
-      }
-
-      updateConfidenceDynamically();
-      updateNewsBadges();
-      if (window.lucide) window.lucide.createIcons();
-    } catch (err) {
-      console.error('[MANUS MAX]', 'updateHeroSignalUI error', err);
-      showError('updateHeroSignalUI', err.message);
-    }
-  }
-
-  /* ========================================================================
-     TOAST NOTIFICATIONS
-     ======================================================================== */
-  function showNotification(message) {
-    try {
-      let toast = document.getElementById('app-toast');
-      if (!toast) {
-        toast = document.createElement('div');
-        toast.id = 'app-toast';
-        toast.style.cssText = `
-          position: fixed; bottom: 24px; right: 24px;
-          background: linear-gradient(135deg, #f5c242, #eab308);
-          color: #090d16; padding: 12px 20px; border-radius: 8px;
-          font-weight: 800; font-size: 13px;
-          box-shadow: 0 8px 24px rgba(245,194,66,0.4);
-          z-index: 9999; transition: all 0.3s ease; max-width: 420px; line-height: 1.4;
-        `;
-        document.body.appendChild(toast);
-      }
-      toast.textContent = message;
-      toast.style.opacity = '1';
-      toast.style.transform = 'translateY(0)';
+    document.getElementById('btn-quick-signal')?.addEventListener('click', () => {
+      switchTab('terminal', true);
       setTimeout(() => {
-        if (toast) {
-          toast.style.opacity = '0';
-          toast.style.transform = 'translateY(10px)';
+        const feedEl = document.getElementById('signal-feed-list');
+        if (feedEl) {
+          feedEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          feedEl.style.boxShadow = '0 0 24px rgba(245, 194, 66, 0.6)';
+          setTimeout(() => { feedEl.style.boxShadow = ''; }, 1000);
         }
-      }, 3500);
-    } catch (err) {
-      console.error('[MANUS MAX]', 'showNotification error', err);
-    }
+      }, 100);
+    });
+
+    document.getElementById('btn-copy-signal')?.addEventListener('click', () => {
+      const s = state.signal || state.futureSetups[0];
+      if (!s) {
+        showNotification('No active or queued setup available to copy yet.');
+        return;
+      }
+      navigator.clipboard.writeText(JSON.stringify(s, null, 2)).then(() => {
+        showNotification('Signal JSON copied to clipboard.');
+      });
+    });
+
+    document.getElementById('btn-open-calc')?.addEventListener('click', () => {
+      switchTab('calculator', true);
+      const s = state.signal || state.futureSetups[0];
+      if (s) {
+        const eEl = document.getElementById('calc-entry');
+        const sEl = document.getElementById('calc-sl');
+        const aEl = document.getElementById('calc-atr');
+        if (eEl) eEl.value = Number(s.entry_price).toFixed(2);
+        if (sEl) sEl.value = Number(s.stop_loss).toFixed(2);
+        if (aEl && s.indicators?.atr14) aEl.value = Number(s.indicators.atr14).toFixed(2);
+        document.getElementById('btn-recalc')?.click();
+      }
+    });
+
+    document.getElementById('btn-copy-json')?.addEventListener('click', () => {
+      const el = document.getElementById('json-preview-content');
+      const txt = el ? el.textContent : JSON.stringify(lastLivePayload || {}, null, 2);
+      navigator.clipboard.writeText(txt).then(() => showNotification('API JSON copied to clipboard.'));
+    });
   }
 
   /* ========================================================================
-     15. BACKEND PIPELINE & SUPABASE REALTIME SYNC
+     13. USER MARKED LEVELS & DRAWINGS (/api/drawings)
      ======================================================================== */
-  const SUPABASE_URL = window.SUPABASE_URL || 'https://nrdwfhllmahtakfvtruo.supabase.co';
-  const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || '';
-
-  async function checkBackendPipelineHealth() {
+  async function loadDrawingsFromBackend() {
     try {
-      const endpoints = ['/.netlify/functions/health', '/api/health'];
-      for (const endpoint of endpoints) {
-        try {
-          const res = await fetch(endpoint, { signal: AbortSignal.timeout(3500) });
-          if (res.ok) {
-            const health = await res.json();
-            console.log('[MANUS MAX v6.2] Backend pipeline connected:', health);
-            const statusText = document.getElementById('api-status-text');
-            if (statusText) {
-              statusText.textContent = `PIPELINE: ${health.provider || 'LIVE (XAU/USD)'}`;
-            }
-            return true;
-          }
-        } catch (e) {
-          // Try next endpoint
-        }
+      const res = await fetch('/api/drawings', { signal: AbortSignal.timeout(4500) });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.device_key) {
+        state.detectedIpKey = data.device_key;
+        const badge = document.getElementById('drawings-ip-badge');
+        if (badge) badge.textContent = `Device ${data.device_key.slice(0, 10)}... • 48h Retention`;
       }
-    } catch (err) {
-      console.warn('[MANUS MAX] Backend pipeline health check deferred:', err.message);
-    }
-    return false;
-  }
-
-  async function initSupabaseSync() {
-    try {
-      console.log('[MANUS MAX v6.2] Initializing backend pipeline & Supabase sync...');
-
-      // 1. Verify backend pipeline health
-      await checkBackendPipelineHealth();
-
-      // 2. Load persistent signals and drawings from backend
-      await loadSignalsFromSupabase();
-      await loadDrawingsFromSupabase();
-
-      // 3. Connect Supabase Realtime if window.supabase and public anon key are available
-      if (window.supabase && SUPABASE_ANON_KEY && !SUPABASE_ANON_KEY.startsWith('sb_secret')) {
-        state.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-        // Realtime listener for signals
-        state.supabase
-          .channel('public:signals')
-          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'signals' }, (payload) => {
-            console.log('[MANUS MAX] Realtime signal received from Supabase:', payload.new);
-            if (payload.new) handleIncomingSupabaseSignal(payload.new);
-          })
-          .subscribe();
-
-        // Realtime listener for chart drawings
-        state.supabase
-          .channel('public:chart_drawings')
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'chart_drawings' }, (payload) => {
-            console.log('[MANUS MAX] Realtime chart drawing update:', payload.eventType);
-          })
-          .subscribe();
-
-        // Realtime listener for market status
-        state.supabase
-          .channel('public:market_status')
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'market_status' }, (payload) => {
-            if (payload.new && payload.new.last_tick_price && !state.goldPrice) {
-              processTick(payload.new.last_tick_price, null, `Supabase/${payload.new.provider || 'Live'}`);
-            }
-          })
-          .subscribe();
-
-        updateSupabaseBadge(true);
-      }
-    } catch (err) {
-      console.warn('[MANUS MAX] Backend sync initialized with REST pipeline:', err.message);
-      updateSupabaseBadge(false);
-    }
-  }
-
-  async function loadSignalsFromSupabase() {
-    try {
-      let signals = null;
-      const endpoints = ['/.netlify/functions/signals', '/api/signals'];
-      for (const endpoint of endpoints) {
-        try {
-          const res = await fetch(endpoint, { signal: AbortSignal.timeout(3500) });
-          if (res.ok) {
-            signals = await res.json();
-            break;
-          }
-        } catch (e) { /* try next */ }
-      }
-
-      if (Array.isArray(signals) && signals.length > 0) {
-        console.log(`[MANUS MAX] Loaded ${signals.length} persistent signals from backend.`);
-        signals.forEach(sig => {
-          if (!state.signalFeed.find(s => s.id === sig.id)) {
-            state.signalFeed.push(formatSupabaseSignal(sig));
-          }
-        });
-        renderSignalFeed();
-      }
-    } catch (err) {
-      console.error('[MANUS MAX]', 'loadSignalsFromSupabase error', err);
-    }
-  }
-
-  async function persistSignalToSupabase(sig) {
-    try {
-      const endpoints = ['/.netlify/functions/signals', '/api/signals'];
-      for (const endpoint of endpoints) {
-        try {
-          const res = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              symbol: 'XAUUSD',
-              direction: sig.dir,
-              strategy: sig.strategy,
-              timeframe: sig.tf || state.timeframe || 'H1',
-              entry_price: sig.entry,
-              sl_price: sig.sl,
-              tp1_price: sig.tp1,
-              tp2_price: sig.tp2,
-              tp3_price: sig.tp3,
-              rr_ratio: parseFloat(sig.rr) || 2.0,
-              confidence_total: sig.conf || 85,
-              confidence_inst: sig.confInst || 85,
-              confidence_macro: sig.confMacro || 80,
-              confidence_tech: sig.confTech || 85,
-              reason: sig.reason || 'SMC Confluence Confirmation',
-              status: 'ACTIVE',
-            }),
-          });
-          if (res.ok) break;
-        } catch (e) { /* try next */ }
-      }
-    } catch (e) {
-      // Background sync error ignored
-    }
-  }
-
-  function formatSupabaseSignal(sig) {
-    return {
-      id: sig.id || `SIG-${Date.now()}`,
-      dir: sig.direction || 'LONG',
-      strategy: sig.strategy || 'ICT_SilverBullet',
-      tf: sig.timeframe || 'H1',
-      entry: parseFloat(sig.entry_price || 0),
-      sl: parseFloat(sig.sl_price || 0),
-      tp1: parseFloat(sig.tp1_price || 0),
-      tp2: parseFloat(sig.tp2_price || 0),
-      tp3: parseFloat(sig.tp3_price || 0),
-      rr: sig.rr_ratio ? parseFloat(sig.rr_ratio).toFixed(1) : '2.0',
-      conf: sig.confidence_total || 85,
-      confInst: sig.confidence_inst || 85,
-      confMacro: sig.confidence_macro || 80,
-      confTech: sig.confidence_tech || 85,
-      reason: sig.reason || 'SMC Confluence Confirmation',
-      time: sig.generated_at ? new Date(sig.generated_at).toLocaleTimeString() + ' UTC' : 'LIVE',
-      isPredictive: sig.status === 'WATCH',
-      newsFlag: false,
-    };
-  }
-
-  function handleIncomingSupabaseSignal(sig) {
-    const formatted = formatSupabaseSignal(sig);
-    if (!state.signalFeed.find(s => s.id === formatted.id)) {
-      state.signalFeed.unshift(formatted);
-      renderSignalFeed();
-      showNotification('New Institutional Signal', `${formatted.dir} on XAU/USD (${formatted.strategy})`);
-    }
-  }
-
-  /* ========================================================================
-     USER MARKED LEVELS & DRAWINGS (Supabase 48h Sync via Device IP)
-     ======================================================================== */
-
-  function initUserDrawingsUI() {
-    const btnSupport = document.getElementById('btn-quick-support');
-    const btnResistance = document.getElementById('btn-quick-resistance');
-    const btnSave = document.getElementById('btn-save-level');
-    const inputPrice = document.getElementById('input-draw-price');
-    const selectType = document.getElementById('select-draw-type');
-    const inputLabel = document.getElementById('input-draw-label');
-
-    if (btnSupport) {
-      btnSupport.addEventListener('click', () => {
-        const p = state.goldPrice || 3785.00;
-        saveUserDrawing({
-          price: p,
-          type: 'support',
-          label: 'Support Level',
-          color: '#10b981'
-        });
-      });
-    }
-
-    if (btnResistance) {
-      btnResistance.addEventListener('click', () => {
-        const p = state.goldPrice || 3785.00;
-        saveUserDrawing({
-          price: p,
-          type: 'resistance',
-          label: 'Resistance Level',
-          color: '#ef4444'
-        });
-      });
-    }
-
-    if (btnSave && inputPrice && selectType) {
-      const handleCustomSave = () => {
-        const rawP = parseFloat(inputPrice.value);
-        if (isNaN(rawP) || rawP <= 0) {
-          showNotification('Invalid Price', 'Please enter a valid price for the level.');
-          return;
-        }
-        const type = selectType.value || 'level';
-        const label = (inputLabel ? inputLabel.value.trim() : '') || `${type.replace('_', ' ').toUpperCase()} Zone`;
-        const colorMap = {
-          support: '#10b981',
-          resistance: '#ef4444',
-          order_block: '#8b5cf6',
-          fvg: '#06b6d4',
-          target: '#ffd700',
-          key_level: '#f5c242'
-        };
-        saveUserDrawing({
-          price: rawP,
-          type: type,
-          label: label,
-          color: colorMap[type] || '#f5c242'
-        });
-        inputPrice.value = '';
-        if (inputLabel) inputLabel.value = '';
-      };
-
-      btnSave.addEventListener('click', handleCustomSave);
-      inputPrice.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') handleCustomSave();
-      });
-      if (inputLabel) {
-        inputLabel.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') handleCustomSave();
-        });
-      }
-    }
-  }
-
-  async function loadDrawingsFromSupabase() {
-    try {
-      const endpoints = [
-        '/.netlify/functions/drawings',
-        '/api/drawings'
-      ];
-      let data = null;
-      for (const endpoint of endpoints) {
-        try {
-          const res = await fetch(endpoint, { signal: AbortSignal.timeout(4500) });
-          if (res.ok) {
-            data = await res.json();
-            break;
-          }
-        } catch (_) { }
-      }
-
-      if (data && Array.isArray(data.drawings)) {
+      if (Array.isArray(data.drawings)) {
         state.userDrawings = data.drawings;
-        if (data.device_key) {
-          state.detectedIpKey = data.device_key;
-          const badge = document.getElementById('drawings-ip-badge');
-          if (badge) {
-            badge.textContent = `Auto-detected Device (${data.device_key.slice(0, 10)}...) • 48h Retention`;
-            badge.title = `Device identified via IP hash: ${data.device_key}`;
-          }
-        }
         renderUserDrawingsList();
         renderUserDrawingsOnChart();
-        console.log(`[MANUS MAX] Loaded ${data.drawings.length} user marked levels from Supabase (48h window).`);
       }
     } catch (err) {
-      console.error('[MANUS MAX]', 'loadDrawingsFromSupabase error', err);
+      console.warn('[MANUS MAX] loadDrawingsFromBackend deferred:', err.message);
     }
   }
 
   async function saveUserDrawing(levelData) {
     try {
-      showNotification('Saving Level...', `Saving ${levelData.type} at $${levelData.price.toFixed(2)}`);
-      const endpoints = ['/.netlify/functions/drawings', '/api/drawings'];
-      let saved = null;
-
-      for (const ep of endpoints) {
-        try {
-          const res = await fetch(ep, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              price_from: levelData.price,
-              drawing_type: levelData.type,
-              label: levelData.label,
-              color: levelData.color,
-              timeframe: state.timeframe
-            }),
-            signal: AbortSignal.timeout(4500)
-          });
-          if (res.ok) {
-            const json = await res.json();
-            saved = json.drawing;
-            break;
-          }
-        } catch (_) { }
-      }
-
-      if (saved) {
-        state.userDrawings.unshift(saved);
-        renderUserDrawingsList();
-        renderUserDrawingsOnChart();
-        showNotification('Level Marked & Saved', `${levelData.type.toUpperCase()} at $${levelData.price.toFixed(2)} (Synced via Device IP)`);
-      } else {
-        // Fallback local save if network fails
-        const localDrawing = {
-          id: 'local_' + Date.now(),
+      const res = await fetch('/api/drawings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           price_from: levelData.price,
           drawing_type: levelData.type,
           label: levelData.label,
           color: levelData.color,
-          created_at: new Date().toISOString()
-        };
-        state.userDrawings.unshift(localDrawing);
-        renderUserDrawingsList();
-        renderUserDrawingsOnChart();
-        showNotification('Level Marked (Offline)', `$${levelData.price.toFixed(2)} cached locally`);
-      }
+          timeframe: state.timeframe,
+        }),
+        signal: AbortSignal.timeout(4500),
+      });
+      const json = await res.json().catch(() => ({}));
+      const saved = json.drawing || {
+        id: `local_${Date.now()}`,
+        price_from: levelData.price,
+        drawing_type: levelData.type,
+        label: levelData.label,
+        color: levelData.color,
+        created_at: new Date().toISOString(),
+      };
+      state.userDrawings.unshift(saved);
+      renderUserDrawingsList();
+      renderUserDrawingsOnChart();
+      showNotification(`Marked ${levelData.type.toUpperCase()} at ${formatPrice(levelData.price)}`);
     } catch (err) {
-      console.error('[MANUS MAX]', 'saveUserDrawing error', err);
-      showError('saveUserDrawing', err.message);
+      showHttpErrorBanner('/api/drawings', err.message);
     }
   }
 
   async function deleteUserDrawing(id) {
-    try {
-      state.userDrawings = state.userDrawings.filter(d => d.id !== id);
-      renderUserDrawingsList();
-      renderUserDrawingsOnChart();
-
-      if (!String(id).startsWith('local_')) {
-        const endpoints = [`/.netlify/functions/drawings?id=${encodeURIComponent(id)}`, `/api/drawings?id=${encodeURIComponent(id)}`];
-        for (const ep of endpoints) {
-          try {
-            await fetch(ep, { method: 'DELETE', signal: AbortSignal.timeout(3500) });
-            break;
-          } catch (_) { }
-        }
-      }
-      showNotification('Level Removed', 'Marked level deleted from chart and Supabase');
-    } catch (err) {
-      console.error('[MANUS MAX]', 'deleteUserDrawing error', err);
+    state.userDrawings = state.userDrawings.filter((d) => d.id !== id);
+    renderUserDrawingsList();
+    renderUserDrawingsOnChart();
+    if (!String(id).startsWith('local_')) {
+      fetch(`/api/drawings?id=${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
     }
   }
 
   function renderUserDrawingsList() {
     const container = document.getElementById('marked-levels-list');
     if (!container) return;
-
-    if (!state.userDrawings || state.userDrawings.length === 0) {
-      container.innerHTML = `
-        <div class="empty-levels-msg" style="color:var(--text-dim);font-size:11px;padding:8px 0;">
-          No custom levels marked in the last 48 hours. Add a level above or click "+ Support / Resistance" to persist it to your device IP.
-        </div>
-      `;
+    if (!state.userDrawings.length) {
+      container.innerHTML = `<div class="empty-levels-msg" style="color:var(--text-dim);font-size:11px;padding:8px 0;">No custom levels marked in the last 48 hours.</div>`;
       return;
     }
 
-    const curP = state.goldPrice;
-    let html = '';
-
-    state.userDrawings.forEach(d => {
+    container.innerHTML = state.userDrawings.map((d) => {
       const p = Number(d.price_from || d.price || 0);
       const type = (d.drawing_type || 'level').toLowerCase();
-      const label = d.label || `${type.toUpperCase()}`;
-      let distStr = '';
-      if (curP) {
-        const diff = p - curP;
-        const sign = diff >= 0 ? '+' : '';
-        distStr = `(${sign}${diff.toFixed(1)} pts)`;
-      }
-
-      // Format time age
-      let ageStr = '';
-      if (d.created_at) {
-        const diffMs = Date.now() - new Date(d.created_at).getTime();
-        const mins = Math.floor(diffMs / 60000);
-        if (mins < 60) ageStr = `${mins}m ago`;
-        else {
-          const hours = Math.floor(mins / 60);
-          if (hours < 24) ageStr = `${hours}h ago`;
-          else ageStr = `${Math.floor(hours / 24)}d ago`;
-        }
-      }
-
-      const typeDisplay = {
-        support: 'SUPP',
-        resistance: 'RES',
-        order_block: 'OB',
-        fvg: 'FVG',
-        target: 'TARGET',
-        key_level: 'KEY'
-      }[type] || type.toUpperCase();
-
-      html += `
-        <div class="level-chip ${type}" id="chip-level-${d.id}">
-          <span class="level-chip-type">${typeDisplay}</span>
-          <span class="level-chip-price">$${formatPrice(p).replace('$', '')}</span>
-          ${distStr ? `<span class="level-chip-dist">${distStr}</span>` : ''}
-          ${label ? `<span class="level-chip-label">${label}</span>` : ''}
-          ${ageStr ? `<span style="font-size:9px;color:rgba(255,255,255,0.4);">${ageStr}</span>` : ''}
-          <span class="level-chip-del" data-del-id="${d.id}" title="Delete Level">✕</span>
+      const diffStr = state.goldPrice ? `(${p - state.goldPrice >= 0 ? '+' : ''}${(p - state.goldPrice).toFixed(1)} pts)` : '';
+      return `
+        <div class="level-chip ${escapeHtml(type)}" id="chip-level-${escapeHtml(d.id)}">
+          <span class="level-chip-type">${escapeHtml(type.toUpperCase())}</span>
+          <span class="level-chip-price">${formatPrice(p)}</span>
+          ${diffStr ? `<span class="level-chip-dist">${diffStr}</span>` : ''}
+          ${d.label ? `<span class="level-chip-label">${escapeHtml(d.label)}</span>` : ''}
+          <span class="level-chip-del" data-del-id="${escapeHtml(d.id)}" title="Delete">✕</span>
         </div>
       `;
-    });
+    }).join('');
 
-    container.innerHTML = html;
-
-    // Attach delete listeners
-    const delBtns = container.querySelectorAll('.level-chip-del');
-    delBtns.forEach(btn => {
+    container.querySelectorAll('.level-chip-del').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const id = btn.getAttribute('data-del-id');
-        if (id) deleteUserDrawing(id);
+        deleteUserDrawing(btn.getAttribute('data-del-id'));
       });
     });
   }
 
   function updateDrawingsDistances(currentPrice) {
-    if (!state.userDrawings || state.userDrawings.length === 0) return;
-    state.userDrawings.forEach(d => {
-      const chip = document.getElementById(`chip-level-${d.id}`);
-      if (chip) {
-        const distEl = chip.querySelector('.level-chip-dist');
-        const p = Number(d.price_from || d.price || 0);
-        const diff = p - currentPrice;
-        const sign = diff >= 0 ? '+' : '';
-        if (distEl) {
-          distEl.textContent = `(${sign}${diff.toFixed(1)} pts)`;
-        }
+    if (!currentPrice || !state.userDrawings.length) return;
+    state.userDrawings.forEach((d) => {
+      const distEl = document.getElementById(`chip-level-${d.id}`)?.querySelector('.level-chip-dist');
+      if (distEl) {
+        const diff = Number(d.price_from || d.price || 0) - currentPrice;
+        distEl.textContent = `(${diff >= 0 ? '+' : ''}${diff.toFixed(1)} pts)`;
       }
     });
   }
 
   function renderUserDrawingsOnChart() {
     if (!state.lwCandleSeries || !window.LightweightCharts) return;
-    try {
-      // Remove previous lines
-      if (Array.isArray(state.lwUserDrawingLines)) {
-        state.lwUserDrawingLines.forEach(line => {
-          try { state.lwCandleSeries.removePriceLine(line); } catch (_) { }
-        });
-      }
-      state.lwUserDrawingLines = [];
-
-      if (!state.userDrawings || state.userDrawings.length === 0) return;
-
-      const styleMap = {
-        support: window.LightweightCharts.LineStyle.Dashed,
-        resistance: window.LightweightCharts.LineStyle.Dashed,
-        order_block: window.LightweightCharts.LineStyle.Solid,
-        fvg: window.LightweightCharts.LineStyle.Dotted,
-        target: window.LightweightCharts.LineStyle.LargeDashed,
-        key_level: window.LightweightCharts.LineStyle.Solid
-      };
-
-      state.userDrawings.forEach(d => {
-        const p = Number(d.price_from || d.price);
-        if (!p || isNaN(p)) return;
-
-        const type = (d.drawing_type || 'level').toLowerCase();
-        const color = d.color || '#f5c242';
-        const lineStyle = styleMap[type] || window.LightweightCharts.LineStyle.Dashed;
-        const titleText = `[User ${type.toUpperCase()}] ${formatPrice(p)} ${d.label ? `(${d.label})` : ''}`;
-
-        const priceLine = state.lwCandleSeries.createPriceLine({
-          price: p,
-          color: color,
-          lineWidth: 1.5,
-          lineStyle: lineStyle,
-          axisLabelVisible: true,
-          title: titleText
-        });
-
-        state.lwUserDrawingLines.push(priceLine);
+    state.lwUserDrawingLines.forEach((line) => {
+      try { state.lwCandleSeries.removePriceLine(line); } catch (_) {}
+    });
+    state.lwUserDrawingLines = [];
+    state.userDrawings.forEach((d) => {
+      const p = Number(d.price_from || d.price);
+      if (!Number.isFinite(p) || p <= 0) return;
+      const line = state.lwCandleSeries.createPriceLine({
+        price: p,
+        color: d.color || '#f5c242',
+        lineWidth: 1.5,
+        lineStyle: window.LightweightCharts.LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: `${(d.drawing_type || 'LEVEL').toUpperCase()} ${formatPrice(p)}`,
       });
-    } catch (err) {
-      console.warn('[MANUS MAX] renderUserDrawingsOnChart error', err);
-    }
+      state.lwUserDrawingLines.push(line);
+    });
   }
 
-  function updateSupabaseBadge(connected) {
-    const statusText = document.getElementById('api-status-text');
-    if (statusText && connected) {
-      console.log('[MANUS MAX] Backend sync active.');
-    }
+  function initUserDrawingsUI() {
+    document.getElementById('btn-quick-support')?.addEventListener('click', () => {
+      if (!state.goldPrice) return showNotification('Wait for live spot price first.');
+      saveUserDrawing({ price: state.goldPrice, type: 'support', label: 'Support Level', color: '#10b981' });
+    });
+    document.getElementById('btn-quick-resistance')?.addEventListener('click', () => {
+      if (!state.goldPrice) return showNotification('Wait for live spot price first.');
+      saveUserDrawing({ price: state.goldPrice, type: 'resistance', label: 'Resistance Level', color: '#ef4444' });
+    });
+    const inputPrice = document.getElementById('input-draw-price');
+    const selectType = document.getElementById('select-draw-type');
+    const inputLabel = document.getElementById('input-draw-label');
+    const saveCustom = () => {
+      const rawP = parseFloat(inputPrice?.value || '');
+      if (!Number.isFinite(rawP) || rawP <= 0) return showNotification('Enter a valid price level.');
+      const type = selectType?.value || 'key_level';
+      const colorMap = { support: '#10b981', resistance: '#ef4444', order_block: '#8b5cf6', fvg: '#06b6d4', target: '#ffd700', key_level: '#f5c242' };
+      saveUserDrawing({
+        price: rawP,
+        type,
+        label: inputLabel?.value.trim() || `${type.replace('_', ' ').toUpperCase()} Zone`,
+        color: colorMap[type] || '#f5c242',
+      });
+      if (inputPrice) inputPrice.value = '';
+      if (inputLabel) inputLabel.value = '';
+    };
+    document.getElementById('btn-save-level')?.addEventListener('click', saveCustom);
   }
 
-  window.initSupabase = initSupabaseSync;
+  /* ========================================================================
+     14. SAFE BOOT SEQUENCE (Executed last after all declarations)
+     ======================================================================== */
+  async function boot() {
+    if (window.lucide) {
+      try { window.lucide.createIcons(); } catch (_) {}
+    }
 
-  console.log('[MANUS MAX v6.2] Initialized successfully. Polling XAU/USD data feed.');
-}); // end DOMContentLoaded
+    injectDisclaimerBanner();
+    initPersistence();
+    initLightweightChart();
+    initNavigation();
+    initKillzoneTimer();
+    initSilverBulletClock();
+    initAMDPhase();
+    initNewsEngine();
+    initSimulator();
+    initCalculator();
+    initActionButtons();
+    initUserDrawingsUI();
+
+    // Parallel initial data load from serverless APIs
+    await Promise.all([
+      fetchSpotAndCandles(state.timeframe).then(() => fetchLiveSignals()),
+      fetchBotHistory(),
+      loadDrawingsFromBackend(),
+    ]);
+
+    // Recurring real-time polls (protected by 30s server cache)
+    spotPollTimerId = setInterval(() => fetchSpotAndCandles(state.timeframe), 15_000);
+    signalsPollTimerId = setInterval(() => fetchLiveSignals(), 30_000);
+    historyPollTimerId = setInterval(() => fetchBotHistory(), 60_000);
+
+    console.log('[MANUS MAX AI 6.0] Booted cleanly with live /api/spot, /api/signals/live, and /api/signals/history bindings.');
+  }
+
+  boot();
+});

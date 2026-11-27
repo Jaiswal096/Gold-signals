@@ -1,7 +1,9 @@
 /**
- * Netlify Serverless Function: signals
- * Reads and writes signals to Supabase with server-side authorization
+ * Legacy compatibility function: /.netlify/functions/signals
+ * Delegates to unified Supabase `signals` table (or returns structured empty list when unconfigured).
  */
+
+import { getSupabaseConfig, querySignals, upsertSignals } from './lib/supabase.mjs';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -10,79 +12,51 @@ const CORS_HEADERS = {
   'Cache-Control': 'no-cache, no-store, must-revalidate',
 };
 
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://nrdwfhllmahtakfvtruo.supabase.co';
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'sb_secret_KC0syGG3accWzFE_Htmn8A_zFXgFGPA';
-
-exports.handler = async (event) => {
+export const handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers: CORS_HEADERS, body: '' };
   }
 
-  // GET /signals — Fetch recent signals from Supabase
-  if (event.httpMethod === 'GET') {
-    try {
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/signals?order=generated_at.desc&limit=30`, {
-        headers: {
-          apikey: SUPABASE_KEY,
-          Authorization: `Bearer ${SUPABASE_KEY}`,
-          'User-Agent': 'Supabase-Server/1.0',
-        },
-      });
-
-      if (!res.ok) {
-        return {
-          statusCode: res.status,
-          headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ error: 'SUPABASE_QUERY_FAILED', status: res.status }),
-        };
-      }
-
-      const signals = await res.json();
-      return {
-        statusCode: 200,
-        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify(signals),
-      };
-    } catch (err) {
-      return {
-        statusCode: 500,
-        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: err.message }),
-      };
-    }
+  const sb = getSupabaseConfig();
+  if (!sb.configured) {
+    return {
+      statusCode: 200,
+      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      body: JSON.stringify([]),
+    };
   }
 
-  // POST /signals — Insert a signal
+  if (event.httpMethod === 'GET') {
+    const res = await querySignals('order=opened_at.desc&limit=30');
+    if (!res.ok) {
+      return {
+        statusCode: res.status || 502,
+        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: res.error }),
+      };
+    }
+    return {
+      statusCode: 200,
+      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      body: JSON.stringify(res.data || []),
+    };
+  }
+
   if (event.httpMethod === 'POST') {
     try {
       const payload = JSON.parse(event.body || '{}');
-
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/signals`, {
-        method: 'POST',
-        headers: {
-          apikey: SUPABASE_KEY,
-          Authorization: `Bearer ${SUPABASE_KEY}`,
-          'User-Agent': 'Supabase-Server/1.0',
-          'Content-Type': 'application/json',
-          Prefer: 'return=representation',
-        },
-        body: JSON.stringify(payload),
-      });
-
+      const res = await upsertSignals([payload]);
       if (!res.ok) {
-        const errorText = await res.text();
         return {
-          statusCode: res.status,
+          statusCode: res.status || 502,
           headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ error: 'SUPABASE_INSERT_FAILED', details: errorText }),
+          body: JSON.stringify({ error: res.error, details: res.data }),
         };
       }
-
-      const inserted = await res.json();
       return {
         statusCode: 201,
         headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify(inserted),
+        body: JSON.stringify(res.data || []),
       };
     } catch (err) {
       return {

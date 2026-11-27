@@ -29,32 +29,32 @@
     <div class="ticker-container">
       <div class="ticker-item highlight-gold">
         <span class="ticker-label"><i data-lucide="coins"></i> XAU/USD</span>
-        <span class="ticker-val" id="live-gold-price">Connecting...</span>
-        <span class="ticker-change" id="live-gold-change">Connecting to live feed...</span>
+        <span class="ticker-val" id="live-gold-price">Loading...</span>
+        <span class="ticker-change" id="live-gold-change">Syncing /api/spot...</span>
       </div>
       <div class="ticker-divider"></div>
       <div class="ticker-item">
         <span class="ticker-label">DXY</span>
-        <span class="ticker-val" id="ticker-dxy">104.20</span>
-        <span class="ticker-change text-ruby" id="ticker-dxy-change">-0.42%</span>
+        <span class="ticker-val" id="ticker-dxy">—</span>
+        <span class="ticker-change" id="ticker-dxy-change">—</span>
       </div>
       <div class="ticker-divider"></div>
       <div class="ticker-item">
         <span class="ticker-label">US 10Y Yield</span>
-        <span class="ticker-val" id="ticker-us10y">4.18%</span>
-        <span class="ticker-change text-ruby">-3 bps</span>
+        <span class="ticker-val" id="ticker-us10y">—</span>
+        <span class="ticker-change" id="ticker-us10y-change">—</span>
       </div>
       <div class="ticker-divider"></div>
       <div class="ticker-item">
-        <span class="ticker-label">Real Yield</span>
-        <span class="ticker-val text-emerald" id="ticker-realyield">-0.35%</span>
-        <span class="ticker-badge badge-bullish">BULLISH AU</span>
+        <span class="ticker-label">Real Yield Est.</span>
+        <span class="ticker-val" id="ticker-realyield">—</span>
+        <span class="ticker-badge badge-gold" id="ticker-realyield-badge">MACRO</span>
       </div>
       <div class="ticker-divider"></div>
       <div class="ticker-item">
-        <span class="ticker-label">GPR Index</span>
-        <span class="ticker-val text-gold" id="ticker-gpr">142.5</span>
-        <span class="ticker-badge badge-gold">HIGH RISK</span>
+        <span class="ticker-label">Au/Ag Ratio</span>
+        <span class="ticker-val text-gold" id="ticker-auag">—</span>
+        <span class="ticker-badge badge-gold" id="ticker-auag-badge">SPOT</span>
       </div>
       <div class="ticker-divider"></div>
       <div class="ticker-item">
@@ -66,12 +66,12 @@
       <div class="ticker-divider"></div>
       <div class="ticker-item">
         <span class="ticker-label">News Alert</span>
-        <span class="ticker-val text-ruby" id="ticker-news-alert" style="font-size:11px;">CPI in —</span>
+        <span class="ticker-val text-ruby" id="ticker-news-alert" style="font-size:11px;">Syncing...</span>
       </div>
       <div class="ticker-spacer"></div>
-      <div class="status-indicator">
-        <span class="pulse-dot"></span>
-        <span class="status-text" id="api-status-text">CONNECTING TO LIVE FEED...</span>
+      <div class="status-indicator" id="api-status-indicator">
+        <span class="pulse-dot" id="api-status-dot"></span>
+        <span class="status-text" id="api-status-text">SYNCING /api/spot...</span>
       </div>
     </div>
   </header>
@@ -130,13 +130,13 @@
         <div class="glass-card main-signal-card">
           <div class="card-header">
             <div class="signal-type-badge signal-buy" id="hero-signal-badge">
-              <i data-lucide="trending-up"></i>
-              <span id="hero-signal-label">INSTITUTIONAL LONG SIGNAL</span>
+              <i data-lucide="activity"></i>
+              <span id="hero-signal-label">SYNCING LIVE SIGNAL ENGINE...</span>
             </div>
             <div class="signal-timeframe">
-              <span class="tf-badge active" id="hero-tf1">H1</span>
-              <span class="tf-badge active" id="hero-tf2">H4</span>
-              <span class="tf-confluence"><i data-lucide="shield-check"></i> Multi-Timeframe Confluence</span>
+              <span class="tf-badge active" id="hero-tf1">M15</span>
+              <span class="tf-badge" id="hero-tf2">H1</span>
+              <span class="tf-confluence" id="hero-confluence-label"><i data-lucide="shield-check"></i> Multi-Timeframe Confluence</span>
             </div>
           </div>
 
@@ -145,38 +145,38 @@
               <div class="stat-group">
                 <span class="stat-label">Strategy</span>
                 <span class="stat-value text-purple font-mono" id="hero-strategy"
-                  style="font-size:14px;">ICT_SilverBullet</span>
-                <span class="stat-sub">ICT M. Huddleston</span>
+                  style="font-size:14px;">—</span>
+                <span class="stat-sub" id="hero-strategy-sub">SMC • EMA 9/15 • ATR</span>
               </div>
               <div class="stat-group">
                 <span class="stat-label">Entry Trigger</span>
-                <span class="stat-value font-mono" id="sig-entry">$—</span>
-                <span class="stat-sub">Spot: <span id="sig-current-live">$—</span></span>
+                <span class="stat-value font-mono" id="sig-entry">—</span>
+                <span class="stat-sub">Spot: <span id="sig-current-live">—</span></span>
               </div>
               <div class="stat-group">
                 <span class="stat-label">Stop Loss (ATR×1.5)</span>
-                <span class="stat-value text-ruby font-mono" id="sig-sl">$—</span>
+                <span class="stat-value text-ruby font-mono" id="sig-sl">—</span>
                 <span class="stat-sub" id="sig-sl-pips">— Pips</span>
               </div>
               <div class="stat-group">
                 <span class="stat-label">TP1 (1:2 RR)</span>
-                <span class="stat-value text-emerald font-mono" id="sig-tp1">$—</span>
-                <span class="stat-sub">+— Pips (Close 50%)</span>
+                <span class="stat-value text-emerald font-mono" id="sig-tp1">—</span>
+                <span class="stat-sub" id="sig-tp1-pips">+— Pips (Close 50%)</span>
               </div>
               <div class="stat-group">
                 <span class="stat-label">TP2 (1:3.5 HTF Liq)</span>
-                <span class="stat-value text-gold font-mono" id="sig-tp2">$—</span>
-                <span class="stat-sub">+— Pips (Runner)</span>
+                <span class="stat-value text-gold font-mono" id="sig-tp2">—</span>
+                <span class="stat-sub" id="sig-tp2-pips">+— Pips (Runner)</span>
               </div>
               <div class="stat-group">
                 <span class="stat-label">TP3 (1:6 Major Pool)</span>
-                <span class="stat-value font-mono" id="sig-tp3" style="color:var(--gold-bright);">$—</span>
+                <span class="stat-value font-mono" id="sig-tp3" style="color:var(--gold-bright);">—</span>
                 <span class="stat-sub" id="sig-tp3-pips">+— Pips (Max HTF)</span>
               </div>
               <div class="stat-group">
                 <span class="stat-label">R:R Ratio</span>
-                <span class="stat-value text-gold font-mono" id="sig-rr">1 : 3.5</span>
-                <span class="stat-sub">Targeting HTF Liq Pool</span>
+                <span class="stat-value text-gold font-mono" id="sig-rr">—</span>
+                <span class="stat-sub" id="sig-rr-sub">1:2 Min RR Enforced</span>
               </div>
             </div>
 
@@ -186,36 +186,35 @@
                 <svg class="gauge-svg" viewBox="0 0 120 120">
                   <circle class="gauge-bg" cx="60" cy="60" r="50" />
                   <circle class="gauge-progress" cx="60" cy="60" r="50" id="gauge-circle"
-                    style="stroke-dashoffset: 28;" />
+                    style="stroke-dashoffset: 314;" />
                 </svg>
                 <div class="gauge-text">
-                  <span class="gauge-val" id="gauge-score-num">92%</span>
-                  <span class="gauge-lbl">AI CONF.</span>
+                  <span class="gauge-val" id="gauge-score-num">—</span>
+                  <span class="gauge-lbl">ALGO CONF.</span>
                 </div>
               </div>
               <div class="confidence-details">
-                <span class="confidence-tag tag-high"><i data-lucide="sparkles"></i> HIGH CONFIDENCE (&gt;85%)</span>
-                <p class="confidence-desc" id="hero-reason">M5 FVG Fill + London Liquidity Sweep + Rejection at H4
-                  Supply Zone + Bearish RSI Divergence.</p>
+                <span class="confidence-tag tag-high"><i data-lucide="shield-alert"></i> ALGORITHMIC CONFIDENCE (Heuristic)</span>
+                <p class="confidence-desc" id="hero-reason">Fetching multi-timeframe OHLCV candles from /api/signals/live...</p>
                 <!-- 3-Pillar Confidence Breakdown (v6.0: Inst 50% / Macro 30% / Tech 20%) -->
                 <div class="conf-breakdown-card">
                   <div class="conf-breakdown-title"><i data-lucide="bar-chart-3"></i> Confidence Breakdown (v6.0
                     Weights)</div>
                   <div class="conf-seg-bar">
-                    <div class="conf-seg conf-seg-inst" id="conf-bar-inst" style="width:46%;"></div>
-                    <div class="conf-seg conf-seg-macro" id="conf-bar-macro" style="width:26%;"></div>
-                    <div class="conf-seg conf-seg-tech" id="conf-bar-tech" style="width:20%;"></div>
+                    <div class="conf-seg conf-seg-inst" id="conf-bar-inst" style="width:0%;"></div>
+                    <div class="conf-seg conf-seg-macro" id="conf-bar-macro" style="width:0%;"></div>
+                    <div class="conf-seg conf-seg-tech" id="conf-bar-tech" style="width:0%;"></div>
                   </div>
                   <div class="conf-seg-labels">
                     <span class="conf-seg-lbl"><span class="conf-seg-dot inst"></span>Institutional <span
                         style="font-size:9px;color:var(--text-dim);">(×50%)</span><span class="conf-seg-pct text-purple"
-                        id="conf-val-inst">93%</span></span>
+                        id="conf-val-inst">—</span></span>
                     <span class="conf-seg-lbl"><span class="conf-seg-dot macro"></span>Macro <span
                         style="font-size:9px;color:var(--text-dim);">(×30%)</span><span class="conf-seg-pct text-gold"
-                        id="conf-val-macro">88%</span></span>
+                        id="conf-val-macro">—</span></span>
                     <span class="conf-seg-lbl"><span class="conf-seg-dot tech"></span>Technical <span
                         style="font-size:9px;color:var(--text-dim);">(×20%)</span><span
-                        class="conf-seg-pct text-emerald" id="conf-val-tech">94%</span></span>
+                        class="conf-seg-pct text-emerald" id="conf-val-tech">—</span></span>
                   </div>
                 </div>
               </div>
@@ -225,7 +224,7 @@
           <div class="card-footer">
             <div class="target-horizon">
               <i data-lucide="clock"></i>
-              <span>Est. Execution: <strong id="hero-tte">~45 min (London Open Killzone)</strong></span>
+              <span>Est. Execution: <strong id="hero-tte">Syncing session window...</strong></span>
             </div>
             <div class="footer-actions">
               <span class="news-2h-badge" id="hero-news-badge" style="display:none;"><i
@@ -251,10 +250,10 @@
               <span>Live Signals Feed (SMC • Price Action • EMA 9/15)</span>
               <span class="chart-sub">Multi-TF scan: M5 • M15 • H1 • H4</span>
             </div>
-            <div class="tv-live-badge"><span class="pulse-dot"></span><span>SCANNING</span></div>
+            <div class="tv-live-badge" id="signal-feed-badge"><span class="pulse-dot" id="signal-feed-dot"></span><span id="signal-feed-status-badge">SYNCING</span></div>
           </div>
           <div class="signal-feed-list" id="signal-feed-list">
-            <!-- JS Populated -->
+            <!-- JS Populated strictly from /api/signals/live -->
           </div>
         </div>
 
@@ -310,7 +309,7 @@
               <div class="tte-icon"><i data-lucide="timer"></i></div>
               <div class="tte-content">
                 <div class="tte-label">Est. Time-to-Execution</div>
-                <div class="tte-value" id="tte-display">Calculating...</div>
+                <div class="tte-value" id="tte-display">Syncing session...</div>
               </div>
             </div>
           </div>
@@ -322,6 +321,7 @@
                 <i data-lucide="eye" class="text-gold"></i>
                 <span>Future Setups (SMC • Price Action • EMA 9/15)</span>
               </div>
+              <span class="badge-tag" id="future-setups-badge">SYNCING</span>
             </div>
             <div class="predictive-list" id="predictive-list">
               <!-- JS Populated -->
@@ -336,51 +336,31 @@
         <div class="card-header">
           <div class="chart-title">
             <i data-lucide="candlestick-chart" class="text-gold"></i>
-            <span>XAU/USD Live Chart</span>
-            <span class="chart-sub">Real-time • TradingView</span>
-            <span class="chart-sub">Real-time • TradingView • OANDA:XAUUSD</span>
+            <span>XAU/USD Reference Chart</span>
+            <span class="chart-sub">Read-Only Visual Pane • TradingView • OANDA:XAUUSD</span>
           </div>
           <div class="tv-live-badge">
             <span class="pulse-dot"></span>
-            <span>LIVE</span>
-            <span class="badge-tag" id="tv-active-tf" style="margin-left:6px;font-size:10px;padding:2px 7px;">H1</span>
+            <span>VISUAL ONLY</span>
+            <span class="badge-tag" id="tv-active-tf" style="margin-left:6px;font-size:10px;padding:2px 7px;">M15</span>
           </div>
         </div>
         <div class="tradingview-widget-wrapper" id="tradingview-widget-container">
           <div id="tradingview_chart_embed" style="width:100%; height:520px;"></div>
           <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
           <script type="text/javascript">
-            new TradingView.widget({
-              "autosize": true,
-              "symbol": "OANDA:XAUUSD",
-              "interval": "60",
-              "timezone": "Etc/UTC",
-              "theme": "dark",
-              "style": "1",
-              "locale": "en",
-              "toolbar_bg": "#090d16",
-              "enable_publishing": false,
-              "allow_symbol_change": true,
-              "studies": ["MASimple@tv-basicstudies", "BollingerBands@tv-basicstudies", "RSI@tv-basicstudies"],
-              "container_id": "tradingview_chart_embed",
-              "hide_side_toolbar": false,
-              "withdateranges": true,
-              "details": true,
-              "backgroundColor": "rgba(9, 13, 22, 1)",
-              "gridColor": "rgba(255, 255, 255, 0.04)"
-            });
-            // TF → TradingView interval map
+            // TradingView is strictly a read-only visual chart pane; signal engine reads /api/spot OHLCV.
             window._tvIntervalMap = { M5: '5', M15: '15', H1: '60', H4: '240', D1: 'D' };
 
             function createTVWidget(interval) {
               var container = document.getElementById('tradingview_chart_embed');
-              if (!container) return;
+              if (!container || typeof TradingView === 'undefined') return;
               container.innerHTML = '';
               try {
                 window._tvWidgetRef = new TradingView.widget({
                   autosize: true,
                   symbol: 'OANDA:XAUUSD',
-                  interval: interval || '60',
+                  interval: interval || '15',
                   timezone: 'Etc/UTC',
                   theme: 'dark',
                   style: '1',
@@ -401,20 +381,30 @@
               }
             }
 
-            // Global function called by app.js setTimeframe()
             window.updateTVInterval = function (tf) {
-              var iv = window._tvIntervalMap[tf] || '60';
+              var iv = window._tvIntervalMap[tf] || '15';
               createTVWidget(iv);
-              // Update badge
               var badge = document.getElementById('tv-active-tf');
               if (badge) badge.textContent = tf;
             };
 
-            // Initial widget — wait for tv.js to load
+            function getInitialTVTf() {
+              try {
+                var hash = window.location.hash || '';
+                var q = hash.split('?')[1] || window.location.search.slice(1);
+                var tf = new URLSearchParams(q).get('tf');
+                if (tf && window._tvIntervalMap[tf]) return tf;
+              } catch (_) {}
+              return 'M15';
+            }
+
             if (document.readyState === 'loading') {
-              document.addEventListener('DOMContentLoaded', function () { createTVWidget('60'); });
+              document.addEventListener('DOMContentLoaded', function () {
+                var tf = getInitialTVTf();
+                window.updateTVInterval(tf);
+              });
             } else {
-              createTVWidget('60');
+              window.updateTVInterval(getInitialTVTf());
             }
           </script>
         </div>
@@ -540,10 +530,9 @@
               <div class="feed-content">
                 <div class="feed-head">
                   <span class="feed-name">Macroeconomic Feed</span>
-                  <span class="feed-status text-emerald">Bullish Confluence</span>
+                  <span class="feed-status text-gold" id="feed-macro-status">Syncing...</span>
                 </div>
-                <p class="feed-detail">Real Yields <strong class="text-emerald font-mono">-0.35%</strong>. DXY broken
-                  below 104.50. Rate Cut Probability: 84%. Gold/Silver Ratio: 82.4 (elevated).</p>
+                <p class="feed-detail" id="feed-macro-detail">Loading DXY, US 10Y Yield, and Gold/Silver ratio from /api/spot...</p>
               </div>
             </div>
             <div class="feed-item">
@@ -551,10 +540,9 @@
               <div class="feed-content">
                 <div class="feed-head">
                   <span class="feed-name">Technical Indicators</span>
-                  <span class="feed-status text-gold">Volatility Breakout</span>
+                  <span class="feed-status text-gold" id="feed-tech-status">Syncing...</span>
                 </div>
-                <p class="feed-detail">Price > 50 EMA > 200 EMA. BB Squeeze (Bandwidth 1.2%) breakout. ATR(14): 8.2.
-                  RSI: 62 (Bullish Momentum).</p>
+                <p class="feed-detail" id="feed-tech-detail">Computing EMA 9/15/50/200, Bollinger Bandwidth, ATR(14), and RSI(14)...</p>
               </div>
             </div>
             <div class="feed-item">
@@ -562,10 +550,9 @@
               <div class="feed-content">
                 <div class="feed-head">
                   <span class="feed-name">SMC Institutional Action</span>
-                  <span class="feed-status text-purple">CHOCH Detected</span>
+                  <span class="feed-status text-purple" id="feed-inst-status">Syncing...</span>
                 </div>
-                <p class="feed-detail">CHOCH on M15 at $4,048.20. OB at $4,041-$4,045. FVG at $4,050-$4,053. Liquidity
-                  Grab of Asian Low confirmed.</p>
+                <p class="feed-detail" id="feed-inst-detail">Scanning multi-timeframe Order Blocks, FVGs, Swing Liquidity, and CHoCH...</p>
               </div>
             </div>
             <div class="feed-item">
@@ -573,10 +560,9 @@
               <div class="feed-content">
                 <div class="feed-head">
                   <span class="feed-name">News & Sentiment NLP</span>
-                  <span class="feed-status text-ruby" id="feed-news-status">⚠ CPI in 3h 42m</span>
+                  <span class="feed-status text-ruby" id="feed-news-status">Syncing...</span>
                 </div>
-                <p class="feed-detail">US CPI (Red Folder). Expected volatility: 80-120 pips. Bearish confidence if CPI
-                  > forecast: 78%. GPR Index: 142.5.</p>
+                <p class="feed-detail" id="feed-news-detail">Evaluating scheduled Red-Folder macro events and expected volatility...</p>
               </div>
             </div>
           </div>
@@ -597,9 +583,8 @@
               <span class="news-countdown-label">Next Event:</span>
               <span class="news-countdown-timer" id="news-countdown-timer">--:--:--</span>
             </div>
-            <span class="badge-tag"
-              style="background:rgba(239,68,68,0.15);color:var(--ruby);border-color:rgba(239,68,68,0.3);">⚠ RED FOLDER
-              ACTIVE</span>
+            <span class="badge-tag" id="news-red-folder-badge"
+              style="background:rgba(239,68,68,0.15);color:var(--ruby);border-color:rgba(239,68,68,0.3);">CALENDAR MONITOR</span>
           </div>
         </div>
         <div class="news-grid">
@@ -608,76 +593,78 @@
           </div>
           <div class="news-impact-widget">
             <div class="news-impact-title"><i data-lucide="zap" class="text-ruby"></i> Next High-Impact Event</div>
-            <div id="news-next-event-name" style="font-size:16px;font-weight:800;color:var(--ruby);">US CPI (YoY)</div>
+            <div id="news-next-event-name" style="font-size:16px;font-weight:800;color:var(--ruby);">—</div>
             <div id="news-next-event-time"
-              style="font-family:var(--font-mono);font-size:12px;color:var(--text-secondary);">In 3h 42m • 15:30 UTC
+              style="font-family:var(--font-mono);font-size:12px;color:var(--text-secondary);">—
             </div>
             <div class="news-stat-row">
               <span class="news-stat-label">Expected Volatility</span>
-              <span class="news-stat-val text-ruby" id="news-vol">80–120 pips</span>
+              <span class="news-stat-val text-ruby" id="news-vol">—</span>
             </div>
             <div class="news-stat-row">
               <span class="news-stat-label">Directional Bias</span>
-              <span class="news-stat-val text-ruby" id="news-bias">78% Bearish</span>
+              <span class="news-stat-val text-ruby" id="news-bias">—</span>
             </div>
             <div class="news-stat-row">
               <span class="news-stat-label">Historical Deviation</span>
-              <span class="news-stat-val text-gold">±0.2% avg</span>
+              <span class="news-stat-val text-gold" id="news-dev">±0.2% avg</span>
             </div>
             <div class="news-stat-row">
               <span class="news-stat-label">News Confidence</span>
-              <span class="news-stat-val" id="news-hist-conf" style="color:var(--ruby);">HIGH — 84% win rate on
-                miss</span>
+              <span class="news-stat-val" id="news-hist-conf" style="color:var(--ruby);">—</span>
             </div>
             <div class="news-impact-meter">
               <div class="news-meter-label"><span>Impact Influence</span><span class="text-ruby"
-                  id="news-influence">85%</span></div>
+                  id="news-influence">—</span></div>
               <div class="news-meter-bar">
-                <div class="news-meter-fill" id="news-meter-fill" style="width:85%;"></div>
+                <div class="news-meter-fill" id="news-meter-fill" style="width:0%;"></div>
               </div>
             </div>
             <div style="display:flex;align-items:center;justify-content:space-between;">
               <span style="font-size:11px;color:var(--text-dim);">Trading Confidence</span>
-              <span class="news-confidence-chip news-conf-high" id="news-conf-chip">HIGH IMPACT</span>
+              <span class="news-confidence-chip news-conf-high" id="news-conf-chip">—</span>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- SIGNAL EXECUTION HISTORY LOG -->
+      <!-- SIGNAL EXECUTION HISTORY LOG (BOT_PROVIDER ONLY) -->
       <div class="glass-card history-card">
         <div class="card-header">
           <div class="chart-title">
             <i data-lucide="history" class="text-gold"></i>
             <span>MANUS MAX Signal History</span>
+            <span class="chart-sub" id="history-source-badge">Source: BOT_PROVIDER (/api/signals/history)</span>
           </div>
           <div class="history-stats-bar">
             <div class="history-stat-item">
               <span class="history-stat-lbl">Win Rate</span>
-              <span class="history-stat-val text-emerald" id="perf-winrate">84.6%</span>
+              <span class="history-stat-val text-emerald" id="perf-winrate">—</span>
             </div>
             <div class="history-stat-item">
               <span class="history-stat-lbl">Avg R:R</span>
-              <span class="history-stat-val text-gold" id="perf-avgr">1 : 3.1</span>
+              <span class="history-stat-val text-gold" id="perf-avgr">—</span>
             </div>
             <div class="history-stat-item">
               <span class="history-stat-lbl">Total Gain</span>
-              <span class="history-stat-val text-emerald" id="perf-gain">+6,840 Pips</span>
+              <span class="history-stat-val text-emerald" id="perf-gain">—</span>
             </div>
             <div class="history-stat-item">
               <span class="history-stat-lbl">Signals / Day</span>
-              <span class="history-stat-val text-gold">4–7</span>
+              <span class="history-stat-val text-gold" id="perf-sigday">—</span>
             </div>
             <div class="history-stat-item">
               <span class="history-stat-lbl">Max Drawdown</span>
-              <span class="history-stat-val text-ruby" id="perf-dd">-87 Pips</span>
+              <span class="history-stat-val text-ruby" id="perf-dd">—</span>
             </div>
             <div class="history-stat-item">
               <span class="history-stat-lbl">Sharpe Ratio</span>
-              <span class="history-stat-val text-purple" id="perf-sharpe">3.42</span>
+              <span class="history-stat-val text-purple" id="perf-sharpe">—</span>
             </div>
           </div>
         </div>
+
+        <div id="history-status-banner" style="display:none;margin-bottom:12px;"></div>
 
         <div class="table-responsive">
           <table class="data-table">
@@ -700,7 +687,7 @@
               </tr>
             </thead>
             <tbody id="history-table-body">
-              <!-- JS Populated -->
+              <!-- JS Populated strictly from /api/signals/history?source=BOT_PROVIDER -->
             </tbody>
           </table>
         </div>
@@ -1088,15 +1075,15 @@
             </div>
             <div class="calc-field-group">
               <label>Entry Price ($):</label>
-              <input type="number" id="calc-entry" value="4055.00" step="0.10" class="calc-input font-mono" />
+              <input type="number" id="calc-entry" value="" placeholder="Auto-filled from live spot" step="0.10" class="calc-input font-mono" />
             </div>
             <div class="calc-field-group">
               <label>Stop Loss Price ($):</label>
-              <input type="number" id="calc-sl" value="4043.50" step="0.10" class="calc-input font-mono" />
+              <input type="number" id="calc-sl" value="" placeholder="Auto-filled from signal SL" step="0.10" class="calc-input font-mono" />
             </div>
             <div class="calc-field-group">
               <label>Current ATR (14-Period):</label>
-              <input type="number" id="calc-atr" value="8.20" step="0.10" class="calc-input font-mono" />
+              <input type="number" id="calc-atr" value="" placeholder="Live ATR(14)" step="0.10" class="calc-input font-mono" />
             </div>
             <div class="calc-field-group">
               <label>RR Target (Min 1:2):</label>
@@ -1127,28 +1114,28 @@
             <div class="calc-out-grid">
               <div class="calc-out-box">
                 <span class="lbl">Position Size</span>
-                <span class="val text-gold font-mono" id="out-lots">0.87 Lots</span>
-                <span class="sub">87 Ounces of Gold</span>
+                <span class="val text-gold font-mono" id="out-lots">—</span>
+                <span class="sub" id="out-ounces">— Ounces of Gold</span>
               </div>
               <div class="calc-out-box">
                 <span class="lbl">SL Distance</span>
-                <span class="val text-ruby font-mono" id="out-pips">115.0 Pips</span>
-                <span class="sub">$11.50 Price Distance</span>
+                <span class="val text-ruby font-mono" id="out-pips">—</span>
+                <span class="sub" id="out-dist-usd">— Price Distance</span>
               </div>
               <div class="calc-out-box">
                 <span class="lbl">Take Profit 1 (1:2)</span>
-                <span class="val text-emerald font-mono" id="out-tp1">$3,815.00</span>
-                <span class="sub">+230 Pips (Close 50%)</span>
+                <span class="val text-emerald font-mono" id="out-tp1">—</span>
+                <span class="sub" id="out-tp1-sub">+— Pips (Close 50%)</span>
               </div>
               <div class="calc-out-box">
                 <span class="lbl">Take Profit 2 (Dynamic)</span>
-                <span class="val text-gold font-mono" id="out-tp2">$3,842.00</span>
-                <span class="sub">+460 Pips (Runner)</span>
+                <span class="val text-gold font-mono" id="out-tp2">—</span>
+                <span class="sub" id="out-tp2-sub">+— Pips (Runner)</span>
               </div>
               <div class="calc-out-box">
                 <span class="lbl">Take Profit 3 (HTF Max)</span>
-                <span class="val font-mono" id="out-tp3" style="color:var(--gold-bright);">$3,875.00</span>
-                <span class="sub">+920 Pips (Major Pool)</span>
+                <span class="val font-mono" id="out-tp3" style="color:var(--gold-bright);">—</span>
+                <span class="sub" id="out-tp3-sub">+— Pips (Major Pool)</span>
               </div>
             </div>
 
@@ -1226,10 +1213,9 @@
             <div class="timeline-step step-complete">
               <div class="step-num font-mono">01</div>
               <div class="step-content">
-                <h4>Phase 1: Live Data Integration</h4>
-                <p>Serverless GoldAPI.io adapter (XAU/USD spot) + fail-safe fallback (metals.live / frankfurter).
-                  Sub-minute spot price polling.</p>
-                <span class="step-status status-done"><i data-lucide="check"></i> COMPLETED</span>
+                <h4>Phase 1: Serverless OHLCV Proxy (/api/spot)</h4>
+                <p>Server-side Twelve Data / OANDA v20 / Swissquote spot-aligned OHLCV pipeline with 30s Supabase `ohlcv_cache` and live Macro feed (DXY, 10Y, Au/Ag).</p>
+                <span class="step-status status-done"><i data-lucide="check"></i> ACTIVE v6.0</span>
               </div>
             </div>
             <div class="timeline-step step-complete">
@@ -1277,14 +1263,13 @@
                 <span class="step-status status-done"><i data-lucide="check"></i> COMPLETED v6.0</span>
               </div>
             </div>
-            <div class="timeline-step">
+            <div class="timeline-step step-complete">
               <div class="step-num font-mono">07</div>
               <div class="step-content">
-                <h4>Phase 7: Backend + Supabase Integration</h4>
-                <p>Real API keys (Twelve Data / Finnhub), Supabase persistence, WebSocket server, push notifications for
-                  signal alerts.</p>
+                <h4>Phase 7: Serverless Cron + Supabase + Bot History</h4>
+                <p>Netlify Functions v2 (`/api/spot`, `/api/signals/live`, `/api/signals/history`, `/api/bot-webhook`), 5-min multi-TF cron scanner, and PostgreSQL persistence.</p>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">
-                  <span class="step-status status-pending"><i data-lucide="clock"></i> NEXT PHASE</span>
+                  <span class="step-status status-done"><i data-lucide="check"></i> DEPLOYED v6.0</span>
                   <span class="step-status"
                     style="background:rgba(245,194,66,0.12);color:var(--gold-primary);border:1px solid rgba(245,194,66,0.35);"><i
                       data-lucide="shield-check"></i> 1:2 RR ENFORCED</span>
@@ -1298,79 +1283,25 @@
           <div class="card-header">
             <div class="chart-title">
               <i data-lucide="code-2" class="text-emerald"></i>
-              <span>REST API Signal Response — v6.0 Schema</span>
+              <span>Live Serverless API Endpoints & Payload</span>
             </div>
             <button class="btn btn-sm btn-outline" id="btn-copy-json"><i data-lucide="copy"></i> Copy JSON</button>
           </div>
           <div class="api-body">
             <div class="endpoint-badge font-mono">
               <span class="method-get">GET</span>
-              <span class="url-text">https://api.manusmax.ai/v6/signal/XAUUSD</span>
+              <span class="url-text">/api/signals/live?tf=M15</span>
+            </div>
+            <div class="endpoint-badge font-mono">
+              <span class="method-get">GET</span>
+              <span class="url-text">/api/spot?tf=M15&amp;include_candles=true</span>
+            </div>
+            <div class="endpoint-badge font-mono">
+              <span class="method-get">GET</span>
+              <span class="url-text">/api/signals/history?source=BOT_PROVIDER</span>
             </div>
             <pre class="json-code-block" id="json-preview"><code id="json-preview-content">{
-  "signal_id": "XAUUSD-2026-9843",
-  "status": "LIVE",
-  "engine": "MANUS_MAX_v6.0",
-  "pair": "XAU/USD",
-  "timestamp": "2026-08-08T10:25:00Z",
-  "live_spot_price": 4085.00,
-  "strategy": "ICT_Silver_Bullet",
-  "reason": "M5 FVG Fill + London Liquidity Sweep + Rejection at H4 Supply + RSI Divergence",
-  "killzone": "London_Open",
-  "estimated_execution_minutes": 45,
-  "signal": {
-    "type": "LONG",
-    "timeframes": ["M5", "M15", "H1", "H4"],
-    "entry": 4055.00,
-    "sl": 4043.50,
-    "tp_1": 4077.50,
-    "tp_2": 4101.00,
-    "tp_3": 4149.00,
-    "rr_ratio": 4.0,
-    "rr_max": 8.0,
-    "htf_liquidity_target": true
-  },
-  "confidence": {
-    "total": 92,
-    "tier": "HIGH_CONFIDENCE",
-    "breakdown": {
-      "institutional_pct": 93,
-      "institutional_weight": 0.50,
-      "macro_pct": 88,
-      "macro_weight": 0.30,
-      "technical_pct": 94,
-      "technical_weight": 0.20
-    }
-  },
-  "smc_analysis": {
-    "choch_detected": true,
-    "choch_timeframe": "M15",
-    "choch_price": 4048.20,
-    "order_block": [4041.00, 4045.00],
-    "fvg": [4050.00, 4053.00],
-    "liquidity_grab": true,
-    "liquidity_level": 4039.80,
-    "liq_type": "BUYSIDE"
-  },
-  "news_impact": {
-    "event": "US_CPI",
-    "folder": "RED",
-    "hours_until_event": 1.7,
-    "within_2h_window": true,
-    "influence_pct": 85,
-    "expected_volatility_pips": 100,
-    "directional_bias": "BEARISH",
-    "directional_confidence": 78,
-    "historical_win_rate_on_miss": 0.84,
-    "trade_recommendation": "REDUCE_SIZE_50PCT"
-  },
-  "macro": {
-    "real_yield_pct": -0.35,
-    "dxy_index": 104.20,
-    "geopolitical_risk_index": 142.5,
-    "gold_silver_ratio": 82.4,
-    "rate_cut_probability": 0.84
-  }
+  "status": "Syncing live payload from /api/signals/live..."
 }</code></pre>
           </div>
         </div>
